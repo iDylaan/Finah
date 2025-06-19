@@ -1,15 +1,21 @@
-import '@/assets/styles.css';
+import '@/assets/styles.scss';
 
 import { createApp } from 'vue'
+import App from './App.vue'
+
+import router from './router/index.js'
+
 import { createPinia } from 'pinia'
+
+import Aura from '@primeuix/themes/aura';
 import PrimeVue from 'primevue/config';
 import Tooltip from 'primevue/tooltip';
-import Ripple from 'primevue/ripple'
+import Ripple from 'primevue/ripple';
+import ConfirmationService from 'primevue/confirmationservice';
 import ToastService from 'primevue/toastservice';
-import Aura from '@primeuix/themes/aura';
 
-import App from './App.vue'
-import router from './router/index.js'
+
+import '@/assets/styles.scss';
 
 import { registerSW } from 'virtual:pwa-register'
 
@@ -22,11 +28,8 @@ app.use(PrimeVue, {
     theme: {
         preset: Aura,
         options: {
-            prefix: 'p',
-            darkModeSelector: '.dark',
-            cssLayer: 'app-styles, primevue'
+            darkModeSelector: '.app-dark',
         },
-        theme: "light",
         locale: 'es',
     },
     ripple: true
@@ -34,4 +37,5 @@ app.use(PrimeVue, {
 app.use(ToastService)
 app.directive('ripple', Ripple)
 app.directive('tooltip', Tooltip)
+app.use(ConfirmationService);
 app.mount('#app')
