@@ -1,11 +1,10 @@
 <script setup>
-import { useLayout } from '@/layout/composables/layout';
+import { useUIStore } from '@/stores/ui';
 import { onBeforeMount, ref, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
 
 const route = useRoute();
-
-const { layoutState, setActiveMenuItem, toggleMenu } = useLayout();
+const uiStore = useUIStore();
 
 const props = defineProps({
     item: {
@@ -32,15 +31,15 @@ const itemKey = ref(null);
 onBeforeMount(() => {
     itemKey.value = props.parentItemKey ? props.parentItemKey + '-' + props.index : String(props.index);
 
-    const activeItem = layoutState.activeMenuItem;
+    const activeItem = uiStore.layoutState.activeMenuItem;
 
     isActiveMenu.value = activeItem === itemKey.value || activeItem ? activeItem.startsWith(itemKey.value + '-') : false;
 });
 
 watch(
-    () => layoutState.activeMenuItem,
+    () => uiStore.layoutState.activeMenuItem,
     (newVal) => {
-        isActiveMenu.value = newVal === itemKey.value || newVal.startsWith(itemKey.value + '-');
+        isActiveMenu.value = newVal === itemKey.value || newVal?.startsWith(itemKey.value + '-');
     }
 );
 
@@ -50,8 +49,9 @@ function itemClick(event, item) {
         return;
     }
 
-    if ((item.to || item.url) && (layoutState.staticMenuMobileActive || layoutState.overlayMenuActive)) {
-        toggleMenu();
+    // Si es un enlace (to o url) y hay menú overlay/mobile activo, ocultarlo
+    if ((item.to || item.url) && (uiStore.layoutState.staticMenuMobileActive || uiStore.layoutState.overlayMenuActive)) {
+        uiStore.hideMenu();
     }
 
     if (item.command) {
@@ -60,7 +60,7 @@ function itemClick(event, item) {
 
     const foundItemKey = item.items ? (isActiveMenu.value ? props.parentItemKey : itemKey) : itemKey.value;
 
-    setActiveMenuItem(foundItemKey);
+    uiStore.setActiveMenuItem(foundItemKey);
 }
 
 function checkActiveRoute(item) {

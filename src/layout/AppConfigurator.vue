@@ -1,22 +1,23 @@
 <script setup>
-import { useLayout } from '@/layout/composables/layout';
 import { $t, updatePreset, updateSurfacePalette } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
 import Lara from '@primeuix/themes/lara';
 import Nora from '@primeuix/themes/nora';
-import { ref } from 'vue';
+import { ref, onMounted, watch, nextTick } from 'vue';
 
-const { layoutConfig, isDarkTheme } = useLayout();
+// STORES
+import { useUIStore } from '@/stores/ui.js';
+const UI = useUIStore();
 
 const presets = {
     Aura,
     Lara,
     Nora
 };
-const preset = ref(layoutConfig.preset);
+const preset = ref(UI.layoutConfig.preset);
 const presetOptions = ref(Object.keys(presets));
 
-const menuMode = ref(layoutConfig.menuMode);
+const menuMode = ref(UI.layoutConfig.menuMode);
 const menuModeOptions = ref([
     { label: 'Estático', value: 'static' },
     { label: 'Sobrepuesto', value: 'overlay' }
@@ -77,10 +78,22 @@ const surfaces = ref([
     }
 ]);
 
-function getPresetExt() {
-    const color = primaryColors.value.find((c) => c.name === layoutConfig.primary);
+// Variable para controlar si el componente está listo
+let isComponentReady = false;
 
-    if (color.name === 'noir') {
+// Watchers para sincronizar con la store
+watch(() => UI.layoutConfig.preset, (newPreset) => {
+    preset.value = newPreset;
+});
+
+watch(() => UI.layoutConfig.menuMode, (newMenuMode) => {
+    menuMode.value = newMenuMode;
+});
+
+function getPresetExt() {
+    const color = primaryColors.value.find((c) => c.name === UI.layoutConfig.primary);
+
+    if (color && color.name === 'noir') {
         return {
             semantic: {
                 primary: {
@@ -128,7 +141,7 @@ function getPresetExt() {
                 }
             }
         };
-    } else {
+    } else if (color && color.palette) {
         return {
             semantic: {
                 primary: color.palette,
@@ -165,13 +178,14 @@ function getPresetExt() {
             }
         };
     }
+    return {};
 }
 
 function updateColors(type, color) {
     if (type === 'primary') {
-        layoutConfig.primary = color.name;
+        UI.setPrimaryColor(color.name);
     } else if (type === 'surface') {
-        layoutConfig.surface = color.name;
+        UI.setSurface(color.name);
     }
 
     applyTheme(type, color);
@@ -186,16 +200,74 @@ function applyTheme(type, color) {
 }
 
 function onPresetChange() {
-    layoutConfig.preset = preset.value;
+    UI.setPreset(preset.value);
     const presetValue = presets[preset.value];
-    const surfacePalette = surfaces.value.find((s) => s.name === layoutConfig.surface)?.palette;
+    const surfacePalette = surfaces.value.find((s) => s.name === UI.layoutConfig.surface)?.palette;
 
     $t().preset(presetValue).preset(getPresetExt()).surfacePalette(surfacePalette).use({ useDefaultOptions: true });
 }
 
 function onMenuModeChange() {
-    layoutConfig.menuMode = menuMode.value;
+    UI.setMenuMode(menuMode.value);
 }
+
+// Función para aplicar tema desde la store (al cargar la página)
+function applyStoredTheme(config) {
+    if (!isComponentReady) {
+        setTimeout(() => applyStoredTheme(config), 200);
+        return;
+    }
+
+    try {
+        
+        // Aplicar preset
+        if (config.preset && presets[config.preset]) {
+            preset.value = config.preset;
+            const presetValue = presets[config.preset];
+            
+            // Aplicar color primario
+            const primaryColor = primaryColors.value.find(c => c.name === config.primary);
+            if (primaryColor) {
+                updatePreset(getPresetExt());
+            }
+            
+            // Aplicar surface
+            let surfacePalette = null;
+            if (config.surface) {
+                const surface = surfaces.value.find(s => s.name === config.surface);
+                if (surface) {
+                    surfacePalette = surface.palette;
+                    updateSurfacePalette(surface.palette);
+                }
+            }
+            
+            // Aplicar todo junto usando $t()
+            $t().preset(presetValue).preset(getPresetExt()).surfacePalette(surfacePalette).use({ useDefaultOptions: true });
+            
+        }
+    } catch (error) {
+        console.error('Error applying stored theme:', error);
+    }
+}
+
+onMounted(async () => {
+    // Esperar a que el componente esté completamente montado
+    await nextTick();
+    isComponentReady = true;
+    
+    // Escuchar el evento de aplicar tema guardado
+    window.addEventListener('applyStoredTheme', (event) => {
+        applyStoredTheme(event.detail);
+    });
+    
+    // También intentar aplicar el tema actual de la store
+    applyStoredTheme({
+        primary: UI.layoutConfig.primary,
+        surface: UI.layoutConfig.surface,
+        preset: UI.layoutConfig.preset,
+        darkTheme: UI.layoutConfig.darkTheme
+    });
+});
 </script>
 
 <template>
@@ -212,7 +284,7 @@ function onMenuModeChange() {
                         type="button"
                         :title="primaryColor.name"
                         @click="updateColors('primary', primaryColor)"
-                        :class="['border-none w-5 h-5 rounded-full p-0 cursor-pointer outline-none outline-offset-1', { 'outline-primary': layoutConfig.primary === primaryColor.name }]"
+                        :class="['border-none w-5 h-5 rounded-full p-0 cursor-pointer outline-none outline-offset-1', { 'outline-primary': UI.layoutConfig.primary === primaryColor.name }]"
                         :style="{ backgroundColor: `${primaryColor.name === 'noir' ? 'var(--text-color)' : primaryColor.palette['500']}` }"
                     ></button>
                 </div>
@@ -228,7 +300,7 @@ function onMenuModeChange() {
                         @click="updateColors('surface', surface)"
                         :class="[
                             'border-none w-5 h-5 rounded-full p-0 cursor-pointer outline-none outline-offset-1',
-                            { 'outline-primary': layoutConfig.surface ? layoutConfig.surface === surface.name : isDarkTheme ? surface.name === 'zinc' : surface.name === 'slate' }
+                            { 'outline-primary': UI.layoutConfig.surface ? UI.layoutConfig.surface === surface.name : UI.isDarkTheme ? surface.name === 'zinc' : surface.name === 'slate' }
                         ]"
                         :style="{ backgroundColor: `${surface.palette['500']}` }"
                     ></button>
