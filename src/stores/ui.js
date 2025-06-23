@@ -37,11 +37,6 @@ export const useUIStore = defineStore('ui', () => {
                     to: '/landing'
                 },
                 {
-                    label: 'Auth',
-                    icon: 'identity_platform',
-                    to: '/auth'
-                },
-                {
                     label: 'Error',
                     icon: 'cancel',
                     to: '/error'

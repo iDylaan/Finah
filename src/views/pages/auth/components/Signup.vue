@@ -1,8 +1,15 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useToast } from 'primevue/usetoast';
+import { useSessionStore } from '@/stores/session.js';
+import { useForm } from 'vee-validate';
+import { toTypedSchema } from '@vee-validate/zod';
+import * as z from 'zod';
 
 const router = useRouter();
+const toast = useToast();
+const sessionStore = useSessionStore();
 const emit = defineEmits(['toggle-mode']);
 
 // Estados del flujo de registro
@@ -10,28 +17,210 @@ const registrationKey = ref('');
 const showRegistrationForm = ref(false);
 const isValidatingKey = ref(false);
 
-// Datos del formulario de registro
-const firstName = ref('');
-const lastName = ref('');
-const username = ref('');
-const password = ref('');
-const confirmPassword = ref('');
-const acceptTerms = ref(false);
+// Schema de validación con Zod
+const registrationSchema = toTypedSchema(
+    z.object({
+        firstName: z
+            .string()
+            .min(1, 'El nombre es requerido')
+            .min(2, 'El nombre debe tener al menos 2 caracteres')
+            .max(50, 'El nombre no puede exceder 50 caracteres')
+            .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/, 'El nombre solo puede contener letras y espacios')
+            .refine((val) => val.trim().length > 0, 'El nombre no puede estar vacío'),
+
+        lastName: z
+            .string()
+            .min(1, 'Los apellidos son requeridos')
+            .min(2, 'Los apellidos deben tener al menos 2 caracteres')
+            .max(50, 'Los apellidos no pueden exceder 50 caracteres')
+            .regex(/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/, 'Los apellidos solo pueden contener letras y espacios')
+            .refine((val) => val.trim().length > 0, 'Los apellidos no pueden estar vacíos'),
+
+        username: z
+            .string()
+            .min(1, 'El nombre de usuario es requerido')
+            .min(3, 'El nombre de usuario debe tener al menos 3 caracteres')
+            .max(30, 'El nombre de usuario no puede exceder 30 caracteres')
+            .regex(/^[a-zA-Z0-9]+(?:\s[a-zA-Z0-9]+)*$/, 'Solo letras, números y espacios')
+            .refine((val) => val.trim().length > 0, 'El nombre de usuario no puede estar vacío'),
+
+        email: z
+            .string()
+            .min(1, 'El email es requerido')
+            .email('Formato de email inválido')
+            .max(100, 'El email no puede exceder 100 caracteres')
+            .refine((val) => val === val.toLowerCase(), 'El email debe estar en minúsculas')
+            .refine((val) => !val.includes(' '), 'El email no puede contener espacios'),
+
+        password: z
+            .string()
+            .min(8, 'La contraseña debe tener al menos 8 caracteres')
+            .max(100, 'La contraseña no puede exceder 100 caracteres')
+            .regex(/(?=.*[a-zA-Z])/, 'La contraseña debe contener al menos una letra')
+            .regex(/(?=.*\d)/, 'La contraseña debe contener al menos un número'),
+
+        confirmPassword: z
+            .string()
+            .min(1, 'Debes confirmar tu contraseña'),
+
+        acceptTerms: z
+            .boolean()
+            .refine((val) => val === true, 'Debes aceptar los términos y condiciones')
+    })
+        .refine((data) => data.password === data.confirmPassword, {
+            message: 'Las contraseñas no coinciden',
+            path: ['confirmPassword']
+        })
+);
+
+// Configurar useForm con validación solo en blur
+const { handleSubmit, defineField, errors, meta, validateField } = useForm({
+    validationSchema: registrationSchema,
+    validateOnMount: false,
+    validateOnInput: false,
+    validateOnChange: false,
+    validateOnBlur: false  // Desactivamos para controlar manualmente
+});
+
+// Definir campos
+const [firstName] = defineField('firstName');
+const [lastName] = defineField('lastName');
+const [username] = defineField('username');
+const [email] = defineField('email');
+const [password] = defineField('password');
+const [confirmPassword] = defineField('confirmPassword');
+const [acceptTerms] = defineField('acceptTerms');
+
+// Estado de carga
 const isLoading = ref(false);
 
-const passwordsMatch = computed(() => {
-    return password.value === confirmPassword.value;
-});
-
+// Computed para verificar si el formulario es válido
 const isFormValid = computed(() => {
-    return firstName.value &&
+    return meta.value.valid &&
+        firstName.value &&
         lastName.value &&
         username.value &&
+        email.value &&
         password.value &&
         confirmPassword.value &&
-        passwordsMatch.value &&
         acceptTerms.value;
 });
+
+// Funciones para prevenir caracteres no válidos en keydown
+const preventInvalidNameChars = (event) => {
+    const char = event.key;
+
+    // Permitir teclas especiales
+    const allowedKeys = [
+        'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+        'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown'
+    ];
+
+    if (event.ctrlKey || event.metaKey || event.altKey || allowedKeys.includes(char)) {
+        return;
+    }
+
+    // Solo permitir letras (incluyendo acentos), ñ, y espacios
+    if (!/[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/.test(char)) {
+        event.preventDefault();
+    }
+};
+
+const preventInvalidUsernameChars = (event) => {
+    const char = event.key;
+
+    // Permitir teclas especiales
+    const allowedKeys = [
+        'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+        'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown'
+    ];
+
+    if (event.ctrlKey || event.metaKey || event.altKey || allowedKeys.includes(char)) {
+        return;
+    }
+
+    // Solo permitir letras, números y espacios
+    if (!/[a-zA-Z0-9\s]/.test(char)) {
+        event.preventDefault();
+    }
+};
+
+const preventInvalidEmailChars = (event) => {
+    const char = event.key;
+
+    // Permitir teclas especiales
+    const allowedKeys = [
+        'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+        'Tab', 'Enter', 'Escape', 'Home', 'End', 'PageUp', 'PageDown'
+    ];
+
+    if (event.ctrlKey || event.metaKey || event.altKey || allowedKeys.includes(char)) {
+        return;
+    }
+
+    // Prevenir espacios en email
+    if (char === ' ') {
+        event.preventDefault();
+        return;
+    }
+
+    // Solo permitir caracteres válidos para email
+    if (!/[a-zA-Z0-9@._-]/.test(char)) {
+        event.preventDefault();
+    }
+};
+
+// Funciones para manejar input (formateo)
+const handleFirstNameInput = (event) => {
+    let value = event.target.value;
+    // Filtrar caracteres no válidos (por seguridad)
+    value = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+    firstName.value = value;
+};
+
+const handleLastNameInput = (event) => {
+    let value = event.target.value;
+    // Filtrar caracteres no válidos (por seguridad)
+    value = value.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]/g, '');
+    lastName.value = value;
+};
+
+const handleUsernameInput = (event) => {
+    let value = event.target.value;
+
+    // Filtrar caracteres no válidos
+    value = value.replace(/[^a-zA-Z0-9\s]/g, '');
+
+    // Limpiar espacios de manera más agresiva:
+    // 1. Reemplazar múltiples espacios con uno solo
+    value = value.replace(/\s+/g, ' ');
+
+    // 2. Eliminar espacios al inicio y al final
+    value = value.trim();
+
+    // 3. Si hay espacios internos, asegurar que solo haya uno entre palabras
+    value = value.replace(/\s+/g, ' ');
+
+    // Actualizar tanto el modelo como el input
+    username.value = value;
+    event.target.value = value;
+};
+
+const handleEmailInput = (event) => {
+    let value = event.target.value;
+    // Convertir a minúsculas y eliminar espacios
+    value = value.toLowerCase().replace(/\s/g, '');
+    email.value = value;
+};
+
+// Función para validar un campo específico en blur
+const handleFieldBlur = async (fieldName) => {
+    try {
+        await validateField(fieldName);
+    } catch (error) {
+        console.error(`Error validando campo ${fieldName}:`, error);
+    }
+};
 
 // Función para validar la clave de registro
 async function validateRegistrationKey() {
@@ -42,44 +231,67 @@ async function validateRegistrationKey() {
     isValidatingKey.value = true;
 
     try {
-        // Simular validación de clave de registro
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Por ahora acepta cualquier valor no vacío
-        showRegistrationForm.value = true;
-        
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const validSignupCode = import.meta.env.VITE_SIGNUP_CODE;
+
+        if (registrationKey.value === validSignupCode) {
+            showRegistrationForm.value = true;
+            toast.add({
+                severity: 'success',
+                summary: 'Acceso autorizado',
+                detail: 'Clave de registro válida',
+                life: 3000
+            });
+        } else {
+            toast.add({
+                severity: 'error',
+                summary: 'Clave incorrecta',
+                detail: 'La clave de registro es incorrecta',
+                life: 4000
+            });
+            registrationKey.value = '';
+        }
     } catch (error) {
         console.error('Error al validar clave de registro:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Error al validar la clave de registro',
+            life: 3000
+        });
     } finally {
         isValidatingKey.value = false;
     }
 }
 
-// Función para volver al formulario de clave
-function goBackToKeyForm() {
-    showRegistrationForm.value = false;
-    registrationKey.value = '';
-}
-
-async function handleRegister() {
-    if (!isFormValid.value) {
-        return;
-    }
+// Función para manejar el registro
+const handleRegister = handleSubmit(async (values) => {
+    if (!isFormValid.value) return;
 
     isLoading.value = true;
+    const { user, error } = await sessionStore.signUp(
+        values.email,
+        values.password,
+        {
+            first_name: values.firstName.trim(),
+            last_name: values.lastName.trim(),
+            username: values.username.trim(),
+        },
+        { toast }
+    );
 
-    try {
-        // Simular llamada API
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Redirigir al dashboard
+    if (user && !error) {
+        toast.add({
+            severity: 'success',
+            summary: '¡Bienvenid@!',
+            detail: 'Tu cuenta ha sido creada exitosamente',
+            life: 5000
+        });
         router.push('/');
-    } catch (error) {
-        console.error('Error al registrarse:', error);
-    } finally {
-        isLoading.value = false;
     }
-}
+
+    isLoading.value = false;
+});
 </script>
 
 <template>
@@ -87,33 +299,22 @@ async function handleRegister() {
         <!-- Formulario de Clave de Registro -->
         <div v-if="!showRegistrationForm">
             <form @submit.prevent="validateRegistrationKey">
-                <label for="registrationKey" 
+                <label for="registrationKey"
                     class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">
                     Clave de Registro
                 </label>
-                <InputText 
-                    id="registrationKey" 
-                    v-model="registrationKey" 
-                    placeholder="Ingresa tu clave de registro" 
-                    class="w-full md:w-[30rem] mb-6"
-                    required 
-                />
+                <InputText id="registrationKey" v-model="registrationKey" placeholder="Ingresa tu clave de registro"
+                    class="w-full mb-6" type="password" required />
 
-                <Button 
-                    type="submit" 
-                    label="Validar Clave" 
-                    :loading="isValidatingKey"
-                    :disabled="!registrationKey.trim()"
-                    class="w-full mb-6" 
-                />
+                <Button type="submit" label="Validar Clave" :loading="isValidatingKey"
+                    :disabled="!registrationKey.trim()" class="w-full mb-6" />
             </form>
 
             <!-- Login Link -->
             <div class="text-center">
                 <span class="text-surface-600 dark:text-surface-400 text-sm">
                     ¿Ya tienes una cuenta?
-                    <button @click="$emit('toggle-mode')" 
-                        class="text-primary font-semibold ml-1 hover:underline"
+                    <button @click="$emit('toggle-mode')" class="text-primary font-semibold ml-1 hover:underline"
                         type="button">
                         Inicia sesión aquí
                     </button>
@@ -123,106 +324,125 @@ async function handleRegister() {
 
         <!-- Formulario de Registro Completo -->
         <div v-else>
-            <!-- Botón para volver -->
-            <div class="mb-6">
-                <Button 
-                    @click="goBackToKeyForm"
-                    severity="secondary"
-                    outlined
-                    size="small"
-                    class="mb-4"
-                >
-                    <template #icon>
-                        <i class="pi pi-arrow-left mr-2"></i>
-                    </template>
-                    Cambiar clave de registro
-                </Button>
-            </div>
-
             <form @submit.prevent="handleRegister">
                 <!-- Name Fields -->
-                <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     <div>
                         <label for="firstName"
-                            class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">Nombre</label>
-                        <InputText id="firstName" v-model="firstName" placeholder="Tu nombre" class="w-full" required />
+                            class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">
+                            Nombre(s) <span class="text-red-500">*</span>
+                        </label>
+                        <InputText id="firstName" v-model="firstName" @keydown="preventInvalidNameChars"
+                            @input="handleFirstNameInput" @blur="() => handleFieldBlur('firstName')"
+                            placeholder="Tu nombre(s)" class="w-full" :class="{ 'p-invalid': errors.firstName }"
+                            required />
+                        <small v-if="errors.firstName" class="text-red-500 mt-1 block">
+                            {{ errors.firstName }}
+                        </small>
                     </div>
                     <div>
                         <label for="lastName"
-                            class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">Apellidos</label>
-                        <InputText id="lastName" v-model="lastName" placeholder="Tu apellido" class="w-full" required />
+                            class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">
+                            Apellidos <span class="text-red-500">*</span>
+                        </label>
+                        <InputText id="lastName" v-model="lastName" @keydown="preventInvalidNameChars"
+                            @input="handleLastNameInput" @blur="() => handleFieldBlur('lastName')"
+                            placeholder="Tus apellidos" class="w-full" :class="{ 'p-invalid': errors.lastName }"
+                            required />
+                        <small v-if="errors.lastName" class="text-red-500 mt-1 block">
+                            {{ errors.lastName }}
+                        </small>
                     </div>
                 </div>
 
                 <!-- Username -->
-                <label for="username" class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">Nombre de usuario</label>
-                <InputText id="username" type="username" placeholder="Nombre de usuario" class="w-full md:w-[30rem] mb-6"
-                    v-model="username" />
+                <div class="mb-6">
+                    <label for="username" class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">
+                        Nombre de usuario <span class="text-red-500">*</span>
+                    </label>
+                    <InputText id="username" v-model="username" @keydown="preventInvalidUsernameChars"
+                        @input="handleUsernameInput" @blur="() => handleFieldBlur('username')"
+                        placeholder="Nombre visible para otros usuarios" class="w-full"
+                        :class="{ 'p-invalid': errors.username }" required />
+                    <small v-if="errors.username" class="text-red-500 mt-1 block">
+                        {{ errors.username }}
+                    </small>
+                    <small class="text-surface-500 mt-1 block text-xs">
+                        Este nombre será con el que otros usuarios te verán
+                    </small>
+                </div>
+
+                <!-- Email -->
+                <div class="mb-6">
+                    <label for="email" class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">
+                        Correo electrónico <span class="text-red-500">*</span>
+                    </label>
+                    <InputText id="email" type="email" v-model="email" @keydown="preventInvalidEmailChars"
+                        @input="handleEmailInput" @blur="() => handleFieldBlur('email')"
+                        placeholder="correo@dominio.com" class="w-full" :class="{ 'p-invalid': errors.email }"
+                        required />
+                    <small v-if="errors.email" class="text-red-500 mt-1 block">
+                        {{ errors.email }}
+                    </small>
+                    <small class="text-surface-500 mt-1 block text-xs">
+                        Se recomienda usar un correo electrónico existente
+                    </small>
+                </div>
 
                 <!-- Password -->
-                <label for="password"
-                    class="block text-surface-900 dark:text-surface-0 font-medium text-xl mb-2">Contraseña</label>
-                <Password id="password" v-model="password" placeholder="Crea una contraseña" :toggleMask="true" class="mb-4"
-                    fluid :feedback="true"></Password>
+                <div class="mb-4">
+                    <label for="password" class="block text-surface-900 dark:text-surface-0 font-medium text-xl mb-2">
+                        Contraseña <span class="text-red-500">*</span>
+                    </label>
+                    <Password id="password" v-model="password" @blur="() => handleFieldBlur('password')"
+                        placeholder="Crea una contraseña" :toggleMask="true" class="w-full"
+                        :class="{ 'p-invalid': errors.password }" fluid :feedback="true" />
+                    <small v-if="errors.password" class="text-red-500 mt-1 block">
+                        {{ errors.password }}
+                    </small>
+                    <small class="text-surface-500 mt-1 block text-xs">
+                        Mínimo 8 caracteres, debe contener letras y números
+                    </small>
+                </div>
 
                 <!-- Confirm Password -->
-                <label for="confirmPassword"
-                    class="block text-surface-900 dark:text-surface-0 font-medium text-xl mb-2">Confirmar Contraseña</label>
-                <Password id="confirmPassword" v-model="confirmPassword" placeholder="Confirma tu contraseña"
-                    :toggleMask="true" class="mb-2" fluid :feedback="false"
-                    :class="{ 'p-invalid': confirmPassword && !passwordsMatch }" />
-                <small v-if="confirmPassword && !passwordsMatch" class="text-red-500 mb-4 block">
-                    Las contraseñas no coinciden
-                </small>
+                <div class="mb-6">
+                    <label for="confirmPassword"
+                        class="block text-surface-900 dark:text-surface-0 font-medium text-xl mb-2">
+                        Confirmar Contraseña <span class="text-red-500">*</span>
+                    </label>
+                    <Password id="confirmPassword" v-model="confirmPassword"
+                        @blur="() => handleFieldBlur('confirmPassword')" placeholder="Confirma tu contraseña"
+                        :toggleMask="true" class="w-full" :class="{ 'p-invalid': errors.confirmPassword }" fluid
+                        :feedback="false" />
+                    <small v-if="errors.confirmPassword" class="text-red-500 mt-1 block">
+                        {{ errors.confirmPassword }}
+                    </small>
+                </div>
 
                 <!-- Terms -->
-                <div class="flex items-start mb-6 mt-4">
-                    <Checkbox v-model="acceptTerms" inputId="terms" binary class="mr-2 mt-1" />
-                    <label for="terms" class="text-sm text-surface-600 dark:text-surface-400 leading-relaxed">
-                        Acepto los
-                        <a href="#" class="text-primary font-semibold hover:underline">términos y condiciones</a>
-                        y la
-                        <a href="#" class="text-primary font-semibold hover:underline">política de privacidad</a>
-                    </label>
+                <div class="mb-6">
+                    <div class="flex items-start">
+                        <Checkbox v-model="acceptTerms" inputId="terms" binary class="mr-2 mt-1"
+                            :class="{ 'p-invalid': errors.acceptTerms }"
+                            @change="() => handleFieldBlur('acceptTerms')" />
+                        <label for="terms" class="text-sm text-surface-600 dark:text-surface-400 leading-relaxed">
+                            Acepto los
+                            <a href="#" class="text-primary font-semibold hover:underline">términos y condiciones</a>
+                            y la
+                            <a href="#" class="text-primary font-semibold hover:underline">política de privacidad</a>
+                            <span class="text-red-500 ml-1">*</span>
+                        </label>
+                    </div>
+                    <small v-if="errors.acceptTerms" class="text-red-500 mt-1 block ml-6">
+                        {{ errors.acceptTerms }}
+                    </small>
                 </div>
 
                 <!-- Submit Button -->
                 <Button type="submit" label="Crear Cuenta" :loading="isLoading" :disabled="!isFormValid"
                     class="w-full mb-6" />
             </form>
-
-            <!-- Divider -->
-            <div class="my-6 flex items-center">
-                <div class="flex-1 border-t border-surface-200 dark:border-surface-700"></div>
-                <span class="px-4 text-sm text-surface-500 dark:text-surface-400">o regístrate con</span>
-                <div class="flex-1 border-t border-surface-200 dark:border-surface-700"></div>
-            </div>
-
-            <!-- Social Register -->
-            <div class="space-y-3 mb-6">
-                <Button severity="secondary" outlined class="w-full" size="large">
-                    <template #icon>
-                        <svg class="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                            <path fill="currentColor"
-                                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                            <path fill="currentColor"
-                                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                            <path fill="currentColor"
-                                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                            <path fill="currentColor"
-                                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                        </svg>
-                    </template>
-                    Continuar con Google
-                </Button>
-
-                <Button severity="secondary" outlined class="w-full" size="large">
-                    <template #icon>
-                        <i class="pi pi-github mr-2"></i>
-                    </template>
-                    Continuar con GitHub
-                </Button>
-            </div>
 
             <!-- Login Link -->
             <div class="text-center">

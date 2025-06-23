@@ -1,12 +1,13 @@
 import '@/assets/styles.scss';
 
-import { createApp, nextTick } from 'vue'
+import { createApp } from 'vue'
 import App from './App.vue'
 
 import router from './router/index.js'
 
 import { createPinia } from 'pinia'
 import { useUIStore } from '@/stores/ui.js'
+import { useSessionStore } from '@/stores/session.js'
 
 import Aura from '@primeuix/themes/aura';
 import PrimeVue from 'primevue/config';
@@ -15,39 +16,83 @@ import Ripple from 'primevue/ripple';
 import ConfirmationService from 'primevue/confirmationservice';
 import ToastService from 'primevue/toastservice';
 
+// Importar localización
+import { esLocale } from '@/locale/es.js';
+
 import '@/assets/styles.scss';
 
 import { registerSW } from 'virtual:pwa-register'
 
 const updateSW = registerSW({ onNeedRefresh: () => updateSW() })
 
+// Crear app y configurar
 const app = createApp(App)
 
 // Crear Pinia primero
 const pinia = createPinia()
 app.use(pinia)
 
-app.use(router)
 app.use(PrimeVue, {
     theme: {
         preset: Aura,
         options: {
             darkModeSelector: '.app-dark',
-        },
-        locale: 'es',
+        }
     },
-    ripple: true
+    ripple: true,
+    locale: esLocale
 });
+
 app.use(ToastService)
 app.directive('ripple', Ripple)
 app.directive('tooltip', Tooltip)
 app.use(ConfirmationService);
+app.use(router)
 
-// Montar la aplicación
-app.mount('#app')
+// **VERSIÓN SIMPLIFICADA:** Inicialización más robusta
+async function initializeApp() {
+    console.log('🚀 Iniciando aplicación...');
+    
+    try {
+        // Obtener stores
+        const uiStore = useUIStore()
+        const sessionStore = useSessionStore()
+        
+        console.log('📋 Configurando stores...');
+        
+        // Cargar configuración UI
+        uiStore.loadUISetup()
+        
+        // **PASO 1:** Configurar listener PRIMERO (no bloquea)
+        console.log('🎧 Configurando auth listener...');
+        sessionStore.setupAuthListener()
+        
+        // **PASO 2:** Inicializar auth con timeout
+        console.log('⏳ Inicializando autenticación...');
+        
+        const initPromise = sessionStore.initializeAuth()
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout de inicialización')), 5000)
+        )
+        
+        await Promise.race([initPromise, timeoutPromise])
+        
+        console.log('✅ Autenticación inicializada:', {
+            isAuthenticated: sessionStore.isAuthenticated,
+            userEmail: sessionStore.userEmail,
+            initialized: sessionStore.initialized
+        });
+        
+    } catch (error) {
+        console.error('⚠️ Error/timeout en inicialización:', error.message);
+        // Continuar de todas formas
+    }
+    
+    // **PASO 3:** Montar app siempre (con o sin auth)
+    console.log('🎯 Montando aplicación...');
+    app.mount('#app')
+    console.log('✅ Aplicación montada exitosamente');
+}
 
-// Inicializar la UI store después de montar la aplicación
-nextTick(() => {
-    const uiStore = useUIStore()
-    uiStore.loadUISetup()
-})
+// Inicializar la aplicación
+initializeApp()

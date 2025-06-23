@@ -9,6 +9,12 @@ import { resolve } from 'path';
 
 export default defineConfig({
   optimizeDeps: {
+    include: [
+      '@supabase/supabase-js',
+      '@supabase/postgrest-js',
+      '@supabase/realtime-js',
+      '@supabase/gotrue-js'
+    ],
     noDiscovery: true
   },
   plugins: [
@@ -42,6 +48,12 @@ export default defineConfig({
   },
   base: './',
   build: {
-    outDir: 'dist'
+    outDir: 'dist',
+    commonjsOptions: {
+      include: [/node_modules/]
+    }
+  },
+  define: {
+    global: 'globalThis'
   }
 })
