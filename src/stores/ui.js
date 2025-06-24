@@ -27,9 +27,15 @@ export const useUIStore = defineStore('ui', () => {
             ]
         },
         {
+            label: 'Catálogos',
+            items: [
+                { label: 'Categorías', icon: 'category', to: '/categories' },
+                { label: 'Niveles', icon: 'backlight_low', to: '/levels' },
+                { label: 'Bancos', icon: 'account_balance', to: '/banks' }
+            ]
+        },
+        {
             label: 'Páginas',
-            icon: 'card_travel',
-            to: '/pages',
             items: [
                 {
                     label: 'Landing',

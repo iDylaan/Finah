@@ -56,7 +56,7 @@ const handleSignOut = async () => {
         });
 
         // Redirigir al login
-        router.push('/auth');
+        router.push('/auth'); 
 
     } catch (error) {
         console.error('Error al cerrar sesión:', error);
@@ -158,7 +158,7 @@ onUnmounted(() => {
                     <button
                         v-styleclass="{ selector: '@next', enterFromClass: 'hidden', enterActiveClass: 'animate-scalein', leaveToClass: 'hidden', leaveActiveClass: 'animate-fadeout', hideOnOutsideClick: true }"
                         type="button"
-                        class="layout-topbar-action layout-topbar-action-highlight hover:bg-surface-100/50 dark:hover:bg-surface-700/50 transition-colors duration-200">
+                        class="layout-topbar-action hover:bg-surface-100/50 dark:hover:bg-surface-700/50 transition-colors duration-200">
                         <i class="pi pi-palette"></i>
                     </button>
                     <AppConfigurator />

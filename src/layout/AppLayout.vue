@@ -83,5 +83,4 @@ function onMaskClick() {
             @click="onMaskClick"
         ></div>
     </div>
-    <Toast />
 </template>
