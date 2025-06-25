@@ -1,136 +1,90 @@
 <template>
     <!-- Modal para Nueva Categoría -->
-    <Dialog v-model:visible="localVisible" modal :header="isEditMode ? 'Editar Grupo' : 'Nuevo Grupo'"
-        :style="{ width: '500px' }" class="" :draggable="false" :closable="!isSubmitting" @hide="handleClose">
+    <Dialog v-model:visible="isVisible" modal :header="isEditMode ? 'Editar Grupo' : 'Nuevo Grupo'"
+        class="w-full max-w-md" :draggable="false" :closable="!isSubmitting" @hide="handleClose">
         <template #header>
             <div class="flex items-center gap-2">
-                <i class="pi pi-plus-circle text-xl text-primary-500"></i>
-                <span class="font-semibold">{{ isEditMode ? 'Editar Grupo' : 'Nuevo Grupo' }}</span>
+                <span class="font-semibold text-xl">{{ isEditMode ? 'Editar Grupo' : 'Nuevo Grupo' }}</span>
             </div>
         </template>
 
         <form @submit.prevent="submitCategory" class="space-y-4">
-            <!-- Nombre -->
+
+            <!-- Icono -->
+            <div class="flex gap-4 w-full">
+                <IconPicker v-model="categoryForm.icon_name" v-model:iconType="categoryForm.icon_type"
+                    :color="categoryForm.color" :disabled="isSubmitting" />
+                <CustomColorPicker v-model="categoryForm.color" label="Color" :disabled="isSubmitting" />
+            </div>
+
             <div>
-                <label for="category_name"
-                    class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-                    Nombre *
+                <label for="categoryName" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">
+                    Nombre
                 </label>
-                <InputText id="category_name" v-model="categoryForm.name"
-                    placeholder="Ej: Alimentación, Transporte, etc." class="w-full"
-                    :class="{ 'p-invalid': formErrors.name }" :disabled="isSubmitting" maxlength="100" />
+                <InputText id="categoryName" v-model="categoryForm.name"
+                    placeholder="Nombre para el nuevo grupo de categorías" class="w-full"
+                    :class="{ 'p-invalid': formErrors.name }" required />
                 <small v-if="formErrors.name" class="p-error">{{ formErrors.name }}</small>
             </div>
 
             <!-- Descripción -->
             <div>
-                <label for="category_description"
-                    class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-                    Descripción
+                <label for="categoryDescription"
+                    class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">
+                    Descripción (opcional)
                 </label>
-                <Textarea id="category_description" v-model="categoryForm.description"
-                    placeholder="Descripción opcional de la categoría" class="w-full"
-                    :class="{ 'p-invalid': formErrors.description }" :disabled="isSubmitting" rows="3"
-                    maxlength="500" />
-                <small v-if="formErrors.description" class="p-error">{{ formErrors.description }}</small>
-                <small class="text-surface-500">{{ categoryForm.description?.length || 0 }}/500 caracteres</small>
+                <Textarea id="categoryDescription" v-model="categoryForm.description"
+                    placeholder="Decripción general para el grupo de categorías" rows="3" class="w-full" />
             </div>
 
-            <!-- Grupo de Categoría -->
-            <div>
-                <label for="category_group"
-                    class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-                    Grupo de Categoría *
-                </label>
-                <Dropdown id="category_group" v-model="categoryForm.group_id" :options="availableGroups"
-                    optionLabel="name" optionValue="id" placeholder="Selecciona un grupo" class="w-full"
-                    :class="{ 'p-invalid': formErrors.group_id }" :disabled="isSubmitting" :loading="isLoading">
-                    <template #option="{ option }">
-                        <div class="flex items-center gap-2">
-                            <div class="w-6 h-6 rounded-md flex items-center justify-center"
-                                :style="{ backgroundColor: option.color || '#6366f1' }">
-                                <i :class="option.icon_name || 'pi pi-folder'" class="text-white text-xs"></i>
-                            </div>
-                            <span>{{ option.name }}</span>
-                            <Badge v-if="option.is_public" value="Público" severity="info" size="small" />
-                        </div>
-                    </template>
-                    <template #value="{ value }">
-                        <div v-if="value && selectedGroup" class="flex items-center gap-2">
-                            <div class="w-6 h-6 rounded-md flex items-center justify-center"
-                                :style="{ backgroundColor: selectedGroup.color || '#6366f1' }">
-                                <i :class="selectedGroup.icon_name || 'pi pi-folder'" class="text-white text-xs"></i>
-                            </div>
-                            <span>{{ selectedGroup.name }}</span>
-                        </div>
-                        <span v-else class="text-surface-500">Selecciona un grupo</span>
-                    </template>
-                </Dropdown>
-                <small v-if="formErrors.group_id" class="p-error">{{ formErrors.group_id }}</small>
-            </div>
-
-            <!-- Icono -->
-            <div>
-                <label for="category_icon"
-                    class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-                    Icono
-                </label>
-                <div class="flex gap-3">
-                    <InputText id="category_icon" v-model="categoryForm.icon_name" placeholder="pi pi-tag"
-                        class="flex-1" :disabled="isSubmitting" />
-                    <div
-                        class="w-12 h-12 bg-surface-100 dark:bg-surface-700 rounded-lg flex items-center justify-center">
-                        <i :class="categoryForm.icon_name || 'pi pi-tag'"
-                            class="text-lg text-surface-600 dark:text-surface-400"></i>
+            <!-- Debug info ACTUALIZADO -->
+            <!-- <div class="p-3 bg-surface-50 dark:bg-surface-800 rounded text-xs space-y-1">
+                <p><strong>Debug:</strong></p>
+                <p>Icono: <code>{{ categoryForm.icon_name }}</code></p>
+                <p>Tipo: <code>{{ categoryForm.icon_type }}</code></p>
+                <p>Color: <code>{{ categoryForm.color }}</code></p>
+                <div class="flex items-center gap-2 mt-2">
+                    <span>Preview:</span>
+                    <div class="w-8 h-8 rounded flex items-center justify-center" 
+                         :style="{ backgroundColor: categoryForm.color }">
+                        <i v-if="categoryForm.icon_type === 'primeicons'" 
+                           :class="categoryForm.icon_name" 
+                           class="text-white text-sm"></i>
+                        <span v-else 
+                              class="material-symbols-rounded text-white text-sm">
+                            {{ categoryForm.icon_name }}
+                        </span>
                     </div>
+                    <span class="text-xs px-2 py-1 rounded"
+                          :class="categoryForm.icon_type === 'primeicons' 
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                            : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'">
+                        {{ categoryForm.icon_type === 'primeicons' ? 'PrimeIcons' : 'Material' }}
+                    </span>
                 </div>
-                <small class="text-surface-500">Usa clases de PrimeIcons (ej: pi pi-tag)</small>
-            </div>
-
-            <!-- Color -->
-            <div>
-                <label for="category_color"
-                    class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-2">
-                    Color
-                </label>
-                <div class="flex gap-3">
-                    <InputText id="category_color" v-model="categoryForm.color" placeholder="#6366f1" class="flex-1"
-                        :disabled="isSubmitting" />
-                    <div class="w-12 h-12 rounded-lg border-2 border-surface-200 dark:border-surface-600"
-                        :style="{ backgroundColor: categoryForm.color || '#6366f1' }"></div>
-                </div>
-                <small class="text-surface-500">Color en formato hexadecimal</small>
-            </div>
-
-            <!-- Público/Privado -->
-            <div>
-                <div class="flex items-center gap-3">
-                    <Checkbox id="category_public" v-model="categoryForm.is_public" :binary="true"
-                        :disabled="isSubmitting" />
-                    <label for="category_public" class="text-sm font-medium text-surface-700 dark:text-surface-300">
-                        Hacer esta categoría pública
-                    </label>
-                </div>
-                <small class="text-surface-500 block mt-1">
-                    Las categorías públicas serán visibles para todos los usuarios
-                </small>
-            </div>
+                <p class="text-green-600">✅ Actualización en tiempo real</p>
+            </div> -->
         </form>
 
         <template #footer>
             <div class="flex justify-end gap-2">
                 <Button label="Cancelar" severity="secondary" outlined @click="handleClose" :disabled="isSubmitting" />
-                <Button :label="isEditMode ? 'Actualizar' : 'Crear Categoría'" severity="success"
-                    @click="submitCategory" :loading="isSubmitting" :disabled="!isFormValid" />
+                <Button :label="isEditMode ? 'Actualizar' : 'Crear Grupo'" severity="success" @click="submitCategory"
+                    :loading="isSubmitting" :disabled="!isFormValid" />
             </div>
         </template>
     </Dialog>
 </template>
 
 <script setup>
+// IMPORTS
 import { ref, computed, watch } from 'vue';
 
-// Props
+// COMPONENTS
+import IconPicker from '@/components/IconPicker.vue';
+import CustomColorPicker from '@/components/CustomColorPicker.vue';
+
+// PROPS (mismos de antes...)
 const props = defineProps({
     visible: {
         type: Boolean,
@@ -150,19 +104,19 @@ const props = defineProps({
     }
 });
 
-// Emits
+// EMITS
 const emit = defineEmits(['update:visible', 'submit', 'close']);
 
-// Local variables
+// VARIABLES
 const isSubmitting = ref(false);
 const isEditMode = computed(() => !!props.editCategory);
 
-// Form data
+// Form data - ACTUALIZADO con icon_type
 const categoryForm = ref({
     name: '',
     description: '',
-    group_id: null,
-    icon_name: 'pi pi-tag',
+    icon_name: 'pi pi-folder',
+    icon_type: 'primeicons', // NUEVO CAMPO
     color: '#6366f1',
     is_public: false
 });
@@ -170,31 +124,21 @@ const categoryForm = ref({
 // Form validation
 const formErrors = ref({});
 
-// Computed values
-const localVisible = computed({
+// Computed values (mismos de antes...)
+const isVisible = computed({
     get: () => props.visible,
     set: (value) => emit('update:visible', value)
 });
 
-const availableGroups = computed(() => {
-    return props.categoryGroups.filter(group => !group.is_public || group.user_id);
-});
-
-const selectedGroup = computed(() => {
-    return availableGroups.value.find(group => group.id === categoryForm.value.group_id);
-});
-
 const isFormValid = computed(() => {
     return categoryForm.value.name?.trim() &&
-        categoryForm.value.group_id &&
         Object.keys(formErrors.value).length === 0;
 });
 
-// Validación del formulario
+// Validación del formulario (misma de antes...)
 const validateForm = () => {
     const errors = {};
 
-    // Validar nombre
     if (!categoryForm.value.name?.trim()) {
         errors.name = 'El nombre es requerido';
     } else if (categoryForm.value.name.trim().length < 2) {
@@ -203,12 +147,6 @@ const validateForm = () => {
         errors.name = 'El nombre no puede exceder 100 caracteres';
     }
 
-    // Validar grupo
-    if (!categoryForm.value.group_id) {
-        errors.group_id = 'Debes seleccionar un grupo';
-    }
-
-    // Validar descripción
     if (categoryForm.value.description && categoryForm.value.description.length > 500) {
         errors.description = 'La descripción no puede exceder 500 caracteres';
     }
@@ -224,20 +162,28 @@ watch(() => categoryForm.value.name, () => {
     }
 });
 
-watch(() => categoryForm.value.group_id, () => {
-    if (formErrors.value.group_id) {
-        validateForm();
-    }
+// Watcher para debug de cambios de color en tiempo real
+watch(() => categoryForm.value.color, (newColor) => {
+    console.log('🎨 NewCategoryGroup detectó cambio de color:', newColor);
 });
 
-// Watcher para inicializar formulario cuando se abre el modal
+// NUEVO: Watcher para debug de cambios de tipo de icono
+watch(() => categoryForm.value.icon_type, (newType) => {
+    console.log('🎯 NewCategoryGroup detectó cambio de tipo de icono:', newType);
+});
+
+// NUEVO: Watcher para debug de cambios de icono
+watch(() => categoryForm.value.icon_name, (newIcon) => {
+    console.log('🎯 NewCategoryGroup detectó cambio de icono:', newIcon);
+});
+
+// Watchers para modal (mismos de antes...)
 watch(() => props.visible, (newValue) => {
     if (newValue) {
         initializeForm();
     }
 });
 
-// Watcher para cargar datos de edición
 watch(() => props.editCategory, (newCategory) => {
     if (newCategory) {
         loadCategoryForEdit(newCategory);
@@ -254,39 +200,39 @@ const initializeForm = () => {
     formErrors.value = {};
 };
 
-// Función para cargar categoría para editar
+// Función para cargar categoría para editar - ACTUALIZADA
 const loadCategoryForEdit = (category) => {
     categoryForm.value = {
         id: category.id,
         name: category.name || '',
         description: category.description || '',
-        group_id: category.group_id || null,
-        icon_name: category.icon_name || 'pi pi-tag',
+        icon_name: category.icon_name || 'pi pi-folder',
+        icon_type: category.icon_type || 'primeicons', // NUEVO CAMPO
         color: category.color || '#6366f1',
         is_public: category.is_public || false
     };
 };
 
-// Función para resetear formulario
+// Función para resetear formulario - ACTUALIZADA
 const resetForm = () => {
     categoryForm.value = {
         name: '',
         description: '',
-        group_id: null,
-        icon_name: 'pi pi-tag',
+        icon_name: 'pi pi-folder',
+        icon_type: 'primeicons', // NUEVO CAMPO
         color: '#6366f1',
         is_public: false
     };
 };
 
-// Función para cerrar modal
+// Función para cerrar modal (misma de antes...)
 const handleClose = () => {
     emit('close');
     resetForm();
     formErrors.value = {};
 };
 
-// Función para enviar formulario
+// Función para enviar formulario - ACTUALIZADA
 const submitCategory = async () => {
     if (!validateForm()) {
         return;
@@ -295,18 +241,19 @@ const submitCategory = async () => {
     isSubmitting.value = true;
 
     try {
-        // Preparar datos para enviar
+        // Preparar datos para enviar - ACTUALIZADO con icon_type
         const categoryData = {
             ...(isEditMode.value && { id: categoryForm.value.id }),
             name: categoryForm.value.name.trim(),
             description: categoryForm.value.description?.trim() || null,
-            group_id: categoryForm.value.group_id,
-            icon_name: categoryForm.value.icon_name || 'pi pi-tag',
+            icon_name: categoryForm.value.icon_name || 'pi pi-folder',
+            icon_type: categoryForm.value.icon_type || 'primeicons', // NUEVO CAMPO
             color: categoryForm.value.color || '#6366f1',
             is_public: categoryForm.value.is_public || false
         };
 
-        // Emitir evento con los datos
+        console.log('📤 Enviando datos del grupo (con tipo de icono):', categoryData);
+
         emit('submit', {
             data: categoryData,
             isEdit: isEditMode.value,

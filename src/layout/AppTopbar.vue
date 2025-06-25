@@ -56,7 +56,7 @@ const handleSignOut = async () => {
         });
 
         // Redirigir al login
-        router.push('/auth'); 
+        router.push('/auth');
 
     } catch (error) {
         console.error('Error al cerrar sesión:', error);
@@ -226,16 +226,17 @@ onUnmounted(() => {
                                             </div>
                                         </div>
                                         <div class="flex-1 min-w-0">
-                                            <p
-                                                class="text-sm font-semibold text-surface-900 dark:text-surface-100 leading-tight">
-                                                {{ sessionStore.fullName || sessionStore.username || 'Usuario' }}
-                                            <p
-                                                class="text-xs text-surface-600 dark:text-surface-400 leading-tight mt-0.5">
-                                                {{ sessionStore.userEmail }}
-                                            </p>
-                                            </p>
+                                            <span>
+                                                <p
+                                                    class="text-sm font-semibold text-surface-900 dark:text-surface-100 leading-tight mb-0">
+                                                    {{ sessionStore.fullName || sessionStore.username || 'Usuario' }}
+                                                </p>
+                                                <p class="text-xs text-surface-600 dark:text-surface-400 leading-tight">
+                                                    {{ sessionStore.userEmail }}
+                                                </p>
+                                            </span>
                                             <p v-if="sessionStore.username"
-                                                class="text-xs text-surface-500 dark:text-surface-500 leading-tight mt-[-1em]">
+                                                class="text-xs text-surface-500 dark:text-surface-500 leading-tight mt-1">
                                                 @{{ sessionStore.username }}
                                             </p>
                                         </div>

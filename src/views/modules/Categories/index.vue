@@ -87,7 +87,7 @@
 
                             <!-- Info de la categoría -->
                             <div class="flex flex-col justify-center flex-1">
-                                <h4 class="text-sm font-semibold text-surface-900 dark:text-surface-100 truncate">
+                                <h4 class="text-sm font-semibold text-surface-900 dark:text-surface-100 truncate mb-0">
                                     {{ category.name }}
                                 </h4>
                                 <p v-if="category.description"

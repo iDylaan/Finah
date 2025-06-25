@@ -19,8 +19,6 @@ import ToastService from 'primevue/toastservice';
 // Importar localización
 import { esLocale } from '@/locale/es.js';
 
-import '@/assets/styles.scss';
-
 import { registerSW } from 'virtual:pwa-register'
 
 const updateSW = registerSW({ onNeedRefresh: () => updateSW() })
