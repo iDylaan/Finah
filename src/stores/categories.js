@@ -5,44 +5,9 @@ import { handleError } from '@/lib/utils.js'
 
 export const useCategoriesStore = defineStore('categories', () => {
     // Estados
-    const categoryGroups = ref([])
     const categories = ref([])
+    const categoryGroups = ref([])
     const loading = ref(false)
-
-    // Función para obtener grupos de categorías (públicos + del usuario)
-    const fetchCategoryGroups = async ({ toast }) => {
-        loading.value = true
-
-        try {
-            const { data: { user } } = await supabase.auth.getUser()
-            const userId = user?.id
-
-            let query = supabase
-                .from('category_groups')
-                .select('*')
-
-            if (userId) {
-                // Mostrar públicos O del usuario actual
-                query = query.or(`is_public.eq.true,user_id.eq.${userId}`)
-            } else {
-                // Solo públicos si no hay usuario
-                query = query.eq('is_public', true)
-            }
-
-            const { data, error } = await query
-
-            if (error) {
-                handleError(error, toast)
-            } else {
-                categoryGroups.value = data || []
-            }
-
-        } catch (error) {
-            handleError(error, toast)
-        } finally {
-            loading.value = false
-        }
-    }
 
     // Función para obtener categorías (públicas + del usuario)
     const fetchCategories = async ({ toast }) => {
@@ -173,8 +138,8 @@ export const useCategoriesStore = defineStore('categories', () => {
         }
     }
 
-    // NUEVA: Función para crear un grupo de categorías
-    const createCategoryGroup = async (groupData, { toast }) => {
+    // NUEVA: Función para crear una nueva categoría
+    const createCategory = async (categoryData, { toast }) => {
         loading.value = true
 
         try {
@@ -189,55 +154,63 @@ export const useCategoriesStore = defineStore('categories', () => {
                 throw new Error('Usuario no autenticado')
             }
 
+            // Validar que la categoría tenga un grupo asignado
+            if (!categoryData.group_id) {
+                throw new Error('La categoría debe pertenecer a un grupo')
+            }
+
             // Preparar datos para insertar
             const insertData = {
-                name: groupData.name,
-                description: groupData.description || null,
-                icon_name: groupData.icon_name || 'pi pi-folder',
-                icon_library: groupData.icon_type || 'primeicons', // NUEVO CAMPO
-                color: groupData.color || '#6366f1',
-                is_public: false,
-                user_id: user.id  // ID del usuario actual
+                name: categoryData.name,
+                description: categoryData.description || null,
+                icon_name: categoryData.icon_name || 'pi pi-tag',
+                icon_library: categoryData.icon_type || 'primeicons',
+                is_public: false, // Por defecto, las categorías creadas por usuarios son privadas
+                user_id: user.id,
+                group_id: categoryData.group_id
             }
 
             // Insertar en la base de datos
             const { data, error } = await supabase
-                .from('category_groups')
+                .from('categories')
                 .insert([insertData])
                 .select() // Retornar el registro insertado
 
             if (error) {
-                console.error('💥 Error insertando grupo:', error)
+                console.error('💥 Error insertando categoría:', error)
                 throw error
             }
 
-            // Actualizar el estado local agregando el nuevo grupo
+            // Actualizar el estado local agregando la nueva categoría
             if (data && data[0]) {
-                const newGroup = {
-                    ...data[0],
-                    categories: [] // Inicializar sin categorías
+                // Agregar a la lista plana de categorías
+                categories.value.unshift(data[0])
+
+                // Agregar la categoría al grupo correspondiente en el estado anidado
+                const groupIndex = categoryGroups.value.findIndex(g => g.id === categoryData.group_id)
+                if (groupIndex !== -1) {
+                    categoryGroups.value[groupIndex].categories.unshift(data[0])
                 }
-                categoryGroups.value.unshift(newGroup) // Agregar al inicio
             }
 
             // Mostrar mensaje de éxito
             toast.add({
                 severity: 'success',
-                summary: 'Grupo Creado',
-                detail: `El grupo "${groupData.name}" se creó exitosamente`,
+                summary: 'Categoría Creada',
+                detail: `La categoría "${categoryData.name}" se creó exitosamente`,
                 life: 3000
             })
 
-            return data[0] // Retornar el grupo creado
+            return data[0] // Retornar la categoría creada
 
         } catch (error) {
-            console.error('💥 Error creando grupo:', error)
+            console.error('💥 Error creando categoría:', error)
 
             // Mostrar mensaje de error
             toast.add({
                 severity: 'error',
                 summary: 'Error',
-                detail: error.message || 'Error creando el grupo de categorías',
+                detail: error.message || 'Error creando la categoría',
                 life: 5000
             })
 
@@ -248,8 +221,8 @@ export const useCategoriesStore = defineStore('categories', () => {
         }
     }
 
-    // NUEVA: Función para actualizar un grupo de categorías
-    const updateCategoryGroup = async (groupId, groupData, { toast }) => {
+    // NUEVA: Función para actualizar una categoría
+    const updateCategory = async (categoryId, categoryData, { toast }) => {
         loading.value = true
 
         try {
@@ -260,61 +233,164 @@ export const useCategoriesStore = defineStore('categories', () => {
                 throw new Error('Usuario no autenticado')
             }
 
-            // Preparar datos para actualizar (sin user_id porque no debe cambiar)
+            // Preparar datos para actualizar
             const updateData = {
-                name: groupData.name,
-                description: groupData.description || null,
-                icon_name: groupData.icon_name || 'pi pi-folder',
-                icon_library: groupData.icon_type || 'primeicons', // NUEVO CAMPO
-                color: groupData.color || '#6366f1',
-                is_public: groupData.is_public || false
+                name: categoryData.name,
+                description: categoryData.description || null,
+                icon_name: categoryData.icon_name || 'pi pi-tag',
+                icon_library: categoryData.icon_type || 'primeicons',
+                group_id: categoryData.group_id
+                // No incluimos is_public ni user_id ya que no deben cambiarse en una actualización
             }
 
             // Actualizar en la base de datos
             const { data, error } = await supabase
-                .from('category_groups')
+                .from('categories')
                 .update(updateData)
-                .eq('id', groupId)
-                .eq('user_id', user.id)
+                .eq('id', categoryId)
+                .eq('user_id', user.id) // Asegurar que solo el dueño pueda actualizarla
                 .select()
 
             if (error) {
-                console.error('💥 Error actualizando grupo:', error)
+                console.error('💥 Error actualizando categoría:', error)
                 throw error
             }
 
             if (!data || data.length === 0) {
-                throw new Error('No se pudo actualizar el grupo. Verifica que sea tuyo.')
+                throw new Error('No se pudo actualizar la categoría. Verifica que sea tuya y no sea pública.')
             }
 
             // Actualizar el estado local
-            const groupIndex = categoryGroups.value.findIndex(g => g.id === groupId)
-            if (groupIndex !== -1) {
-                // Mantener las categorías existentes
-                const existingCategories = categoryGroups.value[groupIndex].categories || []
-                categoryGroups.value[groupIndex] = {
-                    ...data[0],
-                    categories: existingCategories
+            const updatedCategory = data[0]
+            
+            // Actualizar en la lista plana de categorías
+            const categoryIndex = categories.value.findIndex(c => c.id === categoryId)
+            if (categoryIndex !== -1) {
+                categories.value[categoryIndex] = {
+                    ...categories.value[categoryIndex],
+                    ...updatedCategory
+                }
+            }
+
+            // Actualizar en la estructura de grupos con categorías
+            // Primero verificar si la categoría está cambiando de grupo
+            const oldGroupId = categories.value[categoryIndex]?.group_id
+            const newGroupId = updatedCategory.group_id
+            
+            if (oldGroupId !== newGroupId) {
+                // Si está cambiando de grupo, quitar de uno y agregar al otro
+                
+                // Quitar del grupo antiguo
+                const oldGroupIndex = categoryGroups.value.findIndex(g => g.id === oldGroupId)
+                if (oldGroupIndex !== -1) {
+                    categoryGroups.value[oldGroupIndex].categories = 
+                        categoryGroups.value[oldGroupIndex].categories.filter(c => c.id !== categoryId)
+                }
+                
+                // Agregar al nuevo grupo
+                const newGroupIndex = categoryGroups.value.findIndex(g => g.id === newGroupId)
+                if (newGroupIndex !== -1) {
+                    categoryGroups.value[newGroupIndex].categories.unshift(updatedCategory)
+                }
+            } else {
+                // Si sigue en el mismo grupo, simplemente actualizar
+                const groupIndex = categoryGroups.value.findIndex(g => g.id === newGroupId)
+                if (groupIndex !== -1) {
+                    const catIndex = categoryGroups.value[groupIndex].categories.findIndex(c => c.id === categoryId)
+                    if (catIndex !== -1) {
+                        categoryGroups.value[groupIndex].categories[catIndex] = {
+                            ...categoryGroups.value[groupIndex].categories[catIndex],
+                            ...updatedCategory
+                        }
+                    }
                 }
             }
 
             // Mostrar mensaje de éxito
             toast.add({
                 severity: 'success',
-                summary: 'Grupo Actualizado',
-                detail: `El grupo "${groupData.name}" se actualizó exitosamente`,
+                summary: 'Categoría Actualizada',
+                detail: `La categoría "${categoryData.name}" se actualizó exitosamente`,
                 life: 3000
             })
 
-            return data[0]
+            return updatedCategory
 
         } catch (error) {
-            console.error('💥 Error actualizando grupo:', error)
+            console.error('💥 Error actualizando categoría:', error)
 
             toast.add({
                 severity: 'error',
                 summary: 'Error',
-                detail: error.message || 'Error actualizando el grupo de categorías',
+                detail: error.message || 'Error actualizando la categoría',
+                life: 5000
+            })
+
+            throw error
+
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // NUEVA: Función para eliminar una categoría
+    const deleteCategory = async (categoryId, { toast }) => {
+        loading.value = true
+
+        try {
+            // Obtener el usuario actual
+            const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+            if (userError || !user) {
+                throw new Error('Usuario no autenticado')
+            }
+
+            // Eliminar de la base de datos
+            const { error } = await supabase
+                .from('categories')
+                .delete()
+                .eq('id', categoryId)
+                .eq('user_id', user.id) // Solo el dueño puede eliminar
+
+            if (error) {
+                console.error('💥 Error eliminando categoría:', error)
+                throw error
+            }
+
+            // Actualizar los estados locales
+            // 1. Buscar la categoría para saber a qué grupo pertenece
+            const categoryToDelete = categories.value.find(c => c.id === categoryId)
+            const groupId = categoryToDelete?.group_id
+            
+            // 2. Quitar de la lista plana de categorías
+            categories.value = categories.value.filter(c => c.id !== categoryId)
+            
+            // 3. Quitar de la estructura anidada de grupos
+            if (groupId) {
+                const groupIndex = categoryGroups.value.findIndex(g => g.id === groupId)
+                if (groupIndex !== -1) {
+                    categoryGroups.value[groupIndex].categories = 
+                        categoryGroups.value[groupIndex].categories.filter(c => c.id !== categoryId)
+                }
+            }
+
+            // Mostrar mensaje de éxito
+            toast.add({
+                severity: 'success',
+                summary: 'Categoría Eliminada',
+                detail: `La categoría ha sido eliminada exitosamente`,
+                life: 3000
+            })
+
+            return true
+
+        } catch (error) {
+            console.error('💥 Error eliminando categoría:', error)
+
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: error.message || 'Error eliminando la categoría',
                 life: 5000
             })
 
@@ -326,28 +402,28 @@ export const useCategoriesStore = defineStore('categories', () => {
     }
 
     // NUEVA: Función genérica para guardar (crear o actualizar)
-    const saveCategoryGroup = async (groupData, isEdit = false, { toast }) => {
-        if (isEdit && groupData.id) {
-            return await updateCategoryGroup(groupData.id, groupData, { toast })
+    const saveCategory = async (categoryData, isEdit = false, { toast }) => {
+        if (isEdit && categoryData.id) {
+            return await updateCategory(categoryData.id, categoryData, { toast })
         } else {
-            return await createCategoryGroup(groupData, { toast })
+            return await createCategory(categoryData, { toast })
         }
     }
 
     return {
         // Estados
-        categoryGroups,
         categories,
+        categoryGroups,
         loading,
 
         // Funciones existentes
-        fetchCategoryGroups,
         fetchCategories,
         fetchCategoryGroupsWithCategories,
-
+        
         // NUEVAS funciones
-        createCategoryGroup,
-        updateCategoryGroup,
-        saveCategoryGroup
+        createCategory,
+        updateCategory,
+        deleteCategory,
+        saveCategory
     }
 })

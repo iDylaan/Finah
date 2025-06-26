@@ -87,7 +87,7 @@
 // IMPORTS
 import { ref, computed, watch } from 'vue';
 import ICONS from '@/assets/constants/icon-providers.js';
-import { useCategoriesStore } from '@/stores/categories.js';
+import { useCategoryGroupsStore } from '@/stores/categoryGroups.js';
 
 // COMPONENTS
 import IconPicker from '@/components/IconPicker.vue';
@@ -121,7 +121,7 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'submit', 'close']);
 
 // STORE
-const categoriesStore = useCategoriesStore();
+const categoryGroupsStore = useCategoryGroupsStore();
 
 // VARIABLES
 const isSubmitting = ref(false);
@@ -235,7 +235,7 @@ const loadGroupForEdit = async (groupId) => {
         console.log('📥 Cargando grupo para editar:', groupId);
         
         // Buscar en los grupos ya cargados primero
-        let group = categoriesStore.categoryGroups.find(g => g.id === groupId);
+        let group = categoryGroupsStore.categoryGroups.find(g => g.id === groupId);
         
         // Si no se encuentra, intentar buscar en props
         if (!group) {

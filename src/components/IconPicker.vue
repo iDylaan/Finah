@@ -27,14 +27,15 @@
             </div>
         </div>
 
-        <!-- Selector de iconos solamente -->
-        <Popover ref="op" class="w-96" :autoHide="false">
+        <!-- Selector de iconos usando Dialog en lugar de Popover -->
+        <Dialog v-model:visible="isPickerVisible" modal header="Seleccionar Icono" 
+            :style="{ width: '450px', maxWidth: '95vw' }" 
+            :pt="{
+                root: { class: 'z-[9999]' }, // Asegurarse que tenga un z-index muy alto
+                mask: { class: 'z-[9998]' }  // También para la máscara
+            }"
+            :dismissableMask="true">
             <div class="rounded-lg">
-                <div class="flex justify-between items-center mb-4">
-                    <span class="text-sm font-medium text-surface-700 dark:text-surface-300">Seleccionar Icono</span>
-                    <Button icon="pi pi-times" size="small" text rounded @click="closePicker" />
-                </div>
-
                 <!-- Selector de librería -->
                 <div class="mb-4">
                     <div class="flex gap-2">
@@ -55,7 +56,7 @@
                 </div>
 
                 <!-- Grid de iconos -->
-                <div class="icon-grid max-h-80 w-full overflow-y-auto p-1">
+                <div class="icon-grid max-h-[40vh] w-full overflow-y-auto p-1">
                     <div class="grid grid-cols-7 gap-2 p-1">
                         <!-- PrimeIcons -->
                         <template v-if="currentLibrary === ICONS.PRIMEVUE">
@@ -100,7 +101,14 @@
                     </div>
                 </div>
             </div>
-        </Popover>
+            
+            <template #footer>
+                <div class="flex justify-end gap-2">
+                    <Button label="Cancelar" severity="secondary" outlined @click="closePicker" />
+                    <Button label="Seleccionar" severity="primary" @click="applyAndClose" />
+                </div>
+            </template>
+        </Dialog>
     </div>
 </template>
 
@@ -110,7 +118,7 @@ import materialSymbolsData from '@/assets/constants/material-symbols.json';
 import primevueIconsData from '@/assets/constants/primevue-icons.json';
 import ICONS from '@/assets/constants/icon-providers.js'
 
-// Props (mantener igual...)
+// Props
 const props = defineProps({
     modelValue: {
         type: String,
@@ -135,44 +143,62 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'update:iconType']);
 
 // Variables reactivas
-const op = ref();
+const isPickerVisible = ref(false);
 const currentLibrary = ref(ICONS.PRIMEVUE);
 const searchQuery = ref('');
-const debouncedSearchQuery = ref(''); // NUEVA: Query con debounce
-const searchTimeout = ref(null); // NUEVA: Timeout para debounce
+const debouncedSearchQuery = ref('');
+const searchTimeout = ref(null);
 
-// Iconos seleccionados independientes
+// Variables para mantener el estado temporal (antes de confirmar)
+const tempSelectedPrimeIcon = ref('pi pi-folder');
+const tempSelectedMaterialIcon = ref('folder');
+
+// Variables para el valor final (confirmado)
 const selectedPrimeIcon = ref('pi pi-folder');
 const selectedMaterialIcon = ref('folder');
 
 // NUEVA: Función de debounce
 function debounceSearch(query) {
-    // Limpiar timeout anterior
     if (searchTimeout.value) {
         clearTimeout(searchTimeout.value);
     }
 
-    // Crear nuevo timeout
     searchTimeout.value = setTimeout(() => {
-        console.log('🔍 Aplicando filtro con delay:', query);
         debouncedSearchQuery.value = query;
-    }, 300); // 300ms de delay
+    }, 300);
 }
 
-// NUEVA: Watcher para searchQuery que aplica debounce
+// Watcher para searchQuery
 watch(searchQuery, (newQuery) => {
-    console.log('⌨️ Usuario escribió:', newQuery);
     debounceSearch(newQuery);
 });
 
 // Función para abrir el picker
-const openPicker = (event) => {
-    op.value.show(event);
+const openPicker = () => {
+    if (props.disabled) return;
+    
+    // Al abrir, inicializamos los valores temporales con los actuales
+    tempSelectedPrimeIcon.value = selectedPrimeIcon.value;
+    tempSelectedMaterialIcon.value = selectedMaterialIcon.value;
+    
+    isPickerVisible.value = true;
 }
 
-// Función para cerrar el picker
+// Función para cerrar el picker sin aplicar cambios
 const closePicker = () => {
-    op.value.hide();
+    isPickerVisible.value = false;
+    searchQuery.value = '';
+    debouncedSearchQuery.value = '';
+}
+
+// Nueva función para aplicar cambios y cerrar
+const applyAndClose = () => {
+    // Aplicar los cambios temporales
+    selectedPrimeIcon.value = tempSelectedPrimeIcon.value;
+    selectedMaterialIcon.value = tempSelectedMaterialIcon.value;
+    
+    // Cerrar el picker
+    closePicker();
 }
 
 // Computed para color seguro
@@ -196,37 +222,34 @@ const buttonStyles = computed(() => {
 const primeIcons = primevueIconsData;
 const materialIcons = materialSymbolsData;
 
-// Computed
+// Computed para icono final
 const finalIcon = computed(() => {
     return currentLibrary.value === ICONS.MATERIAL ? selectedMaterialIcon.value : selectedPrimeIcon.value;
 });
 
-// ACTUALIZADO: Filtros usando debouncedSearchQuery
+// Computed para icono temporal (en el modal)
+const tempFinalIcon = computed(() => {
+    return currentLibrary.value === ICONS.MATERIAL ? tempSelectedMaterialIcon.value : tempSelectedPrimeIcon.value;
+});
+
+// Filtros usando debouncedSearchQuery
 const filteredPrimeIcons = computed(() => {
     const query = debouncedSearchQuery.value.toLowerCase();
     if (!query) return primeIcons;
-
-    console.log('🔍 Filtrando PrimeIcons con:', query);
-    return primeIcons.filter(icon =>
-        icon.toLowerCase().includes(query)
-    );
+    return primeIcons.filter(icon => icon.toLowerCase().includes(query));
 });
 
 const filteredMaterialIcons = computed(() => {
     const query = debouncedSearchQuery.value.toLowerCase();
     if (!query) return materialIcons;
-
-    console.log('🔍 Filtrando Material Icons con:', query);
-    return materialIcons.filter(icon =>
-        icon.toLowerCase().includes(query)
-    );
+    return materialIcons.filter(icon => icon.toLowerCase().includes(query));
 });
 
 const filteredIcons = computed(() => {
     return currentLibrary.value === ICONS.PRIMEVUE ? filteredPrimeIcons.value : filteredMaterialIcons.value;
 });
 
-// Watchers (mantener igual...)
+// Watchers
 watch(() => props.modelValue, (newValue) => {
     if (newValue && newValue !== finalIcon.value) {
         detectLibrary(newValue);
@@ -251,7 +274,7 @@ watch(currentLibrary, (newLibrary) => {
     }
 });
 
-// Funciones (mantener igual...)
+// Funciones
 function getMaterialIconName(fullIcon) {
     return fullIcon;
 }
@@ -260,27 +283,28 @@ function detectLibrary(icon) {
     if (icon?.startsWith('pi ')) {
         currentLibrary.value = ICONS.PRIMEVUE;
         selectedPrimeIcon.value = icon;
+        tempSelectedPrimeIcon.value = icon;
     } else if (icon) {
         currentLibrary.value = ICONS.MATERIAL;
         selectedMaterialIcon.value = icon;
+        tempSelectedMaterialIcon.value = icon;
     }
 }
 
 function selectIcon(icon) {
+    // Actualizamos solo los valores temporales
     if (currentLibrary.value === ICONS.PRIMEVUE) {
-        selectedPrimeIcon.value = icon;
+        tempSelectedPrimeIcon.value = icon;
     } else {
-        selectedMaterialIcon.value = icon;
+        tempSelectedMaterialIcon.value = icon;
     }
-    searchQuery.value = '';
-    debouncedSearchQuery.value = ''; // NUEVA: Limpiar también el debounced
 }
 
 function changeLibrary(newLibrary) {
     currentLibrary.value = newLibrary;
 }
 
-// NUEVA: Limpiar timeout al desmontar componente
+// Limpiar timeout al desmontar componente
 import { onUnmounted } from 'vue';
 onUnmounted(() => {
     if (searchTimeout.value) {
@@ -293,7 +317,7 @@ detectLibrary(props.modelValue);
 </script>
 
 <style scoped>
-/* ESTILOS ACTUALIZADOS para mejor reactividad */
+/* Estilos para la cuadrícula de iconos */
 .icon-grid {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
@@ -326,5 +350,14 @@ detectLibrary(props.modelValue);
 
 .icon-grid-item {
     font-size: 18px;
+}
+
+/* Asegurarse que el modal se superponga a otros modales */
+:deep(.p-dialog.z-\[9999\]) {
+    z-index: 9999 !important;
+}
+
+:deep(.p-dialog-mask.z-\[9998\]) {
+    z-index: 9998 !important;
 }
 </style>

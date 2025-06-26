@@ -13,15 +13,15 @@
 
             <!-- Botón de recarga -->
             <div class="flex gap-2">
-                <Button icon="pi pi-refresh" @click="loadData" :loading="categoriesStore.loading" severity="secondary"
+                <Button icon="pi pi-refresh" @click="loadData" :loading="categoryGroupsStore.loading" severity="secondary"
                     outlined size="small" />
-                <Button icon="pi pi-plus" @click="handleNewCategoryGroup" :disabled="categoriesStore.loading"
+                <Button icon="pi pi-plus" @click="handleNewCategoryGroup" :disabled="categoryGroupsStore.loading"
                     severity="success" outlined size="small" label="Nuevo Grupo" />
             </div>
         </div>
 
         <!-- Loading State -->
-        <div v-if="categoriesStore.loading" class="flex justify-center items-center py-12">
+        <div v-if="categoryGroupsStore.loading" class="flex justify-center items-center py-12">
             <ProgressSpinner />
         </div>
 
@@ -76,7 +76,7 @@
                     <div v-else class="space-y-3">
                         <div v-for="category in group.categories" :key="category.id"
                             class="flex items-center gap-3 p-3 rounded-lg backdrop-blur-sm bg-surface-50/80 dark:bg-surface-700/50 border border-surface-200/50 dark:border-surface-600/50 hover:bg-surface-100/80 dark:hover:bg-surface-600/50 transition-all duration-200 cursor-pointer"
-                            @click="() => handleCategoryClick(category)">
+                            @click="() => handleCategoryClick(category, group)">
                             <!-- Icono de la categoría -->
                             <div class="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 shadow-sm"
                                 :style="{ backgroundColor: group.color || '#6366f1' }">
@@ -137,10 +137,21 @@
             </template>
         </Card>
 
-        <!-- Modal Component -->
-        <CategoryGroupForm v-model:visible="showNewCategoryGroupModal" :is-edit="modalEditMode"
-            :edit-group-id="editingGroupId" :category-groups="categoryGroups" :is-loading="categoriesStore.loading"
+        <!-- Modal Components -->
+        <CategoryGroupForm v-model:visible="showCategoryGroupModal" :is-edit="modalEditMode"
+            :edit-group-id="editingGroupId" :category-groups="categoryGroups" :is-loading="categoryGroupsStore.loading"
             @submit="handleCategoryGroupSubmit" @close="handleModalClose" />
+            
+        <!-- Modal de Categoría -->
+        <CategoryForm v-model:visible="showCategoryModal" 
+            :is-new="newCategoryMode" 
+            :category-id="editingCategoryId" 
+            :group-id="selectedGroupId"
+            :category="selectedCategory" 
+            :category-groups="categoryGroups"
+            :is-loading="categoriesStore.loading" 
+            @close="handleCategoryModalClose"
+            @success="handleCategorySuccess" />
     </div>
 </template>
 
@@ -148,26 +159,35 @@
 // IMPORTS
 import { ref, onMounted, computed } from 'vue';
 import { useToast } from 'primevue/usetoast';
-import { useCategoriesStore } from '@/stores/categories.js';
 import CategoryGroupForm from './components/CategoryGroupForm.vue';
+import CategoryForm from './components/CategoryForm.vue'; // Importamos el nuevo componente
 
 // STORES & COMPOSABLES
 const toast = useToast();
+import { useCategoryGroupsStore } from '@/stores/categoryGroups.js';
+const categoryGroupsStore = useCategoryGroupsStore();
+import { useCategoriesStore } from '@/stores/categories.js';
 const categoriesStore = useCategoriesStore();
 
 // VARIABLES
 const isInitialLoad = ref(true);
-const categoryGroups = computed(() => categoriesStore.categoryGroups);
+const categoryGroups = computed(() => categoryGroupsStore.categoryGroups);
 const groupMenuRefs = ref({});
+const categoryMenuRefs = ref({});
 
-// Modal state
-const showNewCategoryGroupModal = ref(false);
+// Modal state - Grupo
+const showCategoryGroupModal = ref(false);
 const modalEditMode = ref(false);
 const editingGroupId = ref(null);
-const showNewCategoryModal = ref(false);
-const editingCategory = ref(null);
 
-// FUNCTIONS
+// Modal state - Categoría
+const showCategoryModal = ref(false);
+const newCategoryMode = ref(false);
+const editingCategoryId = ref(null);
+const selectedGroupId = ref(null);
+const selectedCategory = ref(null);
+
+// FUNCTIONS - Grupos
 const getGroupMenuItems = (group) => {
     const items = [
         {
@@ -187,7 +207,7 @@ const getGroupMenuItems = (group) => {
             {
                 label: 'Editar grupo',
                 icon: 'pi pi-pencil',
-                command: () => handleEditGroup(group) // PASAMOS EL GRUPO COMPLETO
+                command: () => handleEditGroup(group)
             },
             {
                 label: 'Eliminar grupo',
@@ -214,28 +234,49 @@ const toggleGroupMenu = (event, groupId) => {
     }
 };
 
-// Modal handlers
-const handleNewCategory = (group) => {
-    console.log('🆕 Nueva categoría para grupo:', group.name);
-    editingCategory.value = null;
-    showNewCategoryModal.value = true;
-
-    // Placeholder - implementar más tarde
-    toast.add({
-        severity: 'info',
-        summary: 'Función pendiente',
-        detail: 'Creación de categorías individuales próximamente',
-        life: 3000
-    });
+// FUNCTIONS - Categorías
+const getCategoryMenuItems = (category) => {
+    return [
+        {
+            label: 'Editar',
+            icon: 'pi pi-pencil',
+            command: () => {
+                handleEditCategory(category);
+            }
+        },
+        {
+            label: 'Eliminar',
+            icon: 'pi pi-trash',
+            command: () => {
+                handleDeleteCategory(category);
+            },
+            class: 'text-red-500'
+        }
+    ];
 };
 
+const setCategoryMenuRef = (el, categoryId) => {
+    if (el) {
+        categoryMenuRefs.value[categoryId] = el;
+    }
+};
+
+const toggleCategoryMenu = (event, categoryId) => {
+    event.stopPropagation();
+    const menu = categoryMenuRefs.value[categoryId];
+    if (menu) {
+        menu.toggle(event);
+    }
+};
+
+// Modal handlers - Grupo
 const handleNewCategoryGroup = () => {
     console.log('🆕 Nuevo grupo de categorías');
 
     // Resetear estado para creación
     modalEditMode.value = false;
     editingGroupId.value = null;
-    showNewCategoryGroupModal.value = true;
+    showCategoryGroupModal.value = true;
 };
 
 const handleEditGroup = (group) => {
@@ -244,20 +285,16 @@ const handleEditGroup = (group) => {
     // Configurar estado para edición
     modalEditMode.value = true;
     editingGroupId.value = group.id;
-    showNewCategoryGroupModal.value = true;
+    showCategoryGroupModal.value = true;
 };
 
 const handleModalClose = () => {
-    console.log('❌ Cerrar modal');
+    console.log('❌ Cerrar modal de grupo');
 
     // Resetear todo el estado del modal
-    showNewCategoryGroupModal.value = false;
+    showCategoryGroupModal.value = false;
     modalEditMode.value = false;
     editingGroupId.value = null;
-
-    // También resetear otros modales si los hay
-    showNewCategoryModal.value = false;
-    editingCategory.value = null;
 };
 
 const handleCategoryGroupSubmit = async ({ data, isEdit, groupId, onSuccess, onError }) => {
@@ -272,12 +309,111 @@ const handleCategoryGroupSubmit = async ({ data, isEdit, groupId, onSuccess, onE
 
         if (isEdit && groupId) {
             // Actualizar grupo existente
-            console.log('📝 Actualizando grupo existente:', groupId);
-            result = await categoriesStore.updateCategoryGroup(groupId, data, { toast });
+            result = await categoryGroupsStore.updateCategoryGroup(groupId, data, { toast });
         } else {
             // Crear nuevo grupo
-            console.log('🆕 Creando nuevo grupo');
-            result = await categoriesStore.createCategoryGroup(data, { toast });
+            result = await categoryGroupsStore.createCategoryGroup(data, { toast });
+        }
+
+        if (result) {
+            // Recargar datos para mostrar cambios
+            await loadData();
+
+            // Ejecutar callback de éxito
+            onSuccess();
+        }
+
+    } catch (error) {
+        console.error('💥 Error en handleCategoryGroupSubmit:', error);
+        // Ejecutar callback de error
+        onError(error);
+    }
+};
+
+// Modal handlers - Categoría
+const handleNewCategory = (group) => {
+    console.log('🆕 Nueva categoría para grupo:', group.name);
+    
+    // Configurar estado para nueva categoría
+    newCategoryMode.value = true;
+    selectedGroupId.value = group.id;
+    editingCategoryId.value = null;
+    selectedCategory.value = null;
+    
+    // Mostrar el modal
+    showCategoryModal.value = true;
+};
+
+const handleEditCategory = (category) => {
+    console.log('✏️ Editar categoría:', category);
+    
+    // Encontrar el grupo de la categoría
+    const group = categoryGroups.value.find(g => 
+        g.categories?.some(c => c.id === category.id)
+    );
+    
+    if (group) {
+        selectedGroupId.value = group.id;
+    }
+    
+    // Configurar estado para edición
+    newCategoryMode.value = false;
+    editingCategoryId.value = category.id;
+    selectedCategory.value = {
+        ...category,
+        group_id: group?.id // Asegurar que tenemos el group_id
+    };
+    
+    // Mostrar el modal
+    showCategoryModal.value = true;
+};
+
+const handleCategoryClick = (category, group) => {
+    console.log('👆 Click en categoría:', category, 'Group:', group);
+    
+    // Configurar estado para ver/editar
+    newCategoryMode.value = false;
+    editingCategoryId.value = category.id;
+    selectedCategory.value = {
+        ...category,
+        group_id: group.id // Asegurar que tenemos el group_id
+    };
+    selectedGroupId.value = group.id;
+    
+    // Mostrar el modal
+    showCategoryModal.value = true;
+};
+
+const handleCategoryModalClose = () => {
+    console.log('❌ Cerrar modal de categoría');
+    
+    // Resetear estado del modal
+    showCategoryModal.value = false;
+    newCategoryMode.value = false;
+    editingCategoryId.value = null;
+    selectedCategory.value = null;
+    selectedGroupId.value = null;
+};
+
+const handleCategorySubmit = async ({ data, isNew, categoryId, groupId, onSuccess, onError }) => {
+    console.log('📤 Procesando envío de categoría:', {
+        data: data,
+        isNew: isNew,
+        categoryId: categoryId,
+        groupId: groupId
+    });
+
+    try {
+        let result;
+
+        if (!isNew && categoryId) {
+            // Actualizar categoría existente
+            console.log('📝 Actualizando categoría:', categoryId);
+            result = await categoryGroupsStore.updateCategory(categoryId, data, { toast });
+        } else {
+            // Crear nueva categoría
+            console.log('🆕 Creando nueva categoría');
+            result = await categoryGroupsStore.createCategory(data, { toast });
         }
 
         if (result) {
@@ -291,23 +427,57 @@ const handleCategoryGroupSubmit = async ({ data, isEdit, groupId, onSuccess, onE
         }
 
     } catch (error) {
-        console.error('💥 Error en handleCategoryGroupSubmit:', error);
+        console.error('💥 Error en handleCategorySubmit:', error);
 
         // Ejecutar callback de error
         onError(error);
     }
 };
 
-// CATEGORY ACTIONS
-const handleCategoryClick = (category) => {
-    console.log('👆 Click en categoría:', category);
+// Función para manejar el éxito de crear/editar categoría
+const handleCategorySuccess = (category) => {
+    console.log('✅ Categoría guardada exitosamente:', category);
+
+    // Recargar datos para mostrar cambios (opcional, ya que el store ya actualiza los estados)
+    // loadData();
+    
+    // Cerrar modal
+    handleCategoryModalClose();
+};
+
+// Función mejorada para eliminar categoría
+const handleDeleteCategory = async (category) => {
+    console.log('🗑️ Eliminar categoría:', category);
+    
+    try {
+        // Confirmación usando el modal de confirmación de PrimeVue o una función personalizada
+        const confirmed = await confirmDialog({
+            message: `¿Estás seguro de eliminar la categoría "${category.name}"?`,
+            header: 'Confirmar eliminación',
+            icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'Eliminar',
+            acceptClass: 'p-button-danger',
+            rejectLabel: 'Cancelar',
+            rejectClass: 'p-button-secondary',
+            acceptIcon: 'pi pi-trash',
+            rejectIcon: 'pi pi-times'
+        });
+        
+        if (confirmed) {
+            await categoriesStore.deleteCategory(category.id, { toast });
+            // No es necesario recargar los datos ya que el store actualiza los estados
+        }
+    } catch (error) {
+        console.error('💥 Error eliminando categoría:', error);
+        // El manejo de errores ya se hace en el store
+    }
 };
 
 // Función para cargar datos
 const loadData = async () => {
     try {
         console.log('🔄 Cargando datos...');
-        const result = await categoriesStore.fetchCategoryGroupsWithCategories({ toast });
+        const result = await categoryGroupsStore.fetchCategoryGroupsWithCategories({ toast });
         isInitialLoad.value = false;
         console.log('✅ Datos cargados exitosamente');
     } catch (error) {
