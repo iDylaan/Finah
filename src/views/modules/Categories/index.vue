@@ -16,7 +16,7 @@
                 <Button icon="pi pi-refresh" @click="loadData" :loading="categoriesStore.loading" severity="secondary"
                     outlined size="small" />
                 <Button icon="pi pi-plus" @click="handleNewCategoryGroup" :disabled="categoriesStore.loading"
-                    severity="success" outlined size="small" label="Nuevo" />
+                    severity="success" outlined size="small" label="Nuevo Grupo" />
             </div>
         </div>
 
@@ -96,7 +96,7 @@
                                 </p>
                             </div>
 
-                            <!-- Badge personal y opciones -->
+                            <!-- Badge personal -->
                             <div class="flex items-center gap-2">
                                 <Badge v-if="!category.is_public" value="Personal" severity="success" size="small" />
 
@@ -138,8 +138,8 @@
         </Card>
 
         <!-- Modal Component -->
-        <NewCategory v-model:visible="showNewCategoryGroupModal" :category-groups="categoryGroups"
-            :is-loading="categoriesStore.loading" :edit-category="editingCategoryGroup"
+        <CategoryGroupForm v-model:visible="showNewCategoryGroupModal" :is-edit="modalEditMode"
+            :edit-group-id="editingGroupId" :category-groups="categoryGroups" :is-loading="categoriesStore.loading"
             @submit="handleCategoryGroupSubmit" @close="handleModalClose" />
     </div>
 </template>
@@ -149,7 +149,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useCategoriesStore } from '@/stores/categories.js';
-import NewCategory from './components/NewCategoryGroup.vue';
+import CategoryGroupForm from './components/CategoryGroupForm.vue';
 
 // STORES & COMPOSABLES
 const toast = useToast();
@@ -162,7 +162,8 @@ const groupMenuRefs = ref({});
 
 // Modal state
 const showNewCategoryGroupModal = ref(false);
-const editingCategoryGroup = ref(null);
+const modalEditMode = ref(false);
+const editingGroupId = ref(null);
 const showNewCategoryModal = ref(false);
 const editingCategory = ref(null);
 
@@ -181,21 +182,24 @@ const getGroupMenuItems = (group) => {
     if (!group.is_public) {
         items.push(
             {
-                label: 'Editar',
-                icon: 'pi pi-pencil',
-                command: () => handleEditGroup(group)
+                separator: true // Separador visual
             },
             {
-                label: 'Eliminar',
+                label: 'Editar grupo',
+                icon: 'pi pi-pencil',
+                command: () => handleEditGroup(group) // PASAMOS EL GRUPO COMPLETO
+            },
+            {
+                label: 'Eliminar grupo',
                 icon: 'pi pi-trash',
-                command: () => handleDeleteGroup(group)
+                command: () => handleDeleteGroup(group),
+                class: 'text-red-500'
             }
         )
     }
 
     return items;
 };
-
 
 const setGroupMenuRef = (el, groupId) => {
     if (el) {
@@ -212,90 +216,102 @@ const toggleGroupMenu = (event, groupId) => {
 
 // Modal handlers
 const handleNewCategory = (group) => {
+    console.log('🆕 Nueva categoría para grupo:', group.name);
     editingCategory.value = null;
     showNewCategoryModal.value = true;
+
+    // Placeholder - implementar más tarde
+    toast.add({
+        severity: 'info',
+        summary: 'Función pendiente',
+        detail: 'Creación de categorías individuales próximamente',
+        life: 3000
+    });
 };
+
 const handleNewCategoryGroup = () => {
-    editingCategoryGroup.value = null;
+    console.log('🆕 Nuevo grupo de categorías');
+
+    // Resetear estado para creación
+    modalEditMode.value = false;
+    editingGroupId.value = null;
+    showNewCategoryGroupModal.value = true;
+};
+
+const handleEditGroup = (group) => {
+    console.log('✏️ Editar grupo:', { id: group.id, name: group.name });
+
+    // Configurar estado para edición
+    modalEditMode.value = true;
+    editingGroupId.value = group.id;
     showNewCategoryGroupModal.value = true;
 };
 
 const handleModalClose = () => {
+    console.log('❌ Cerrar modal');
+
+    // Resetear todo el estado del modal
     showNewCategoryGroupModal.value = false;
-    editingCategoryGroup.value = null;
-    showNewCategoryModal.value = true;
+    modalEditMode.value = false;
+    editingGroupId.value = null;
+
+    // También resetear otros modales si los hay
+    showNewCategoryModal.value = false;
     editingCategory.value = null;
 };
 
-const handleCategoryGroupSubmit = async ({ data, isEdit, onSuccess, onError }) => {
-    try {
-        console.log('🔄 Procesando categoría:', { data, isEdit });
+const handleCategoryGroupSubmit = async ({ data, isEdit, groupId, onSuccess, onError }) => {
+    console.log('📤 Procesando envío de grupo:', {
+        data: data,
+        isEdit: isEdit,
+        groupId: groupId
+    });
 
+    try {
         let result;
 
-        if (isEdit) {
-            // Actualizar categoría existente
-            result = await categoriesStore.updateCategory(data, { toast });
+        if (isEdit && groupId) {
+            // Actualizar grupo existente
+            console.log('📝 Actualizando grupo existente:', groupId);
+            result = await categoriesStore.updateCategoryGroup(groupId, data, { toast });
         } else {
-            // Crear nueva categoría
-            result = await categoriesStore.createCategory(data, { toast });
+            // Crear nuevo grupo
+            console.log('🆕 Creando nuevo grupo');
+            result = await categoriesStore.createCategoryGroup(data, { toast });
         }
 
-        if (result && !result.error) {
-            console.log('✅ Categoría procesada exitosamente:', result.data);
+        if (result) {
+            console.log('✅ Operación exitosa:', result);
 
             // Recargar datos para mostrar cambios
             await loadData();
 
             // Ejecutar callback de éxito
             onSuccess();
-
-            toast.add({
-                severity: 'success',
-                summary: isEdit ? 'Categoría actualizada' : 'Categoría creada',
-                detail: `La categoría "${data.name}" fue ${isEdit ? 'actualizada' : 'creada'} exitosamente`,
-                life: 3000
-            });
-        } else {
-            console.error('❌ Error procesando categoría:', result?.error);
-
-            // Ejecutar callback de error
-            onError();
-
-            toast.add({
-                severity: 'error',
-                summary: isEdit ? 'Error al actualizar' : 'Error al crear',
-                detail: result?.error?.message || `No se pudo ${isEdit ? 'actualizar' : 'crear'} la categoría`,
-                life: 5000
-            });
         }
 
     } catch (error) {
-        console.error('💥 Error inesperado:', error);
+        console.error('💥 Error en handleCategoryGroupSubmit:', error);
 
         // Ejecutar callback de error
-        onError();
-
-        toast.add({
-            severity: 'error',
-            summary: 'Error inesperado',
-            detail: `Ocurrió un error al ${isEdit ? 'actualizar' : 'crear'} la categoría`,
-            life: 5000
-        });
+        onError(error);
     }
 };
 
-// Category actions
+// CATEGORY ACTIONS
 const handleCategoryClick = (category) => {
-    console.log('Click en categoría:', category);
+    console.log('👆 Click en categoría:', category);
 };
 
 // Función para cargar datos
 const loadData = async () => {
     try {
+        console.log('🔄 Cargando datos...');
         const result = await categoriesStore.fetchCategoryGroupsWithCategories({ toast });
         isInitialLoad.value = false;
+        console.log('✅ Datos cargados exitosamente');
     } catch (error) {
+        console.error('💥 Error cargando datos:', error);
         toast.add({
             severity: 'error',
             summary: 'Error al cargar',
@@ -305,19 +321,8 @@ const loadData = async () => {
     }
 };
 
-// Group actions (placeholder)
-const handleEditGroup = (group) => {
-    console.log('Editar grupo:', group);
-    toast.add({
-        severity: 'info',
-        summary: 'Función pendiente',
-        detail: 'Edición de grupos aún no implementada',
-        life: 3000
-    });
-};
-
 const handleDeleteGroup = (group) => {
-    console.log('Eliminar grupo:', group);
+    console.log('🗑️ Eliminar grupo:', group);
     toast.add({
         severity: 'warn',
         summary: 'Función pendiente',

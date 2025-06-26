@@ -10,9 +10,9 @@
             <Button :style="buttonStyles" @click="openPicker" :disabled="disabled" severity="secondary" outlined
                 size="large">
                 <template #icon>
-                    <i v-if="currentLibrary === 'primeicons'" :class="finalIcon" class="text-white text-xl !text-white"
-                        style="color: white !important; font-size: 40px"></i>
-                    <span v-else-if="currentLibrary === 'material'"
+                    <i v-if="currentLibrary === ICONS.PRIMEVUE" :class="finalIcon"
+                        class="text-white text-xl !text-white" style="color: white !important; font-size: 40px"></i>
+                    <span v-else-if="currentLibrary === ICONS.MATERIAL"
                         class="material-symbols-rounded text-white text-xl !text-white"
                         style="color: white !important; font-size: 50px">
                         {{ getMaterialIconName(finalIcon) }}
@@ -39,13 +39,13 @@
                 <div class="mb-4">
                     <div class="flex gap-2">
                         <Button :label="`PrimeIcons (${primeIcons.length})`"
-                            :severity="currentLibrary === 'primeicons' ? 'primary' : 'secondary'"
-                            :outlined="currentLibrary !== 'primeicons'" size="small"
-                            @click="changeLibrary('primeicons')" />
+                            :severity="currentLibrary === ICONS.PRIMEVUE ? 'primary' : 'secondary'"
+                            :outlined="currentLibrary !== ICONS.PRIMEVUE" size="small"
+                            @click="changeLibrary(ICONS.PRIMEVUE)" />
                         <Button :label="`Material (${materialIcons.length})`"
-                            :severity="currentLibrary === 'material' ? 'primary' : 'secondary'"
-                            :outlined="currentLibrary !== 'material'" size="small"
-                            @click="changeLibrary('material')" />
+                            :severity="currentLibrary === ICONS.MATERIAL ? 'primary' : 'secondary'"
+                            :outlined="currentLibrary !== ICONS.MATERIAL" size="small"
+                            @click="changeLibrary(ICONS.MATERIAL)" />
                     </div>
                 </div>
 
@@ -55,10 +55,10 @@
                 </div>
 
                 <!-- Grid de iconos -->
-                <div class="icon-grid max-h-80 overflow-y-auto p-1">
-                    <div class="grid grid-cols-8 gap-2 p-1">
+                <div class="icon-grid max-h-80 w-full overflow-y-auto p-1">
+                    <div class="grid grid-cols-7 gap-2 p-1">
                         <!-- PrimeIcons -->
-                        <template v-if="currentLibrary === 'primeicons'">
+                        <template v-if="currentLibrary === ICONS.PRIMEVUE">
                             <div v-for="icon in filteredPrimeIcons" :key="icon"
                                 class="icon-item w-10 h-10 rounded-md cursor-pointer border-2 border-transparent hover:border-primary-400 transition-all duration-150 flex items-center justify-center bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600"
                                 :class="{ 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900': selectedPrimeIcon === icon }"
@@ -68,7 +68,7 @@
                         </template>
 
                         <!-- Material Symbols -->
-                        <template v-else-if="currentLibrary === 'material'">
+                        <template v-else-if="currentLibrary === ICONS.MATERIAL">
                             <div v-for="icon in filteredMaterialIcons" :key="icon"
                                 class="icon-item w-10 h-10 rounded-md cursor-pointer border-2 border-transparent hover:border-primary-400 transition-all duration-150 flex items-center justify-center bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600"
                                 :class="{ 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900': selectedMaterialIcon === icon }"
@@ -94,7 +94,8 @@
                     <div class="space-y-2">
                         <div class="flex justify-between items-center">
                             <span class="font-medium">Icono:</span>
-                            <code class="text-xs bg-surface-200 dark:bg-surface-600 px-2 py-1 rounded">{{ finalIcon }}</code>
+                            <code
+                                class="text-xs bg-surface-200 dark:bg-surface-600 px-2 py-1 rounded">{{ finalIcon }}</code>
                         </div>
                     </div>
                 </div>
@@ -105,8 +106,11 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import materialSymbolsData from '@/assets/constants/material-symbols.json';
+import primevueIconsData from '@/assets/constants/primevue-icons.json';
+import ICONS from '@/assets/constants/icon-providers.js'
 
-// Props
+// Props (mantener igual...)
 const props = defineProps({
     modelValue: {
         type: String,
@@ -114,8 +118,8 @@ const props = defineProps({
     },
     iconType: {
         type: String,
-        default: 'primeicons',
-        validator: (value) => ['primeicons', 'material'].includes(value)
+        default: ICONS.PRIMEVUE,
+        validator: (value) => [ICONS.PRIMEVUE, ICONS.MATERIAL].includes(value)
     },
     color: {
         type: String,
@@ -132,31 +136,51 @@ const emit = defineEmits(['update:modelValue', 'update:iconType']);
 
 // Variables reactivas
 const op = ref();
-const currentLibrary = ref('primeicons');
+const currentLibrary = ref(ICONS.PRIMEVUE);
 const searchQuery = ref('');
+const debouncedSearchQuery = ref(''); // NUEVA: Query con debounce
+const searchTimeout = ref(null); // NUEVA: Timeout para debounce
 
-// Iconos seleccionados independientes con valores por defecto de folder
+// Iconos seleccionados independientes
 const selectedPrimeIcon = ref('pi pi-folder');
 const selectedMaterialIcon = ref('folder');
+
+// NUEVA: Función de debounce
+function debounceSearch(query) {
+    // Limpiar timeout anterior
+    if (searchTimeout.value) {
+        clearTimeout(searchTimeout.value);
+    }
+
+    // Crear nuevo timeout
+    searchTimeout.value = setTimeout(() => {
+        console.log('🔍 Aplicando filtro con delay:', query);
+        debouncedSearchQuery.value = query;
+    }, 300); // 300ms de delay
+}
+
+// NUEVA: Watcher para searchQuery que aplica debounce
+watch(searchQuery, (newQuery) => {
+    console.log('⌨️ Usuario escribió:', newQuery);
+    debounceSearch(newQuery);
+});
 
 // Función para abrir el picker
 const openPicker = (event) => {
     op.value.show(event);
 }
 
-// Función para cerrar el picker (solo desde el botón X)
+// Función para cerrar el picker
 const closePicker = () => {
     op.value.hide();
 }
 
-// Computed para color seguro (solo para el display)
+// Computed para color seguro
 const safePreviewColor = computed(() => {
-    const color = props.color || '#6366f1';
-    console.log('🎨 IconPicker safePreviewColor:', color);
-    return color;
+    return props.color || '#6366f1';
 });
 
-// Computed para estilos del botón que se actualizan reactivamente
+// Computed para estilos del botón
 const buttonStyles = computed(() => {
     const color = safePreviewColor.value;
     return {
@@ -168,88 +192,41 @@ const buttonStyles = computed(() => {
     };
 });
 
-// Iconos PrimeIcons
-const primeIcons = [
-    'pi pi-home', 'pi pi-user', 'pi pi-cog', 'pi pi-heart', 'pi pi-star',
-    'pi pi-search', 'pi pi-plus', 'pi pi-minus', 'pi pi-times', 'pi pi-check',
-    'pi pi-arrow-left', 'pi pi-arrow-right', 'pi pi-arrow-up', 'pi pi-arrow-down',
-    'pi pi-chevron-left', 'pi pi-chevron-right', 'pi pi-chevron-up', 'pi pi-chevron-down',
-    'pi pi-calendar', 'pi pi-clock', 'pi pi-envelope', 'pi pi-phone', 'pi pi-map-marker',
-    'pi pi-shopping-cart', 'pi pi-credit-card', 'pi pi-money-bill', 'pi pi-wallet',
-    'pi pi-file', 'pi pi-folder', 'pi pi-image', 'pi pi-video', 'pi pi-music',
-    'pi pi-camera', 'pi pi-microphone', 'pi pi-volume-up', 'pi pi-volume-down',
-    'pi pi-wifi', 'pi pi-bluetooth', 'pi pi-signal', 'pi pi-battery',
-    'pi pi-lock', 'pi pi-unlock', 'pi pi-key', 'pi pi-shield',
-    'pi pi-eye', 'pi pi-eye-slash', 'pi pi-bookmark', 'pi pi-tag',
-    'pi pi-thumbs-up', 'pi pi-thumbs-down', 'pi pi-share', 'pi pi-download',
-    'pi pi-upload', 'pi pi-cloud', 'pi pi-server', 'pi pi-database',
-    'pi pi-chart-bar', 'pi pi-chart-pie', 'pi pi-chart-line', 'pi pi-percentage',
-    'pi pi-globe', 'pi pi-flag', 'pi pi-building', 'pi pi-car',
-    'pi pi-plane', 'pi pi-train', 'pi pi-bus', 'pi pi-bicycle',
-    'pi pi-coffee', 'pi pi-pizza-slice', 'pi pi-apple', 'pi pi-gift',
-    'pi pi-sun', 'pi pi-moon', 'pi pi-cloud-rain', 'pi pi-snowflake',
-    'pi pi-fire', 'pi pi-bolt', 'pi pi-leaf', 'pi pi-tree',
-    'pi pi-desktop', 'pi pi-mobile', 'pi pi-tablet', 'pi pi-gamepad',
-    'pi pi-print', 'pi pi-save', 'pi pi-copy', 'pi pi-paste',
-    'pi pi-cut', 'pi pi-undo', 'pi pi-redo', 'pi pi-refresh',
-    'pi pi-sync', 'pi pi-spin', 'pi pi-pause', 'pi pi-play',
-    'pi pi-stop', 'pi pi-forward', 'pi pi-backward', 'pi pi-step-forward',
-    'pi pi-step-backward', 'pi pi-eject', 'pi pi-random', 'pi pi-replay'
-];
-
-// Iconos Material Symbols
-const materialIcons = [
-    'home', 'person', 'settings', 'favorite', 'star',
-    'search', 'add', 'remove', 'close', 'check',
-    'arrow_back', 'arrow_forward', 'arrow_upward', 'arrow_downward',
-    'chevron_left', 'chevron_right', 'expand_less', 'expand_more',
-    'calendar_today', 'schedule', 'mail', 'phone', 'place',
-    'shopping_cart', 'credit_card', 'payments', 'account_balance_wallet',
-    'description', 'folder', 'image', 'videocam', 'music_note',
-    'photo_camera', 'mic', 'volume_up', 'volume_down',
-    'wifi', 'bluetooth', 'signal_cellular_alt', 'battery_full',
-    'lock', 'lock_open', 'vpn_key', 'security',
-    'visibility', 'visibility_off', 'bookmark', 'label',
-    'thumb_up', 'thumb_down', 'share', 'download',
-    'upload', 'cloud', 'dns', 'storage',
-    'bar_chart', 'pie_chart', 'show_chart', 'percent',
-    'language', 'flag', 'business', 'directions_car',
-    'flight', 'train', 'directions_bus', 'pedal_bike',
-    'local_cafe', 'local_pizza', 'apple', 'card_giftcard',
-    'wb_sunny', 'brightness_3', 'cloud_rain', 'ac_unit',
-    'local_fire_department', 'flash_on', 'eco', 'park',
-    'computer', 'smartphone', 'tablet', 'sports_esports',
-    'print', 'save', 'content_copy', 'content_paste',
-    'content_cut', 'undo', 'redo', 'refresh',
-    'sync', 'autorenew', 'pause', 'play_arrow',
-    'stop', 'skip_next', 'skip_previous', 'fast_forward',
-    'fast_rewind', 'eject', 'shuffle', 'repeat'
-];
+// Iconos
+const primeIcons = primevueIconsData;
+const materialIcons = materialSymbolsData;
 
 // Computed
 const finalIcon = computed(() => {
-    return currentLibrary.value === 'material' ? selectedMaterialIcon.value : selectedPrimeIcon.value;
+    return currentLibrary.value === ICONS.MATERIAL ? selectedMaterialIcon.value : selectedPrimeIcon.value;
 });
 
+// ACTUALIZADO: Filtros usando debouncedSearchQuery
 const filteredPrimeIcons = computed(() => {
-    if (!searchQuery.value) return primeIcons;
+    const query = debouncedSearchQuery.value.toLowerCase();
+    if (!query) return primeIcons;
+
+    console.log('🔍 Filtrando PrimeIcons con:', query);
     return primeIcons.filter(icon =>
-        icon.toLowerCase().includes(searchQuery.value.toLowerCase())
+        icon.toLowerCase().includes(query)
     );
 });
 
 const filteredMaterialIcons = computed(() => {
-    if (!searchQuery.value) return materialIcons;
+    const query = debouncedSearchQuery.value.toLowerCase();
+    if (!query) return materialIcons;
+
+    console.log('🔍 Filtrando Material Icons con:', query);
     return materialIcons.filter(icon =>
-        icon.toLowerCase().includes(searchQuery.value.toLowerCase())
+        icon.toLowerCase().includes(query)
     );
 });
 
 const filteredIcons = computed(() => {
-    return currentLibrary.value === 'primeicons' ? filteredPrimeIcons.value : filteredMaterialIcons.value;
+    return currentLibrary.value === ICONS.PRIMEVUE ? filteredPrimeIcons.value : filteredMaterialIcons.value;
 });
 
-// Watchers
+// Watchers (mantener igual...)
 watch(() => props.modelValue, (newValue) => {
     if (newValue && newValue !== finalIcon.value) {
         detectLibrary(newValue);
@@ -258,7 +235,6 @@ watch(() => props.modelValue, (newValue) => {
 
 watch(() => props.iconType, (newType) => {
     if (newType && newType !== currentLibrary.value) {
-        console.log('🎯 IconType prop changed:', newType);
         currentLibrary.value = newType;
     }
 }, { immediate: true });
@@ -269,54 +245,48 @@ watch(finalIcon, (newIcon) => {
     }
 });
 
-// NUEVO: Watcher para currentLibrary que emite el tipo de icono
 watch(currentLibrary, (newLibrary) => {
-    console.log('🎯 currentLibrary changed:', newLibrary);
     if (newLibrary !== props.iconType) {
         emit('update:iconType', newLibrary);
     }
 });
 
-// Watcher para detectar cambios en el color y forzar reactividad
-watch(() => props.color, (newColor) => {
-    console.log('🎨 IconPicker detectó cambio de color:', newColor);
-}, { immediate: true });
-
-// Funciones
+// Funciones (mantener igual...)
 function getMaterialIconName(fullIcon) {
     return fullIcon;
 }
 
 function detectLibrary(icon) {
     if (icon?.startsWith('pi ')) {
-        console.log('🎯 Detectando PrimeIcons para:', icon);
-        currentLibrary.value = 'primeicons';
+        currentLibrary.value = ICONS.PRIMEVUE;
         selectedPrimeIcon.value = icon;
     } else if (icon) {
-        console.log('🎯 Detectando Material para:', icon);
-        currentLibrary.value = 'material';
+        currentLibrary.value = ICONS.MATERIAL;
         selectedMaterialIcon.value = icon;
     }
 }
 
 function selectIcon(icon) {
-    console.log('🎯 Seleccionando icono:', icon, 'en librería:', currentLibrary.value);
-    
-    if (currentLibrary.value === 'primeicons') {
+    if (currentLibrary.value === ICONS.PRIMEVUE) {
         selectedPrimeIcon.value = icon;
     } else {
         selectedMaterialIcon.value = icon;
     }
     searchQuery.value = '';
-    // No llamar toggle() aquí
+    debouncedSearchQuery.value = ''; // NUEVA: Limpiar también el debounced
 }
 
-// NUEVA: Función para cambiar librería
 function changeLibrary(newLibrary) {
-    console.log('🎯 Cambiando librería a:', newLibrary);
     currentLibrary.value = newLibrary;
-    // El watcher se encargará de emitir el cambio
 }
+
+// NUEVA: Limpiar timeout al desmontar componente
+import { onUnmounted } from 'vue';
+onUnmounted(() => {
+    if (searchTimeout.value) {
+        clearTimeout(searchTimeout.value);
+    }
+});
 
 // Inicializar
 detectLibrary(props.modelValue);

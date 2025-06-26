@@ -33,10 +33,10 @@ const isPasswordValid = computed(() => {
 });
 
 const isFormValid = computed(() => {
-    return email.value && 
-           password.value && 
-           emailRegex.test(email.value.toLowerCase()) && 
-           password.value.length >= 6;
+    return email.value &&
+        password.value &&
+        emailRegex.test(email.value.toLowerCase()) &&
+        password.value.length >= 6;
 });
 
 // Mensajes de error
@@ -94,44 +94,13 @@ async function handleLogin() {
     isLoading.value = true;
 
     try {
-        console.log('🔐 Intentando iniciar sesión con:', email.value);
-        
         const { user, error } = await sessionStore.signIn(
-            normalizeEmail(email.value), 
-            password.value, 
+            normalizeEmail(email.value),
+            password.value,
             { toast }
         );
-        
-        if (error) {
-            console.error('❌ Error en signIn:', error);
-            
-            // Manejar errores específicos de Supabase
-            let errorMessage = 'Error al iniciar sesión';
-            let errorDetail = error.message;
-            
-            if (error.message?.includes('Invalid login credentials')) {
-                errorMessage = 'Credenciales incorrectas';
-                errorDetail = 'El email o la contraseña son incorrectos';
-            } else if (error.message?.includes('Email not confirmed')) {
-                errorMessage = 'Email no confirmado';
-                errorDetail = 'Por favor confirma tu email antes de iniciar sesión';
-            } else if (error.message?.includes('Too many requests')) {
-                errorMessage = 'Demasiados intentos';
-                errorDetail = 'Espera unos minutos antes de intentar de nuevo';
-            }
-            
-            toast.add({
-                severity: 'error',
-                summary: errorMessage,
-                detail: errorDetail,
-                life: 5000
-            });
-            return;
-        }
 
         if (user) {
-            console.log('✅ Login exitoso para:', user.email);
-            
             toast.add({
                 severity: 'success',
                 summary: 'Bienvenido',
@@ -148,7 +117,7 @@ async function handleLogin() {
             // Redirigir al dashboard
             router.push('/');
         }
-        
+
     } catch (error) {
         console.error('💥 Error inesperado al iniciar sesión:', error);
         toast.add({
@@ -186,7 +155,7 @@ const handleForgotPassword = async () => {
 
     try {
         const { error } = await sessionStore.resetPassword(normalizeEmail(email.value));
-        
+
         if (error) {
             toast.add({
                 severity: 'error',
@@ -203,7 +172,7 @@ const handleForgotPassword = async () => {
             detail: 'Revisa tu email para restablecer tu contraseña',
             life: 5000
         });
-        
+
     } catch (error) {
         console.error('Error al solicitar reset de password:', error);
         toast.add({
@@ -224,28 +193,14 @@ const handleForgotPassword = async () => {
                 <label for="email1" class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">
                     Correo electrónico *
                 </label>
-                <InputText 
-                    id="email1" 
-                    type="email" 
-                    placeholder="correo@dominio.com" 
-                    class="w-full"
-                    :class="{ 'p-invalid': emailTouched && !isEmailValid }"
-                    :modelValue="email"
-                    @input="(e) => handleEmailInput(e.target.value)"
-                    @blur="handleEmailBlur"
-                    autocomplete="email"
-                    :disabled="isLoading"
-                />
-                <small 
-                    v-if="emailError" 
-                    class="p-error block mt-1"
-                >
+                <InputText id="email1" type="email" placeholder="correo@dominio.com" class="w-full"
+                    :class="{ 'p-invalid': emailTouched && !isEmailValid }" :modelValue="email"
+                    @input="(e) => handleEmailInput(e.target.value)" @blur="handleEmailBlur" autocomplete="email"
+                    :disabled="isLoading" />
+                <small v-if="emailError" class="p-error block mt-1">
                     {{ emailError }}
                 </small>
-                <small 
-                    v-else-if="email && isEmailValid" 
-                    class="text-green-600 dark:text-green-400 block mt-1"
-                >
+                <small v-else-if="email && isEmailValid" class="text-green-600 dark:text-green-400 block mt-1">
                     ✓ Email válido
                 </small>
             </div>
@@ -255,59 +210,34 @@ const handleForgotPassword = async () => {
                 <label for="password1" class="block text-surface-900 dark:text-surface-0 font-medium text-xl mb-2">
                     Contraseña *
                 </label>
-                <Password 
-                    id="password1" 
-                    v-model="password" 
-                    placeholder="Contraseña" 
-                    :toggleMask="true" 
-                    class="w-full" 
-                    fluid
-                    :feedback="false"
-                    :class="{ 'p-invalid': passwordTouched && !isPasswordValid }"
-                    @blur="handlePasswordBlur"
-                    autocomplete="current-password"
-                    :disabled="isLoading"
-                />
-                <small 
-                    v-if="passwordError" 
-                    class="p-error block mt-1"
-                >
+                <Password id="password1" v-model="password" placeholder="Contraseña" :toggleMask="true" class="w-full"
+                    fluid :feedback="false" :class="{ 'p-invalid': passwordTouched && !isPasswordValid }"
+                    @blur="handlePasswordBlur" autocomplete="current-password" :disabled="isLoading" />
+                <small v-if="passwordError" class="p-error block mt-1">
                     {{ passwordError }}
                 </small>
             </div>
 
             <!-- Enlace de contraseña olvidada -->
             <div class="flex items-center justify-end mt-2 mb-8">
-                <button 
-                    type="button"
-                    @click="handleForgotPassword"
+                <button type="button" @click="handleForgotPassword"
                     class="font-medium no-underline text-right cursor-pointer text-primary hover:underline"
-                    :disabled="isLoading"
-                >
+                    :disabled="isLoading">
                     ¿Olvidaste la contraseña?
                 </button>
             </div>
 
             <!-- Botón de envío -->
-            <Button 
-                type="submit" 
-                label="Iniciar Sesión" 
-                :loading="isLoading || sessionStore.loading" 
-                :disabled="!isFormValid"
-                class="w-full mb-6"
-            />
+            <Button type="submit" label="Iniciar Sesión" :loading="isLoading || sessionStore.loading"
+                :disabled="!isFormValid" class="w-full mb-6" />
         </form>
 
         <!-- Enlace de registro -->
         <div class="text-center">
             <span class="text-surface-600 dark:text-surface-400 text-sm">
                 ¿No tienes una cuenta?
-                <button 
-                    @click="$emit('toggle-mode')" 
-                    class="text-primary font-semibold ml-1 hover:underline"
-                    type="button"
-                    :disabled="isLoading"
-                >
+                <button @click="$emit('toggle-mode')" class="text-primary font-semibold ml-1 hover:underline"
+                    type="button" :disabled="isLoading">
                     Regístrate aquí
                 </button>
             </span>

@@ -373,68 +373,13 @@ CREATE INDEX ON banks(user_group_id);
 CREATE INDEX ON banks(is_public);
 
 
--- ==================================================================
--- 5) Políticas RLS de ejemplo para group_members
--- ==================================================================
-ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
-
--- Solo miembros del grupo pueden ver la lista
-CREATE POLICY sel_group_members ON group_members
-  FOR SELECT USING (
-    group_id IN (
-      SELECT group_id
-        FROM group_members
-       WHERE user_id = auth.uid()
-    )
-  );
-
--- 1) INSERT: sólo admins pueden invitar nuevos miembros
-CREATE POLICY ins_group_members_admin
-  ON group_members
-  FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1
-        FROM group_members gm
-       WHERE gm.group_id = group_members.group_id
-         AND gm.user_id   = auth.uid()
-         AND gm.role     = 'admin'
-    )
-  );
-
--- 2) UPDATE: sólo admins pueden cambiar share_percent o rol
-CREATE POLICY upd_group_members_admin
-  ON group_members
-  FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1
-        FROM group_members gm
-       WHERE gm.group_id = group_members.group_id
-         AND gm.user_id   = auth.uid()
-         AND gm.role     = 'admin'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1
-        FROM group_members gm
-       WHERE gm.group_id = group_members.group_id
-         AND gm.user_id   = auth.uid()
-         AND gm.role     = 'admin'
-    )
-  );
-
--- 3) DELETE: sólo admins pueden expulsar miembros
-CREATE POLICY del_group_members_admin
-  ON group_members
-  FOR DELETE
-  USING (
-    EXISTS (
-      SELECT 1
-        FROM group_members gm
-       WHERE gm.group_id = group_members.group_id
-         AND gm.user_id   = auth.uid()
-         AND gm.role     = 'admin'
-    )
-  );
+-- 5) Funcion
+-- Solo se ejecuta una vez por query
+CREATE OR REPLACE FUNCTION public.session_user_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+SET search_path = public
+AS $$
+  SELECT auth.uid();
+$$;
