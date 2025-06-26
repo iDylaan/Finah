@@ -162,11 +162,13 @@
 // IMPORTS
 import { ref, onMounted, computed } from 'vue';
 import { useToast } from 'primevue/usetoast';
+import { useConfirm } from 'primevue/useconfirm';
 import CategoryGroupForm from './components/CategoryGroupForm.vue';
 import CategoryForm from './components/CategoryForm.vue'; // Importamos el nuevo componente
 
 // STORES & COMPOSABLES
 const toast = useToast();
+const confirm = useConfirm();
 import { useCategoriesStore } from '@/stores/categories.js';
 const categoriesStore = useCategoriesStore();
 
@@ -417,13 +419,11 @@ const handleCategorySuccess = async (category) => {
     handleCategoryModalClose();
 };
 
-// Función mejorada para eliminar categoría
+// Función para eliminar categoría
 const handleDeleteCategory = async (category) => {
-    console.log('🗑️ Eliminar categoría:', category);
-    
     try {
-        // Confirmación usando el modal de confirmación de PrimeVue o una función personalizada
-        const confirmed = await confirmDialog({
+        // Usar el servicio de confirmación a través de la instancia confirm
+        confirm.require({
             message: `¿Estás seguro de eliminar la categoría "${category.name}"?`,
             header: 'Confirmar eliminación',
             icon: 'pi pi-exclamation-triangle',
@@ -432,16 +432,30 @@ const handleDeleteCategory = async (category) => {
             rejectLabel: 'Cancelar',
             rejectClass: 'p-button-secondary',
             acceptIcon: 'pi pi-trash',
-            rejectIcon: 'pi pi-times'
+            rejectIcon: 'pi pi-times',
+            accept: async () => {
+                // Mostrar indicador de carga
+                toast.add({
+                    severity: 'info',
+                    summary: 'Procesando',
+                    detail: 'Eliminando categoría...',
+                    life: 2000
+                });
+                
+                // Eliminar categoría usando el store
+                await categoriesStore.deleteCategory(category.id, { toast });
+                
+                // Recargar datos para reflejar los cambios
+                await loadData();
+            }
         });
-        
-        if (confirmed) {
-            await categoriesStore.deleteCategory(category.id, { toast });
-            // No es necesario recargar los datos ya que el store actualiza los estados
-        }
     } catch (error) {
-        console.error('💥 Error eliminando categoría:', error);
-        // El manejo de errores ya se hace en el store
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudo eliminar la categoría',
+            life: 5000
+        });
     }
 };
 
