@@ -91,8 +91,7 @@
 
                     <!-- Badge público -->
                     <div v-if="isPublicCategory" class="mt-3">
-                        <Badge value="Categoría pública" severity="warning" />
-                        <p class="text-xs text-surface-500 mt-1">Las categorías públicas no pueden ser modificadas</p>
+                        <p class="text-xs text-surface-500 mt-1">Las categorías preestablecidas no pueden ser modificadas</p>
                     </div>
                 </div>
             </div>
@@ -251,12 +250,6 @@ watch([() => props.isNew, () => props.categoryId, () => props.category],
 
 // FUNCTIONS
 const initializeForm = () => {
-    console.log('🔄 Inicializando formulario...', { 
-        isNew: props.isNew, 
-        categoryId: props.categoryId,
-        groupId: props.groupId
-    });
-    
     formErrors.value = {};
     loadedCategoryData.value = null;
     
@@ -272,8 +265,6 @@ const initializeForm = () => {
 };
 
 const setupNewCategory = () => {
-    console.log('🆕 Configurando nueva categoría');
-    
     resetForm();
     
     // Si tenemos groupId, usarlo para la nueva categoría
@@ -283,8 +274,6 @@ const setupNewCategory = () => {
 };
 
 const loadCategoryFromProp = (category) => {
-    console.log('📥 Cargando categoría desde props:', category);
-    
     if (!category) {
         console.warn('⚠️ No se proporcionó datos de categoría');
         resetForm();
@@ -312,8 +301,6 @@ const loadCategoryData = async (categoryId) => {
     isLoadingData.value = true;
     
     try {
-        console.log('📥 Cargando categoría:', categoryId);
-        
         // Buscar primero en los grupos cargados
         let foundCategory = null;
         
@@ -333,7 +320,6 @@ const loadCategoryData = async (categoryId) => {
             return;
         }
         
-        console.log('✅ Categoría encontrada:', foundCategory);
         loadedCategoryData.value = { ...foundCategory };
         
         categoryForm.value = {
@@ -391,18 +377,11 @@ const validateForm = () => {
 };
 
 const handleClose = () => {
-    console.log('❌ Cerrando modal de categoría');
-    
     emit('close');
     resetForm();
 };
 
 const submitCategory = async () => {
-    console.log('📤 Enviando formulario de categoría...', { 
-        isNew: isNewCategory.value,
-        categoryId: props.categoryId 
-    });
-    
     if (!validateForm()) {
         console.warn('⚠️ Formulario no válido');
         return;
@@ -426,8 +405,6 @@ const submitCategory = async () => {
             categoryData.id = props.categoryId;
         }
         
-        console.log('📋 Datos a enviar:', categoryData);
-
         let result;
         
         // Usar el store directamente para guardar en lugar de emitir un evento

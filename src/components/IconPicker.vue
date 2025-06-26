@@ -62,7 +62,7 @@
                         <template v-if="currentLibrary === ICONS.PRIMEVUE">
                             <div v-for="icon in filteredPrimeIcons" :key="icon"
                                 class="icon-item w-10 h-10 rounded-md cursor-pointer border-2 border-transparent hover:border-primary-400 transition-all duration-150 flex items-center justify-center bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600"
-                                :class="{ 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900': selectedPrimeIcon === icon }"
+                                :class="{ 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900': tempSelectedPrimeIcon === icon }"
                                 @click="selectIcon(icon)" :title="icon">
                                 <i :class="icon" class="text-surface-700 dark:text-surface-300 text-sm"></i>
                             </div>
@@ -72,7 +72,7 @@
                         <template v-else-if="currentLibrary === ICONS.MATERIAL">
                             <div v-for="icon in filteredMaterialIcons" :key="icon"
                                 class="icon-item w-10 h-10 rounded-md cursor-pointer border-2 border-transparent hover:border-primary-400 transition-all duration-150 flex items-center justify-center bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600"
-                                :class="{ 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900': selectedMaterialIcon === icon }"
+                                :class="{ 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900': tempSelectedMaterialIcon === icon }"
                                 @click="selectIcon(icon)" :title="icon">
                                 <span
                                     class="material-symbols-rounded text-surface-700 dark:text-surface-300 icon-grid-item">
@@ -91,12 +91,12 @@
                 </div>
 
                 <!-- Info del icono seleccionado -->
-                <div v-if="finalIcon" class="mt-3 p-3 bg-surface-100 dark:bg-surface-700 rounded text-sm">
+                <div v-if="tempFinalIcon" class="mt-3 p-3 bg-surface-100 dark:bg-surface-700 rounded text-sm">
                     <div class="space-y-2">
                         <div class="flex justify-between items-center">
                             <span class="font-medium">Icono:</span>
                             <code
-                                class="text-xs bg-surface-200 dark:bg-surface-600 px-2 py-1 rounded">{{ finalIcon }}</code>
+                                class="text-xs bg-surface-200 dark:bg-surface-600 px-2 py-1 rounded">{{ tempFinalIcon }}</code>
                         </div>
                     </div>
                 </div>

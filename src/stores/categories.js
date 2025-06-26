@@ -9,6 +9,8 @@ export const useCategoriesStore = defineStore('categories', () => {
     const categoryGroups = ref([])
     const loading = ref(false)
 
+    // FUNCIONES PARA CATEGORÍAS
+    
     // Función para obtener categorías (públicas + del usuario)
     const fetchCategories = async ({ toast }) => {
         loading.value = true
@@ -44,101 +46,7 @@ export const useCategoriesStore = defineStore('categories', () => {
         }
     }
 
-    // Función para obtener category_groups con sus categorías anidadas
-    const fetchCategoryGroupsWithCategories = async ({ toast }) => {
-        loading.value = true
-
-        try {
-            const { data: { user } } = await supabase.auth.getUser()
-            const userId = user?.id
-
-            // **PASO 1:** Obtener todas las categorías primero
-            let categoriesQuery = supabase
-                .from('categories')
-                .select('*')
-
-            if (userId) {
-                categoriesQuery = categoriesQuery.or(`is_public.eq.true,user_id.eq.${userId}`)
-            } else {
-                categoriesQuery = categoriesQuery.eq('is_public', true)
-            }
-
-            const { data: categoriesData, error: categoriesError } = await categoriesQuery
-
-            if (categoriesError) {
-                handleError(categoriesError, toast)
-                return
-            }
-
-            // **PASO 2:** Obtener todos los grupos de categorías
-            let groupsQuery = supabase
-                .from('category_groups')
-                .select('*')
-
-            if (userId) {
-                groupsQuery = groupsQuery.or(`is_public.eq.true,user_id.eq.${userId}`)
-            } else {
-                groupsQuery = groupsQuery.eq('is_public', true)
-            }
-
-            const { data: groupsData, error: groupsError } = await groupsQuery
-
-            if (groupsError) {
-                handleError(groupsError, toast)
-                return
-            }
-
-            // **PASO 3:** Ordenar categorías (Privadas primero, luego alfabético)
-            const sortedCategories = categoriesData.sort((a, b) => {
-                // Primero: Privadas (false) antes que públicas (true)
-                if (a.is_public !== b.is_public) {
-                    return a.is_public - b.is_public // false (0) < true (1)
-                }
-                // Segundo: Orden alfabético por nombre (case insensitive)
-                return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
-            })
-
-            // **PASO 4:** Agrupar categorías ordenadas por group_id
-            const categoriesByGroup = {}
-            sortedCategories.forEach(category => {
-                const groupId = category.group_id
-                if (!categoriesByGroup[groupId]) {
-                    categoriesByGroup[groupId] = []
-                }
-                categoriesByGroup[groupId].push(category)
-            })
-
-            // **PASO 5:** Ordenar grupos (Privados primero, luego alfabético)
-            const sortedGroups = groupsData.sort((a, b) => {
-                // Primero: Privadas (false) antes que públicas (true)
-                if (a.is_public !== b.is_public) {
-                    return a.is_public - b.is_public // false (0) < true (1)
-                }
-                // Segundo: Orden alfabético por nombre (case insensitive)
-                return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
-            })
-
-            // **PASO 6:** Agregar categorías ordenadas a cada grupo
-            const groupsWithCategories = sortedGroups.map(group => ({
-                ...group,
-                categories: categoriesByGroup[group.id] || []
-            }))
-
-            // **PASO 7:** Actualizar estados del store
-            categories.value = sortedCategories || []
-            categoryGroups.value = groupsWithCategories || []
-
-            return groupsWithCategories
-
-        } catch (error) {
-            handleError(error, toast)
-            return []
-        } finally {
-            loading.value = false
-        }
-    }
-
-    // NUEVA: Función para crear una nueva categoría
+    // Función para crear una nueva categoría
     const createCategory = async (categoryData, { toast }) => {
         loading.value = true
 
@@ -221,7 +129,7 @@ export const useCategoriesStore = defineStore('categories', () => {
         }
     }
 
-    // NUEVA: Función para actualizar una categoría
+    // Función para actualizar una categoría
     const updateCategory = async (categoryId, categoryData, { toast }) => {
         loading.value = true
 
@@ -333,7 +241,7 @@ export const useCategoriesStore = defineStore('categories', () => {
         }
     }
 
-    // NUEVA: Función para eliminar una categoría
+    // Función para eliminar una categoría
     const deleteCategory = async (categoryId, { toast }) => {
         loading.value = true
 
@@ -344,6 +252,10 @@ export const useCategoriesStore = defineStore('categories', () => {
             if (userError || !user) {
                 throw new Error('Usuario no autenticado')
             }
+
+            // Buscar la categoría para saber a qué grupo pertenece (antes de eliminarla)
+            const categoryToDelete = categories.value.find(c => c.id === categoryId)
+            const groupId = categoryToDelete?.group_id
 
             // Eliminar de la base de datos
             const { error } = await supabase
@@ -356,16 +268,12 @@ export const useCategoriesStore = defineStore('categories', () => {
                 console.error('💥 Error eliminando categoría:', error)
                 throw error
             }
-
-            // Actualizar los estados locales
-            // 1. Buscar la categoría para saber a qué grupo pertenece
-            const categoryToDelete = categories.value.find(c => c.id === categoryId)
-            const groupId = categoryToDelete?.group_id
             
-            // 2. Quitar de la lista plana de categorías
+            // Actualizar los estados locales
+            // 1. Quitar de la lista plana de categorías
             categories.value = categories.value.filter(c => c.id !== categoryId)
             
-            // 3. Quitar de la estructura anidada de grupos
+            // 2. Quitar de la estructura anidada de grupos
             if (groupId) {
                 const groupIndex = categoryGroups.value.findIndex(g => g.id === groupId)
                 if (groupIndex !== -1) {
@@ -401,12 +309,374 @@ export const useCategoriesStore = defineStore('categories', () => {
         }
     }
 
-    // NUEVA: Función genérica para guardar (crear o actualizar)
+    // Función genérica para guardar categoría (crear o actualizar)
     const saveCategory = async (categoryData, isEdit = false, { toast }) => {
         if (isEdit && categoryData.id) {
             return await updateCategory(categoryData.id, categoryData, { toast })
         } else {
             return await createCategory(categoryData, { toast })
+        }
+    }
+
+    // FUNCIONES PARA GRUPOS DE CATEGORÍAS
+    
+    // Función para obtener grupos de categorías (públicos + del usuario)
+    const fetchCategoryGroups = async ({ toast }) => {
+        loading.value = true
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            const userId = user?.id
+
+            let query = supabase
+                .from('category_groups')
+                .select('*')
+
+            if (userId) {
+                // Mostrar públicos O del usuario actual
+                query = query.or(`is_public.eq.true,user_id.eq.${userId}`)
+            } else {
+                // Solo públicos si no hay usuario
+                query = query.eq('is_public', true)
+            }
+
+            const { data, error } = await query
+
+            if (error) {
+                handleError(error, toast)
+            } else {
+                categoryGroups.value = data || []
+            }
+
+        } catch (error) {
+            handleError(error, toast)
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // Función para obtener category_groups con sus categorías anidadas
+    const fetchCategoryGroupsWithCategories = async ({ toast }) => {
+        loading.value = true
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            const userId = user?.id
+
+            // **PASO 1:** Obtener todas las categorías primero
+            let categoriesQuery = supabase
+                .from('categories')
+                .select('*')
+
+            if (userId) {
+                categoriesQuery = categoriesQuery.or(`is_public.eq.true,user_id.eq.${userId}`)
+            } else {
+                categoriesQuery = categoriesQuery.eq('is_public', true)
+            }
+
+            const { data: categoriesData, error: categoriesError } = await categoriesQuery
+
+            if (categoriesError) {
+                handleError(categoriesError, toast)
+                return
+            }
+
+            // **PASO 2:** Obtener todos los grupos de categorías
+            let groupsQuery = supabase
+                .from('category_groups')
+                .select('*')
+
+            if (userId) {
+                groupsQuery = groupsQuery.or(`is_public.eq.true,user_id.eq.${userId}`)
+            } else {
+                groupsQuery = groupsQuery.eq('is_public', true)
+            }
+
+            const { data: groupsData, error: groupsError } = await groupsQuery
+
+            if (groupsError) {
+                handleError(groupsError, toast)
+                return
+            }
+
+            // **PASO 3:** Ordenar categorías (Privadas primero, luego alfabético)
+            const sortedCategories = categoriesData.sort((a, b) => {
+                // Primero: Privadas (false) antes que públicas (true)
+                if (a.is_public !== b.is_public) {
+                    return a.is_public - b.is_public // false (0) < true (1)
+                }
+                // Segundo: Orden alfabético por nombre (case insensitive)
+                return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+            })
+
+            // **PASO 4:** Agrupar categorías ordenadas por group_id
+            const categoriesByGroup = {}
+            sortedCategories.forEach(category => {
+                const groupId = category.group_id
+                if (!categoriesByGroup[groupId]) {
+                    categoriesByGroup[groupId] = []
+                }
+                categoriesByGroup[groupId].push(category)
+            })
+
+            // **PASO 5:** Ordenar grupos (Privados primero, luego alfabético)
+            const sortedGroups = groupsData.sort((a, b) => {
+                // Primero: Privadas (false) antes que públicas (true)
+                if (a.is_public !== b.is_public) {
+                    return a.is_public - b.is_public // false (0) < true (1)
+                }
+                // Segundo: Orden alfabético por nombre (case insensitive)
+                return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+            })
+
+            // **PASO 6:** Agregar categorías ordenadas a cada grupo
+            const groupsWithCategories = sortedGroups.map(group => ({
+                ...group,
+                categories: categoriesByGroup[group.id] || []
+            }))
+
+            // **PASO 7:** Actualizar estados del store
+            categories.value = sortedCategories || []
+            categoryGroups.value = groupsWithCategories || []
+
+            return groupsWithCategories
+
+        } catch (error) {
+            handleError(error, toast)
+            return []
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // Función para crear un grupo de categorías
+    const createCategoryGroup = async (groupData, { toast }) => {
+        loading.value = true
+
+        try {
+            // Obtener el usuario actual
+            const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+            if (userError) {
+                throw new Error('Error obteniendo usuario: ' + userError.message)
+            }
+
+            if (!user) {
+                throw new Error('Usuario no autenticado')
+            }
+
+            // Preparar datos para insertar
+            const insertData = {
+                name: groupData.name,
+                description: groupData.description || null,
+                icon_name: groupData.icon_name || 'pi pi-folder',
+                icon_library: groupData.icon_type || 'primeicons',
+                color: groupData.color || '#6366f1',
+                is_public: false, // Por defecto, los grupos creados por usuarios son privados
+                user_id: user.id
+            }
+
+            // Insertar en la base de datos
+            const { data, error } = await supabase
+                .from('category_groups')
+                .insert([insertData])
+                .select() // Retornar el registro insertado
+
+            if (error) {
+                console.error('💥 Error insertando grupo de categorías:', error)
+                throw error
+            }
+
+            // Actualizar el estado local agregando el nuevo grupo
+            if (data && data[0]) {
+                // Añadir el nuevo grupo con un array vacío de categorías
+                const newGroup = {
+                    ...data[0],
+                    categories: [] // Inicializar con array vacío de categorías
+                }
+                
+                // Agregar al inicio del array de grupos
+                categoryGroups.value.unshift(newGroup)
+            }
+
+            // Mostrar mensaje de éxito
+            toast.add({
+                severity: 'success',
+                summary: 'Grupo Creado',
+                detail: `El grupo "${groupData.name}" se creó exitosamente`,
+                life: 3000
+            })
+
+            return data[0] // Retornar el grupo creado
+
+        } catch (error) {
+            console.error('💥 Error creando grupo de categorías:', error)
+
+            // Mostrar mensaje de error
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: error.message || 'Error creando el grupo de categorías',
+                life: 5000
+            })
+
+            throw error // Re-lanzar para manejo en el componente
+
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // Función para actualizar un grupo de categorías
+    const updateCategoryGroup = async (groupId, groupData, { toast }) => {
+        loading.value = true
+
+        try {
+            // Obtener el usuario actual
+            const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+            if (userError || !user) {
+                throw new Error('Usuario no autenticado')
+            }
+
+            // Preparar datos para actualizar
+            const updateData = {
+                name: groupData.name,
+                description: groupData.description || null,
+                icon_name: groupData.icon_name || 'pi pi-folder',
+                icon_library: groupData.icon_type || 'primeicons',
+                color: groupData.color || '#6366f1'
+                // No incluimos is_public ni user_id ya que no deben cambiarse en una actualización
+            }
+
+            // Actualizar en la base de datos
+            const { data, error } = await supabase
+                .from('category_groups')
+                .update(updateData)
+                .eq('id', groupId)
+                .eq('user_id', user.id) // Asegurar que solo el dueño pueda actualizarlo
+                .select()
+
+            if (error) {
+                console.error('💥 Error actualizando grupo de categorías:', error)
+                throw error
+            }
+
+            if (!data || data.length === 0) {
+                throw new Error('No se pudo actualizar el grupo. Verifica que sea tuyo y no sea público.')
+            }
+
+            // Actualizar el estado local
+            const updatedGroup = data[0]
+            const groupIndex = categoryGroups.value.findIndex(g => g.id === groupId)
+            
+            if (groupIndex !== -1) {
+                // Mantener las categorías que ya tenía el grupo
+                const existingCategories = categoryGroups.value[groupIndex].categories || []
+                
+                // Actualizar el grupo manteniendo sus categorías
+                categoryGroups.value[groupIndex] = {
+                    ...updatedGroup,
+                    categories: existingCategories
+                }
+            }
+
+            // Mostrar mensaje de éxito
+            toast.add({
+                severity: 'success',
+                summary: 'Grupo Actualizado',
+                detail: `El grupo "${groupData.name}" se actualizó exitosamente`,
+                life: 3000
+            })
+
+            return {
+                ...updatedGroup,
+                categories: categoryGroups.value[groupIndex]?.categories || []
+            }
+
+        } catch (error) {
+            console.error('💥 Error actualizando grupo de categorías:', error)
+
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: error.message || 'Error actualizando el grupo de categorías',
+                life: 5000
+            })
+
+            throw error
+
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // Función para eliminar un grupo de categorías (implementación futura)
+    const deleteCategoryGroup = async (groupId, { toast }) => {
+        loading.value = true
+
+        try {
+            // Obtener el usuario actual
+            const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+            if (userError || !user) {
+                throw new Error('Usuario no autenticado')
+            }
+
+            // NOTA: Verificar primero si el grupo tiene categorías
+            const group = categoryGroups.value.find(g => g.id === groupId)
+            if (group?.categories?.length > 0) {
+                throw new Error(`No se puede eliminar el grupo "${group.name}" porque contiene categorías. Elimina o mueve las categorías primero.`)
+            }
+
+            // Eliminar de la base de datos
+            const { error } = await supabase
+                .from('category_groups')
+                .delete()
+                .eq('id', groupId)
+                .eq('user_id', user.id) // Solo el dueño puede eliminar
+
+            if (error) {
+                console.error('💥 Error eliminando grupo de categorías:', error)
+                throw error
+            }
+            
+            // Actualizar el estado local
+            categoryGroups.value = categoryGroups.value.filter(g => g.id !== groupId)
+
+            // Mostrar mensaje de éxito
+            toast.add({
+                severity: 'success',
+                summary: 'Grupo Eliminado',
+                detail: `El grupo ha sido eliminado exitosamente`,
+                life: 3000
+            })
+
+            return true
+
+        } catch (error) {
+            console.error('💥 Error eliminando grupo de categorías:', error)
+
+            toast.add({
+                severity: 'error',
+                summary: 'Error',
+                detail: error.message || 'Error eliminando el grupo de categorías',
+                life: 5000
+            })
+
+            throw error
+
+        } finally {
+            loading.value = false
+        }
+    }
+
+    // Función genérica para guardar grupo (crear o actualizar)
+    const saveCategoryGroup = async (groupData, isEdit = false, { toast }) => {
+        if (isEdit && groupData.id) {
+            return await updateCategoryGroup(groupData.id, groupData, { toast })
+        } else {
+            return await createCategoryGroup(groupData, { toast })
         }
     }
 
@@ -416,14 +686,19 @@ export const useCategoriesStore = defineStore('categories', () => {
         categoryGroups,
         loading,
 
-        // Funciones existentes
+        // Funciones para categorías
         fetchCategories,
-        fetchCategoryGroupsWithCategories,
-        
-        // NUEVAS funciones
         createCategory,
         updateCategory,
         deleteCategory,
-        saveCategory
+        saveCategory,
+        
+        // Funciones para grupos de categorías
+        fetchCategoryGroups,
+        fetchCategoryGroupsWithCategories,
+        createCategoryGroup,
+        updateCategoryGroup,
+        deleteCategoryGroup,
+        saveCategoryGroup
     }
 })

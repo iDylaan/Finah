@@ -13,15 +13,15 @@
 
             <!-- Botón de recarga -->
             <div class="flex gap-2">
-                <Button icon="pi pi-refresh" @click="loadData" :loading="categoryGroupsStore.loading" severity="secondary"
+                <Button icon="pi pi-refresh" @click="loadData" :loading="categoriesStore.loading" severity="secondary"
                     outlined size="small" />
-                <Button icon="pi pi-plus" @click="handleNewCategoryGroup" :disabled="categoryGroupsStore.loading"
-                    severity="success" outlined size="small" label="Nuevo Grupo" />
+                <Button icon="pi pi-plus" @click="handleNewCategoryGroup" :disabled="categoriesStore.loading"
+                    severity="success" size="small" label="Nuevo Grupo" />
             </div>
         </div>
 
         <!-- Loading State -->
-        <div v-if="categoryGroupsStore.loading" class="flex justify-center items-center py-12">
+        <div v-if="categoriesStore.loading" class="flex justify-center items-center py-12">
             <ProgressSpinner />
         </div>
 
@@ -36,7 +36,7 @@
                         <!-- Icono del grupo -->
                         <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm"
                             :style="{ backgroundColor: group.color || '#6366f1' }">
-                            <span v-if="group.icon_library === 'material'" class="material-symbols-outlined">{{
+                            <span v-if="group.icon_library === 'material'" class="material-symbols-rounded text-white">{{
                                 group.icon_name }}</span>
                             <i v-else :class="group.icon_name || 'pi pi-folder'" class="text-white text-sm"></i>
                         </div>
@@ -54,6 +54,9 @@
                 </template>
 
                 <template #icons>
+                    <Button icon="pi pi-plus" severity="success" rounded text
+                        @click="(event) => handleNewCategory(group.id)" />
+
                     <Button icon="pi pi-cog" severity="secondary" rounded text
                         @click="(event) => toggleGroupMenu(event, group.id)" />
 
@@ -80,7 +83,7 @@
                             <!-- Icono de la categoría -->
                             <div class="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 shadow-sm"
                                 :style="{ backgroundColor: group.color || '#6366f1' }">
-                                <span v-if="category.icon_library === 'material'" class="material-symbols-outlined">{{
+                                <span v-if="category.icon_library === 'material'" class="material-symbols-rounded text-white">{{
                                     category.icon_name }}</span>
                                 <i v-else :class="category.icon_name || 'pi pi-tag'" class="text-white text-xs"></i>
                             </div>
@@ -139,7 +142,7 @@
 
         <!-- Modal Components -->
         <CategoryGroupForm v-model:visible="showCategoryGroupModal" :is-edit="modalEditMode"
-            :edit-group-id="editingGroupId" :category-groups="categoryGroups" :is-loading="categoryGroupsStore.loading"
+            :edit-group-id="editingGroupId" :category-groups="categoryGroups" :is-loading="categoriesStore.loading"
             @submit="handleCategoryGroupSubmit" @close="handleModalClose" />
             
         <!-- Modal de Categoría -->
@@ -164,14 +167,12 @@ import CategoryForm from './components/CategoryForm.vue'; // Importamos el nuevo
 
 // STORES & COMPOSABLES
 const toast = useToast();
-import { useCategoryGroupsStore } from '@/stores/categoryGroups.js';
-const categoryGroupsStore = useCategoryGroupsStore();
 import { useCategoriesStore } from '@/stores/categories.js';
 const categoriesStore = useCategoriesStore();
 
 // VARIABLES
 const isInitialLoad = ref(true);
-const categoryGroups = computed(() => categoryGroupsStore.categoryGroups);
+const categoryGroups = computed(() => categoriesStore.categoryGroups);
 const groupMenuRefs = ref({});
 const categoryMenuRefs = ref({});
 
@@ -194,7 +195,7 @@ const getGroupMenuItems = (group) => {
             label: 'Nueva categoría',
             icon: 'pi pi-plus',
             command: () => {
-                handleNewCategory(group);
+                handleNewCategory(group.id);
             }
         }
     ];
@@ -271,8 +272,6 @@ const toggleCategoryMenu = (event, categoryId) => {
 
 // Modal handlers - Grupo
 const handleNewCategoryGroup = () => {
-    console.log('🆕 Nuevo grupo de categorías');
-
     // Resetear estado para creación
     modalEditMode.value = false;
     editingGroupId.value = null;
@@ -280,8 +279,6 @@ const handleNewCategoryGroup = () => {
 };
 
 const handleEditGroup = (group) => {
-    console.log('✏️ Editar grupo:', { id: group.id, name: group.name });
-
     // Configurar estado para edición
     modalEditMode.value = true;
     editingGroupId.value = group.id;
@@ -289,8 +286,6 @@ const handleEditGroup = (group) => {
 };
 
 const handleModalClose = () => {
-    console.log('❌ Cerrar modal de grupo');
-
     // Resetear todo el estado del modal
     showCategoryGroupModal.value = false;
     modalEditMode.value = false;
@@ -298,21 +293,15 @@ const handleModalClose = () => {
 };
 
 const handleCategoryGroupSubmit = async ({ data, isEdit, groupId, onSuccess, onError }) => {
-    console.log('📤 Procesando envío de grupo:', {
-        data: data,
-        isEdit: isEdit,
-        groupId: groupId
-    });
-
     try {
         let result;
 
         if (isEdit && groupId) {
             // Actualizar grupo existente
-            result = await categoryGroupsStore.updateCategoryGroup(groupId, data, { toast });
+            result = await categoriesStore.updateCategoryGroup(groupId, data, { toast });
         } else {
             // Crear nuevo grupo
-            result = await categoryGroupsStore.createCategoryGroup(data, { toast });
+            result = await categoriesStore.createCategoryGroup(data, { toast });
         }
 
         if (result) {
@@ -331,12 +320,10 @@ const handleCategoryGroupSubmit = async ({ data, isEdit, groupId, onSuccess, onE
 };
 
 // Modal handlers - Categoría
-const handleNewCategory = (group) => {
-    console.log('🆕 Nueva categoría para grupo:', group.name);
-    
+const handleNewCategory = (groupID) => {
     // Configurar estado para nueva categoría
     newCategoryMode.value = true;
-    selectedGroupId.value = group.id;
+    selectedGroupId.value = groupID;
     editingCategoryId.value = null;
     selectedCategory.value = null;
     
@@ -345,8 +332,6 @@ const handleNewCategory = (group) => {
 };
 
 const handleEditCategory = (category) => {
-    console.log('✏️ Editar categoría:', category);
-    
     // Encontrar el grupo de la categoría
     const group = categoryGroups.value.find(g => 
         g.categories?.some(c => c.id === category.id)
@@ -369,8 +354,6 @@ const handleEditCategory = (category) => {
 };
 
 const handleCategoryClick = (category, group) => {
-    console.log('👆 Click en categoría:', category, 'Group:', group);
-    
     // Configurar estado para ver/editar
     newCategoryMode.value = false;
     editingCategoryId.value = category.id;
@@ -385,8 +368,6 @@ const handleCategoryClick = (category, group) => {
 };
 
 const handleCategoryModalClose = () => {
-    console.log('❌ Cerrar modal de categoría');
-    
     // Resetear estado del modal
     showCategoryModal.value = false;
     newCategoryMode.value = false;
@@ -395,51 +376,42 @@ const handleCategoryModalClose = () => {
     selectedGroupId.value = null;
 };
 
-const handleCategorySubmit = async ({ data, isNew, categoryId, groupId, onSuccess, onError }) => {
-    console.log('📤 Procesando envío de categoría:', {
-        data: data,
-        isNew: isNew,
-        categoryId: categoryId,
-        groupId: groupId
-    });
+// const handleCategorySubmit = async ({ data, isNew, categoryId, groupId, onSuccess, onError }) => {
+//     try {
+//         let result;
 
-    try {
-        let result;
+//         if (!isNew && categoryId) {
+//             // Actualizar categoría existente
+//             console.log('📝 Actualizando categoría:', categoryId);
+//             result = await categoriesStore.updateCategory(categoryId, data, { toast });
+//         } else {
+//             // Crear nueva categoría
+//             console.log('🆕 Creando nueva categoría');
+//             result = await categoriesStore.createCategory(data, { toast });
+//         }
 
-        if (!isNew && categoryId) {
-            // Actualizar categoría existente
-            console.log('📝 Actualizando categoría:', categoryId);
-            result = await categoryGroupsStore.updateCategory(categoryId, data, { toast });
-        } else {
-            // Crear nueva categoría
-            console.log('🆕 Creando nueva categoría');
-            result = await categoryGroupsStore.createCategory(data, { toast });
-        }
+//         if (result) {
+//             console.log('✅ Operación exitosa:', result);
 
-        if (result) {
-            console.log('✅ Operación exitosa:', result);
+//             // Recargar datos para mostrar cambios
+//             await loadData();
 
-            // Recargar datos para mostrar cambios
-            await loadData();
+//             // Ejecutar callback de éxito
+//             onSuccess();
+//         }
 
-            // Ejecutar callback de éxito
-            onSuccess();
-        }
+//     } catch (error) {
+//         console.error('💥 Error en handleCategorySubmit:', error);
 
-    } catch (error) {
-        console.error('💥 Error en handleCategorySubmit:', error);
-
-        // Ejecutar callback de error
-        onError(error);
-    }
-};
+//         // Ejecutar callback de error
+//         onError(error);
+//     }
+// };
 
 // Función para manejar el éxito de crear/editar categoría
-const handleCategorySuccess = (category) => {
-    console.log('✅ Categoría guardada exitosamente:', category);
-
-    // Recargar datos para mostrar cambios (opcional, ya que el store ya actualiza los estados)
-    // loadData();
+const handleCategorySuccess = async (category) => {
+    // Recargar datos para asegurar que los cambios sean visibles
+    await loadData();
     
     // Cerrar modal
     handleCategoryModalClose();
@@ -477,7 +449,7 @@ const handleDeleteCategory = async (category) => {
 const loadData = async () => {
     try {
         console.log('🔄 Cargando datos...');
-        const result = await categoryGroupsStore.fetchCategoryGroupsWithCategories({ toast });
+        const result = await categoriesStore.fetchCategoryGroupsWithCategories({ toast });
         isInitialLoad.value = false;
         console.log('✅ Datos cargados exitosamente');
     } catch (error) {

@@ -13,8 +13,8 @@ import Aura from '@primeuix/themes/aura';
 import PrimeVue from 'primevue/config';
 import Tooltip from 'primevue/tooltip';
 import Ripple from 'primevue/ripple';
-import ConfirmationService from 'primevue/confirmationservice';
 import ToastService from 'primevue/toastservice';
+import ConfirmationService from 'primevue/confirmationservice';
 
 // Importar localización
 import { esLocale } from '@/locale/es.js';
@@ -42,9 +42,9 @@ app.use(PrimeVue, {
 });
 
 app.use(ToastService)
+app.use(ConfirmationService)
 app.directive('ripple', Ripple)
 app.directive('tooltip', Tooltip)
-app.use(ConfirmationService);
 app.use(router)
 
 // **VERSIÓN SIMPLIFICADA:** Inicialización más robusta

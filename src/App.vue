@@ -2,6 +2,7 @@
 
 <template>
     <Toast />
+    <ConfirmDialog />
     <router-view />
 </template>
 

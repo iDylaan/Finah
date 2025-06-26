@@ -87,7 +87,7 @@
 // IMPORTS
 import { ref, computed, watch } from 'vue';
 import ICONS from '@/assets/constants/icon-providers.js';
-import { useCategoryGroupsStore } from '@/stores/categoryGroups.js';
+import { useCategoriesStore } from '@/stores/categories.js';
 
 // COMPONENTS
 import IconPicker from '@/components/IconPicker.vue';
@@ -121,7 +121,7 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'submit', 'close']);
 
 // STORE
-const categoryGroupsStore = useCategoryGroupsStore();
+const categoriesStore = useCategoriesStore();
 
 // VARIABLES
 const isSubmitting = ref(false);
@@ -208,11 +208,6 @@ watch([() => props.isEdit, () => props.editGroupId], ([newIsEdit, newEditGroupId
 
 // FUNCIONES
 const initializeForm = async () => {
-    console.log('🔄 Inicializando formulario...', { 
-        isEdit: props.isEdit, 
-        editGroupId: props.editGroupId 
-    });
-    
     formErrors.value = {};
     loadedGroupData.value = null;
     
@@ -232,14 +227,11 @@ const loadGroupForEdit = async (groupId) => {
     isLoadingGroupData.value = true;
     
     try {
-        console.log('📥 Cargando grupo para editar:', groupId);
-        
         // Buscar en los grupos ya cargados primero
-        let group = categoryGroupsStore.categoryGroups.find(g => g.id === groupId);
+        let group = categoriesStore.categoryGroups.find(g => g.id === groupId);
         
         // Si no se encuentra, intentar buscar en props
         if (!group) {
-            console.log('🔍 Grupo no encontrado en store, buscando en props...');
             group = props.categoryGroups.find(g => g.id === groupId);
         }
         
@@ -247,7 +239,6 @@ const loadGroupForEdit = async (groupId) => {
             throw new Error(`No se encontró el grupo con ID: ${groupId}`);
         }
         
-        console.log('✅ Grupo encontrado:', group);
         loadedGroupData.value = group;
         
         // Cargar datos en el formulario
@@ -277,8 +268,6 @@ const loadGroupForEdit = async (groupId) => {
 };
 
 const resetForm = () => {
-    console.log('🔄 Reseteando formulario');
-    
     categoryForm.value = {
         name: '',
         description: '',
@@ -293,19 +282,12 @@ const resetForm = () => {
 };
 
 const handleClose = () => {
-    console.log('❌ Cerrando modal');
-    
     emit('close');
     resetForm();
     isLoadingGroupData.value = false;
 };
 
 const submitCategory = async () => {
-    console.log('📤 Enviando formulario...', { 
-        isEdit: isEditMode.value, 
-        groupId: props.editGroupId 
-    });
-    
     if (!validateForm()) {
         console.warn('⚠️ Formulario no válido');
         return;
@@ -328,8 +310,6 @@ const submitCategory = async () => {
         if (isEditMode.value) {
             categoryData.id = props.editGroupId;
         }
-        
-        console.log('📋 Datos a enviar:', categoryData);
 
         // Emitir evento al componente padre
         emit('submit', {
@@ -337,7 +317,6 @@ const submitCategory = async () => {
             isEdit: isEditMode.value,
             groupId: isEditMode.value ? props.editGroupId : null,
             onSuccess: () => {
-                console.log('✅ Operación exitosa');
                 handleClose();
             },
             onError: (error) => {
