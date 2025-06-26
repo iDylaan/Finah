@@ -611,7 +611,7 @@ export const useCategoriesStore = defineStore('categories', () => {
         }
     }
 
-    // Función para eliminar un grupo de categorías (implementación futura)
+    // Función para eliminar un grupo de categorías y todas sus categorías asociadas
     const deleteCategoryGroup = async (groupId, { toast }) => {
         loading.value = true
 
@@ -623,32 +623,72 @@ export const useCategoriesStore = defineStore('categories', () => {
                 throw new Error('Usuario no autenticado')
             }
 
-            // NOTA: Verificar primero si el grupo tiene categorías
+            // Verificar si el grupo existe y obtener sus categorías
             const group = categoryGroups.value.find(g => g.id === groupId)
-            if (group?.categories?.length > 0) {
-                throw new Error(`No se puede eliminar el grupo "${group.name}" porque contiene categorías. Elimina o mueve las categorías primero.`)
+            if (!group) {
+                throw new Error('El grupo no existe o ya fue eliminado')
             }
 
-            // Eliminar de la base de datos
+            // Verificar que el usuario sea el dueño del grupo
+            if (group.is_public || group.user_id !== user.id) {
+                throw new Error('No tienes permiso para eliminar este grupo')
+            }
+
+            // Obtener todas las categorías del grupo
+            const groupCategories = group.categories || []
+            
+            // Mostrar mensaje de procesamiento
+            toast.add({
+                severity: 'info',
+                summary: 'Procesando',
+                detail: `Eliminando ${groupCategories.length} categorías y el grupo "${group.name}"...`,
+                life: 3000
+            })
+
+            // 1. Eliminar todas las categorías del grupo
+            if (groupCategories.length > 0) {
+                // Construir una lista de IDs de categorías del usuario actual
+                const categoryIds = groupCategories
+                    .filter(cat => !cat.is_public && cat.user_id === user.id)
+                    .map(cat => cat.id)
+                
+                if (categoryIds.length > 0) {
+                    // Eliminar todas las categorías del usuario en una sola operación
+                    const { error: deleteError } = await supabase
+                        .from('categories')
+                        .delete()
+                        .in('id', categoryIds)
+                        .eq('user_id', user.id)
+                    
+                    if (deleteError) {
+                        throw new Error(`Error eliminando categorías: ${deleteError.message}`)
+                    }
+                }
+            }
+
+            // 2. Eliminar el grupo
             const { error } = await supabase
                 .from('category_groups')
                 .delete()
                 .eq('id', groupId)
-                .eq('user_id', user.id) // Solo el dueño puede eliminar
+                .eq('user_id', user.id)
 
             if (error) {
-                console.error('💥 Error eliminando grupo de categorías:', error)
-                throw error
+                throw new Error(`Error eliminando grupo: ${error.message}`)
             }
             
-            // Actualizar el estado local
+            // 3. Actualizar el estado local
+            // Quitar las categorías eliminadas del estado plano
+            categories.value = categories.value.filter(c => c.group_id !== groupId || c.is_public)
+            
+            // Quitar el grupo del estado anidado
             categoryGroups.value = categoryGroups.value.filter(g => g.id !== groupId)
 
             // Mostrar mensaje de éxito
             toast.add({
                 severity: 'success',
                 summary: 'Grupo Eliminado',
-                detail: `El grupo ha sido eliminado exitosamente`,
+                detail: `El grupo "${group.name}" y sus categorías han sido eliminados exitosamente`,
                 life: 3000
             })
 

@@ -477,14 +477,58 @@ const loadData = async () => {
     }
 };
 
-const handleDeleteGroup = (group) => {
-    console.log('🗑️ Eliminar grupo:', group);
-    toast.add({
-        severity: 'warn',
-        summary: 'Función pendiente',
-        detail: 'Eliminación de grupos aún no implementada',
-        life: 3000
-    });
+const handleDeleteGroup = async (group) => {
+    try {
+        // Contar las categorías propias del usuario en este grupo
+        const userCategories = group.categories.filter(cat => !cat.is_public);
+        const categoryCount = userCategories.length;
+        
+        // Crear mensaje de confirmación adecuado
+        let message = `¿Estás seguro de eliminar el grupo "${group.name}"?`;
+        
+        if (categoryCount > 0) {
+            message += `\n\nEsta acción también eliminará ${categoryCount} ${
+                categoryCount === 1 ? 'categoría asociada' : 'categorías asociadas'
+            } a este grupo.`;
+        }
+        
+        // Mostrar diálogo de confirmación
+        confirm.require({
+            message: message,
+            header: 'Confirmar eliminación',
+            icon: 'pi pi-exclamation-triangle',
+            acceptLabel: 'Eliminar',
+            acceptClass: 'p-button-danger',
+            rejectLabel: 'Cancelar',
+            rejectClass: 'p-button-secondary',
+            acceptIcon: 'pi pi-trash',
+            rejectIcon: 'pi pi-times',
+            accept: async () => {
+                // Mostrar indicador de carga
+                toast.add({
+                    severity: 'info',
+                    summary: 'Procesando',
+                    detail: 'Eliminando grupo y sus categorías...',
+                    life: 2000
+                });
+                
+                // Eliminar grupo y sus categorías usando el store
+                await categoriesStore.deleteCategoryGroup(group.id, { toast });
+                
+                // Recargar datos para reflejar los cambios
+                await loadData();
+            }
+        });
+    } catch (error) {
+        console.error('💥 Error eliminando grupo:', error);
+        
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudo eliminar el grupo',
+            life: 5000
+        });
+    }
 };
 
 // HOOKS
