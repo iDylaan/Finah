@@ -378,38 +378,6 @@ const handleCategoryModalClose = () => {
     selectedGroupId.value = null;
 };
 
-// const handleCategorySubmit = async ({ data, isNew, categoryId, groupId, onSuccess, onError }) => {
-//     try {
-//         let result;
-
-//         if (!isNew && categoryId) {
-//             // Actualizar categoría existente
-//             console.log('📝 Actualizando categoría:', categoryId);
-//             result = await categoriesStore.updateCategory(categoryId, data, { toast });
-//         } else {
-//             // Crear nueva categoría
-//             console.log('🆕 Creando nueva categoría');
-//             result = await categoriesStore.createCategory(data, { toast });
-//         }
-
-//         if (result) {
-//             console.log('✅ Operación exitosa:', result);
-
-//             // Recargar datos para mostrar cambios
-//             await loadData();
-
-//             // Ejecutar callback de éxito
-//             onSuccess();
-//         }
-
-//     } catch (error) {
-//         console.error('💥 Error en handleCategorySubmit:', error);
-
-//         // Ejecutar callback de error
-//         onError(error);
-//     }
-// };
-
 // Función para manejar el éxito de crear/editar categoría
 const handleCategorySuccess = async (category) => {
     // Recargar datos para asegurar que los cambios sean visibles
