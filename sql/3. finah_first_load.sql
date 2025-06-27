@@ -16,8 +16,8 @@ INSERT INTO levels (name, color, is_public)
 VALUES
   ('No negociable', 'red', TRUE),
   ('Necesario',     'blue', TRUE),
-  ('Deseo',         'cyam', TRUE),
-  ('Lujo',          'oramge', TRUE);
+  ('Deseo',         'cyan', TRUE),
+  ('Lujo',          'orange', TRUE);
 
 -- 5.3) Grupos de categorías
 INSERT INTO category_groups (name, is_public, color, icon_library, icon_name)

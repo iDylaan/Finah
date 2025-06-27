@@ -29,7 +29,7 @@
         <!-- Lista de Niveles -->
         <div v-else class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             <div v-for="level in levelStore.levels" :key="`${level.id}-${isDarkMode}`"
-                class="border border-surface-200 dark:border-surface-700 rounded-lg p-4 bg-surface-0 dark:bg-surface-800 relative hover:shadow-md transition-shadow duration-200"
+                class="cursor-pointer border border-surface-200 dark:border-surface-700 rounded-lg p-4 bg-surface-0 dark:bg-surface-800 relative hover:shadow-md transition-shadow duration-200"
                 @click="handleLevelClick(level)">
                 <!-- Menú de acciones (solo para niveles privados) -->
                 <Menu v-if="!level.is_public" :model="getLevelMenuItems(level)" :popup="true"
