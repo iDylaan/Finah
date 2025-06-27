@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { supabase } from '@/lib/supabase.js'
 import { handleError } from '@/lib/utils.js'
+import { LEVEL_COLORS } from '@/assets/constants/levels-colors.js';
 
 export const useLevelStore = defineStore('levels', () => {
     // Estados
@@ -67,10 +68,10 @@ export const useLevelStore = defineStore('levels', () => {
                 throw new Error('Usuario no autenticado')
             }
 
-            // Preparar datos para insertar
+            // Preparar datos para insertar - aplicando trim
             const insertData = {
-                name: levelData.name,
-                color: levelData.color || '#6366f1',
+                name: levelData.name.trim(),
+                color: levelData.colorKey.trim(), // Aplicar trim al color
                 is_public: false, // Por defecto, los niveles creados por usuarios son privados
                 user_id: user.id
             }
@@ -131,10 +132,10 @@ export const useLevelStore = defineStore('levels', () => {
                 throw new Error('Usuario no autenticado')
             }
 
-            // Preparar datos para actualizar
+            // Preparar datos para actualizar - aplicando trim
             const updateData = {
-                name: levelData.name,
-                color: levelData.color || '#6366f1'
+                name: levelData.name.trim(),
+                color: levelData.colorKey.trim() // Aplicar trim al color
                 // No incluimos is_public ni user_id ya que no deben cambiarse en una actualización
             }
 

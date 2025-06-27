@@ -159,7 +159,7 @@ CREATE INDEX ON categories(user_group_id);
 CREATE TABLE levels (
   id               UUID             DEFAULT gen_random_uuid() PRIMARY KEY,
   name             TEXT             NOT NULL,
-  color            CHAR(7),         -- '#RRGGBB'
+  color            VARCHAR(20),     -- Cambiado de CHAR(7) a VARCHAR(20) para acomodar diferentes formatos
   is_public        BOOLEAN          NOT NULL DEFAULT FALSE,
   user_id          UUID             REFERENCES profiles(id),
   user_group_id    UUID             REFERENCES user_groups(id),
@@ -172,6 +172,23 @@ CREATE TABLE levels (
 );
 CREATE INDEX ON levels(user_id);
 CREATE INDEX ON levels(user_group_id);
+
+-- Trigger para aplicar TRIM() a la columna 'color' antes de insertar o actualizar
+CREATE OR REPLACE FUNCTION trg_levels_trim_color()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.color IS NOT NULL THEN
+    NEW.color = TRIM(NEW.color);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS levels_trim_color_trigger ON levels;
+CREATE TRIGGER levels_trim_color_trigger
+  BEFORE INSERT OR UPDATE ON levels
+  FOR EACH ROW
+  EXECUTE FUNCTION trg_levels_trim_color();
 
 
 -- 4.5) Periodicidades para metas y reglas recurrentes
