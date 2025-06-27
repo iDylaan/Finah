@@ -14,10 +14,10 @@ VALUES
 -- 5.2) Niveles de gasto/ingreso
 INSERT INTO levels (name, color, is_public)
 VALUES
-  ('No negociable', '#E53935', TRUE),
-  ('Necesario',     '#FB8C00', TRUE),
-  ('Deseo',         '#43A047', TRUE),
-  ('Lujo',          '#1E88E5', TRUE);
+  ('No negociable', 'red', TRUE),
+  ('Necesario',     'blue', TRUE),
+  ('Deseo',         'cyam', TRUE),
+  ('Lujo',          'oramge', TRUE);
 
 -- 5.3) Grupos de categorías
 INSERT INTO category_groups (name, is_public, color, icon_library, icon_name)

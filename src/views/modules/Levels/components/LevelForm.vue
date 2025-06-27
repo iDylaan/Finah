@@ -26,8 +26,8 @@
                 <div class="mt-4">
                     <label class="block text-sm font-medium mb-2">Vista previa</label>
                     <div class="flex flex-col gap-2">
-                        <Tag class="py-2 px-3 w-full" rounded :style="tagPreviewStyle">
-                            <span class="block w-full text-center">
+                        <Tag rounded :style="tagPreviewStyle">
+                            <span>
                                 {{ levelForm.name.trim() || 'Nivel' }}
                             </span>
                         </Tag>
@@ -39,8 +39,8 @@
             <div v-if="isReadOnlyMode" class="mt-4">
                 <label class="block text-sm font-medium mb-2">Vista previa</label>
                 <div class="flex flex-col gap-2">
-                    <Tag class="py-2 px-3 w-full" rounded :style="tagPreviewStyle">
-                        <span class="block w-full text-center">
+                    <Tag rounded :style="tagPreviewStyle">
+                        <span>
                             {{ levelForm.name.trim() || 'Nivel' }}
                         </span>
                     </Tag>
@@ -355,13 +355,6 @@ const submitLevel = async () => {
         }
         
         if (result) {
-            toast.add({
-                severity: 'success',
-                summary: 'Éxito',
-                detail: isNewLevel.value ? 'Nivel creado correctamente' : 'Nivel actualizado correctamente',
-                life: 3000
-            });
-            
             emit('success', result);
         }
     } catch (error) {

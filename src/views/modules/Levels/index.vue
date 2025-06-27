@@ -37,14 +37,14 @@
                     :ref="el => setLevelMenuRef(el, level.id)" />
 
                 <button v-if="!level.is_public"
-                    class="absolute right-2 top-2 p-2 rounded-full hover:bg-surface-200 dark:hover:bg-surface-700 transition-colors"
+                    class="absolute right-2 top-2 p-2 rounded-full"
                     @click.stop="toggleLevelMenu($event, level.id)">
                     <i class="pi pi-ellipsis-v text-surface-600 dark:text-surface-400"></i>
                 </button>
 
                 <!-- Contenido principal con tag de color predefinido -->
                 <div class="flex items-center mb-3 mt-2">
-                    <Tag class="py-2 px-3 w-full" rounded :style="getLevelTagStyle(level)">
+                    <Tag class="" rounded :style="getLevelTagStyle(level)">
                         <span class="block w-full text-center">
                             {{ level.name }}
                         </span>
