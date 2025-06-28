@@ -35,6 +35,12 @@ export const useUIStore = defineStore('ui', () => {
             ]
         },
         {
+            label: 'Personal',
+            items: [
+                { label: 'Cuentas', icon: 'account_balance_wallet', to: '/accounts' },
+            ]
+        },
+        {
             label: 'Páginas',
             items: [
                 {

@@ -121,11 +121,6 @@
                                     {{ bank.name }}
                                 </h3>
                             </div>
-
-                            <!-- View button -->
-                            <div class="flex justify-end mt-3">
-                                <Button icon="pi pi-eye" label="Ver detalles" text size="small" />
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -175,13 +170,24 @@ const loadBanks = async () => {
 };
 
 const refreshBanks = async () => {
-    await loadBanks();
-    toast.add({
-        severity: 'success',
-        summary: 'Actualizado',
-        detail: 'Lista de bancos actualizada',
-        life: 3000
-    });
+    try {
+        // Usamos refreshBanks que fuerza la reconsulta
+        await bankStore.refreshBanks();
+        toast.add({
+            severity: 'success',
+            summary: 'Actualizado',
+            detail: 'Lista de bancos actualizada',
+            life: 3000
+        });
+    } catch (error) {
+        console.error('Error al actualizar bancos:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudieron actualizar los bancos',
+            life: 3000
+        });
+    }
 };
 
 const openNewBankForm = () => {

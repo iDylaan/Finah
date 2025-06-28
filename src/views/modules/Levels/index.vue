@@ -259,6 +259,30 @@ const loadData = async () => {
         });
     }
 };
+
+// Añadir función refreshData
+const refreshData = async () => {
+    try {
+        console.log('🔄 Actualizando datos...');
+        // Usamos refreshLevels que fuerza la reconsulta
+        await levelStore.refreshLevels({ toast });
+        toast.add({
+            severity: 'success',
+            summary: 'Actualizado',
+            detail: 'Lista de niveles actualizada',
+            life: 3000
+        });
+    } catch (error) {
+        console.error('💥 Error actualizando datos:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Error al actualizar',
+            detail: 'No se pudieron actualizar los niveles',
+            life: 5000
+        });
+    }
+};
+
 // HOOKS
 onMounted(() => {
     loadData();

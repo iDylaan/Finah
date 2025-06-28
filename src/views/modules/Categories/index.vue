@@ -1,5 +1,5 @@
 <template>
-    <div class="p-6 max-w-5xl mx-auto">
+    <div class="p-6 mx-auto">
         <!-- Header -->
         <div class="flex justify-between items-center mb-6">
             <div>
@@ -13,7 +13,7 @@
 
             <!-- Botón de recarga -->
             <div class="flex gap-2">
-                <Button icon="pi pi-refresh" @click="loadData" :loading="categoriesStore.loading" severity="secondary"
+                <Button icon="pi pi-refresh" @click="refreshData" :loading="categoriesStore.loading" severity="secondary"
                     outlined size="small" />
                 <Button icon="pi pi-plus" @click="handleNewCategoryGroup" :disabled="categoriesStore.loading"
                     severity="success" size="small" label="Nuevo Grupo" />
@@ -440,6 +440,29 @@ const loadData = async () => {
             severity: 'error',
             summary: 'Error al cargar',
             detail: 'No se pudieron cargar los grupos de categorías',
+            life: 5000
+        });
+    }
+};
+
+// Nueva función para refrescar datos
+const refreshData = async () => {
+    try {
+        console.log('🔄 Actualizando datos...');
+        // Usamos refresh que fuerza la reconsulta
+        await categoriesStore.refreshCategoryGroupsWithCategories({ toast });
+        toast.add({
+            severity: 'success',
+            summary: 'Actualizado',
+            detail: 'Los datos han sido actualizados correctamente',
+            life: 3000
+        });
+    } catch (error) {
+        console.error('💥 Error actualizando datos:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'No se pudieron actualizar los datos',
             life: 5000
         });
     }

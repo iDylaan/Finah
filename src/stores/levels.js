@@ -1,56 +1,75 @@
-import { ref } from 'vue'
-import { defineStore } from 'pinia'
-import { supabase } from '@/lib/supabase.js'
-import { handleError } from '@/lib/utils.js'
+import { ref } from 'vue';
+import { defineStore } from 'pinia';
+import { supabase } from '@/lib/supabase.js';
+import { handleError } from '@/lib/utils.js';
 import { LEVEL_COLORS } from '@/assets/constants/levels-colors.js';
 
 export const useLevelStore = defineStore('levels', () => {
     // Estados
-    const levels = ref([])
-    const loading = ref(false)
+    const levels = ref([]);
+    const loading = ref(false);
+    const loaded = ref(false);
+    const lastFetchTime = ref(null);
 
     // Función para obtener niveles (públicos + del usuario)
-    const fetchLevels = async ({ toast }) => {
-        loading.value = true
+    const fetchLevels = async ({ toast, force = false } = {}) => {
+        // Si ya tenemos datos y no es forzado, simplemente regresamos los datos actuales
+        if (loaded.value && levels.value.length > 0 && !force) {
+            console.log('🔄 Usando datos de niveles en caché');
+            return levels.value;
+        }
+        
+        loading.value = true;
 
         try {
-            const { data: { user } } = await supabase.auth.getUser()
-            const userId = user?.id
+            console.log('🔍 Consultando niveles desde la base de datos');
+            const { data: { user } } = await supabase.auth.getUser();
+            const userId = user?.id;
 
             let query = supabase
                 .from('levels')
-                .select('*')
+                .select('*');
 
             if (userId) {
                 // Mostrar públicos O del usuario actual
-                query = query.or(`is_public.eq.true,user_id.eq.${userId}`)
+                query = query.or(`is_public.eq.true,user_id.eq.${userId}`);
             } else {
                 // Solo públicos si no hay usuario
-                query = query.eq('is_public', true)
+                query = query.eq('is_public', true);
             }
 
-            const { data, error } = await query
+            const { data, error } = await query;
 
             if (error) {
-                handleError(error, toast)
+                handleError(error, toast);
             } else {
                 // Ordenar: primero privados, luego por nombre
                 levels.value = (data || []).sort((a, b) => {
                     // Primero: Privados (false) antes que públicos (true)
                     if (a.is_public !== b.is_public) {
-                        return a.is_public - b.is_public // false (0) < true (1)
+                        return a.is_public - b.is_public; // false (0) < true (1)
                     }
                     // Segundo: Orden alfabético por nombre
-                    return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
-                })
+                    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+                });
+                loaded.value = true;
+                lastFetchTime.value = Date.now();
             }
+            
+            return levels.value;
 
         } catch (error) {
-            handleError(error, toast)
+            handleError(error, toast);
+            return [];
         } finally {
-            loading.value = false
+            loading.value = false;
         }
-    }
+    };
+
+    // Función para forzar una reconsulta de niveles
+    const refreshLevels = async ({ toast }) => {
+        return await fetchLevels({ toast, force: true });
+    };
 
     // Función para crear un nuevo nivel
     const createLevel = async (levelData, { toast }) => {
@@ -257,16 +276,27 @@ export const useLevelStore = defineStore('levels', () => {
         }
     }
 
+    // Función para limpiar la caché
+    const clearCache = () => {
+        levels.value = [];
+        loaded.value = false;
+        lastFetchTime.value = null;
+    };
+
     return {
         // Estados
         levels,
         loading,
+        loaded,
+        lastFetchTime,
 
         // Funciones
         fetchLevels,
+        refreshLevels,
         createLevel,
         updateLevel,
         deleteLevel,
-        saveLevel
+        saveLevel,
+        clearCache
     }
 })

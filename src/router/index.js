@@ -44,6 +44,11 @@ const router = createRouter({
                     name: 'banks',
                     component: () => import('@/views/modules/Banks/index.vue'),
                 },
+                {
+                    path: '/accounts',
+                    name: 'accounts',
+                    component: () => import('@/views/modules/Accounts/index.vue'),
+                },
             ]
         },
         // Rutas públicas

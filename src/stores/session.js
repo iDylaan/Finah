@@ -2,6 +2,9 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { supabase } from '@/lib/supabase.js'
 import { handleError } from '@/lib/utils.js'
+import { useBankStore } from '@/stores/banks'
+import { useLevelStore } from '@/stores/levels'
+import { useCategoriesStore } from '@/stores/categories'
 
 export const useSessionStore = defineStore('session', () => {
     // Estados
@@ -206,6 +209,15 @@ export const useSessionStore = defineStore('session', () => {
     const signOut = async () => {
         loading.value = true
         try {
+            // Limpiar la caché de los stores antes de cerrar sesión
+            const bankStore = useBankStore();
+            const levelStore = useLevelStore();
+            const categoriesStore = useCategoriesStore();
+            
+            bankStore.clearCache();
+            levelStore.clearCache();
+            categoriesStore.clearCache();
+            
             const { error } = await supabase.auth.signOut()
             if (error) throw error
             

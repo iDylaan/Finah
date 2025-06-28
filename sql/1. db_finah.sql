@@ -390,6 +390,43 @@ CREATE INDEX ON banks(user_group_id);
 CREATE INDEX ON banks(is_public);
 
 
+-- 4.17) Extensión para tarjetas de crédito
+CREATE TABLE credit_cards (
+  account_id         UUID             PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+  bank_id            UUID             REFERENCES banks(id),
+  card_name          TEXT             NOT NULL,
+  last_four_digits   CHAR(4),
+  credit_limit       NUMERIC(14,2)    NOT NULL,
+  available_credit   NUMERIC(14,2)    NOT NULL,
+  payment_day        INT              NOT NULL, -- Día del mes para pago
+  cutoff_day         INT              NOT NULL, -- Día de corte
+  interest_rate      NUMERIC(5,2),    -- Tasa de interés anual
+  min_payment_percent NUMERIC(5,2),   -- Porcentaje para pago mínimo
+  next_payment_date  DATE,            -- Próxima fecha de pago
+  next_cutoff_date   DATE,            -- Próxima fecha de corte
+  created_at         TIMESTAMPTZ      NOT NULL DEFAULT now(),
+  updated_at         TIMESTAMPTZ      NOT NULL DEFAULT now()
+);
+CREATE INDEX ON credit_cards(bank_id);
+
+
+-- 4.18) Extensión para MSI (Meses Sin Intereses)
+CREATE TABLE msi_purchases (
+  id                UUID             DEFAULT gen_random_uuid() PRIMARY KEY,
+  debt_purchase_id  UUID             REFERENCES debt_purchases(id) ON DELETE CASCADE,
+  card_account_id   UUID             NOT NULL REFERENCES credit_cards(account_id),
+  total_installments INT             NOT NULL, -- Número total de MSI (12, 18, 24, etc.)
+  paid_installments INT              NOT NULL DEFAULT 0, -- Pagos ya realizados
+  installment_amount NUMERIC(14,2)   NOT NULL, -- Monto mensual a pagar
+  remaining_amount  NUMERIC(14,2)    NOT NULL, -- Monto restante por pagar
+  promotion_end_date DATE,           -- Fecha en que termina la promoción sin intereses
+  interest_rate_after NUMERIC(5,2),  -- Tasa aplicable después de la promoción
+  created_at        TIMESTAMPTZ      NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ      NOT NULL DEFAULT now()
+);
+CREATE INDEX ON msi_purchases(card_account_id);
+
+
 -- 5) Funcion
 -- Solo se ejecuta una vez por query
 CREATE OR REPLACE FUNCTION public.session_user_id()

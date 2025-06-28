@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { supabase } from '@/lib/supabase.js'; // Corrección: importación directa
+import { supabase } from '@/lib/supabase.js';
 import { useSessionStore } from './session';
 
 export const useBankStore = defineStore('banks', () => {
@@ -9,9 +9,9 @@ export const useBankStore = defineStore('banks', () => {
   const loading = ref(false);
   const loaded = ref(false);
   const error = ref(null);
+  const lastFetchTime = ref(null); // Nueva variable para almacenar la última vez que se consultó
 
   // DEPENDENCIAS
-  // Eliminada la desestructuración: const { supabase } = useSupabase();
   const sessionStore = useSessionStore();
 
   // COMPUTED
@@ -24,11 +24,18 @@ export const useBankStore = defineStore('banks', () => {
   });
 
   // ACTIONS
-  const fetchBanks = async () => {
+  const fetchBanks = async ({ force = false } = {}) => {
+    // Si ya tenemos datos y no es forzado, simplemente regresamos los datos actuales
+    if (loaded.value && banks.value.length > 0 && !force) {
+      console.log('🔄 Usando datos de bancos en caché');
+      return banks.value;
+    }
+    
     loading.value = true;
     error.value = null;
 
     try {
+      console.log('🔍 Consultando bancos desde la base de datos');
       const { data, error: err } = await supabase
         .from('banks')
         .select('*')
@@ -39,12 +46,21 @@ export const useBankStore = defineStore('banks', () => {
 
       banks.value = data || [];
       loaded.value = true;
+      lastFetchTime.value = Date.now(); // Guardar timestamp de la última consulta
+      
+      return banks.value;
     } catch (err) {
       console.error('Error al cargar bancos:', err);
       error.value = err.message || 'Error al cargar bancos';
+      return [];
     } finally {
       loading.value = false;
     }
+  };
+
+  // La función para refrescar los datos (fuerza una reconsulta)
+  const refreshBanks = async () => {
+    return await fetchBanks({ force: true });
   };
 
   const createBank = async (bankData, { toast }) => {
@@ -207,12 +223,21 @@ export const useBankStore = defineStore('banks', () => {
     }
   };
 
+  // Añadimos la función para borrar la caché (útil en logout)
+  const clearCache = () => {
+    banks.value = [];
+    loaded.value = false;
+    lastFetchTime.value = null;
+    error.value = null;
+  };
+
   return {
     // Estado
     banks,
     loading,
     loaded,
     error,
+    lastFetchTime,
     
     // Getters
     userBanks,
@@ -220,8 +245,10 @@ export const useBankStore = defineStore('banks', () => {
     
     // Acciones
     fetchBanks,
+    refreshBanks,
     createBank,
     updateBank,
-    deleteBank
+    deleteBank,
+    clearCache
   };
 });

@@ -1,50 +1,64 @@
-import { ref } from 'vue'
-import { defineStore } from 'pinia'
-import { supabase } from '@/lib/supabase.js'
-import { handleError } from '@/lib/utils.js'
+import { ref } from 'vue';
+import { defineStore } from 'pinia';
+import { supabase } from '@/lib/supabase.js';
+import { handleError } from '@/lib/utils.js';
 
 export const useCategoriesStore = defineStore('categories', () => {
     // Estados
-    const categories = ref([])
-    const categoryGroups = ref([])
-    const loading = ref(false)
+    const categories = ref([]);
+    const categoryGroups = ref([]);
+    const loading = ref(false);
+    const loaded = ref(false);
+    const lastFetchTime = ref(null);
 
     // FUNCIONES PARA CATEGORÍAS
     
     // Función para obtener categorías (públicas + del usuario)
-    const fetchCategories = async ({ toast }) => {
-        loading.value = true
+    const fetchCategories = async ({ toast, force = false }) => {
+        // Si ya tenemos datos y no es forzado, simplemente regresamos los datos actuales
+        if (loaded.value && categories.value.length > 0 && !force) {
+            console.log('🔄 Usando datos de categorías en caché');
+            return categories.value;
+        }
+        
+        loading.value = true;
 
         try {
-            const { data: { user } } = await supabase.auth.getUser()
-            const userId = user?.id
+            console.log('🔍 Consultando categorías desde la base de datos');
+            const { data: { user } } = await supabase.auth.getUser();
+            const userId = user?.id;
 
             let query = supabase
                 .from('categories')
-                .select('*')
+                .select('*');
 
             if (userId) {
                 // Mostrar públicos O del usuario actual
-                query = query.or(`is_public.eq.true,user_id.eq.${userId}`)
+                query = query.or(`is_public.eq.true,user_id.eq.${userId}`);
             } else {
                 // Solo públicos si no hay usuario
-                query = query.eq('is_public', true)
+                query = query.eq('is_public', true);
             }
 
-            const { data, error } = await query
+            const { data, error } = await query;
 
             if (error) {
-                handleError(error, toast)
+                handleError(error, toast);
+                return [];
             } else {
-                categories.value = data || []
+                categories.value = data || [];
+                loaded.value = true;
+                lastFetchTime.value = Date.now();
+                return categories.value;
             }
 
         } catch (error) {
-            handleError(error, toast)
+            handleError(error, toast);
+            return [];
         } finally {
-            loading.value = false
+            loading.value = false;
         }
-    }
+    };
 
     // Función para crear una nueva categoría
     const createCategory = async (categoryData, { toast }) => {
@@ -356,12 +370,19 @@ export const useCategoriesStore = defineStore('categories', () => {
     }
 
     // Función para obtener category_groups con sus categorías anidadas
-    const fetchCategoryGroupsWithCategories = async ({ toast }) => {
-        loading.value = true
+    const fetchCategoryGroupsWithCategories = async ({ toast, force = false }) => {
+        // Si ya tenemos datos y no es forzado, simplemente regresamos los datos actuales
+        if (loaded.value && categoryGroups.value.length > 0 && !force) {
+            console.log('🔄 Usando datos de grupos y categorías en caché');
+            return categoryGroups.value;
+        }
+        
+        loading.value = true;
 
         try {
-            const { data: { user } } = await supabase.auth.getUser()
-            const userId = user?.id
+            console.log('🔍 Consultando grupos y categorías desde la base de datos');
+            const { data: { user } } = await supabase.auth.getUser();
+            const userId = user?.id;
 
             // **PASO 1:** Obtener todas las categorías primero
             let categoriesQuery = supabase
@@ -436,8 +457,10 @@ export const useCategoriesStore = defineStore('categories', () => {
             }))
 
             // **PASO 7:** Actualizar estados del store
-            categories.value = sortedCategories || []
-            categoryGroups.value = groupsWithCategories || []
+            categories.value = sortedCategories || [];
+            categoryGroups.value = groupsWithCategories || [];
+            loaded.value = true;
+            lastFetchTime.value = Date.now();
 
             return groupsWithCategories
 
@@ -720,14 +743,35 @@ export const useCategoriesStore = defineStore('categories', () => {
         }
     }
 
+    // Función para forzar una reconsulta de categorías
+    const refreshCategories = async ({ toast }) => {
+        return await fetchCategories({ toast, force: true });
+    };
+
+    // Función para forzar una reconsulta de grupos y categorías
+    const refreshCategoryGroupsWithCategories = async ({ toast }) => {
+        return await fetchCategoryGroupsWithCategories({ toast, force: true });
+    };
+
+    // Función para limpiar la caché
+    const clearCache = () => {
+        categories.value = [];
+        categoryGroups.value = [];
+        loaded.value = false;
+        lastFetchTime.value = null;
+    };
+
     return {
         // Estados
         categories,
         categoryGroups,
         loading,
+        loaded,
+        lastFetchTime,
 
         // Funciones para categorías
         fetchCategories,
+        refreshCategories,
         createCategory,
         updateCategory,
         deleteCategory,
@@ -736,9 +780,13 @@ export const useCategoriesStore = defineStore('categories', () => {
         // Funciones para grupos de categorías
         fetchCategoryGroups,
         fetchCategoryGroupsWithCategories,
+        refreshCategoryGroupsWithCategories,
         createCategoryGroup,
         updateCategoryGroup,
         deleteCategoryGroup,
-        saveCategoryGroup
+        saveCategoryGroup,
+        
+        // Utilidades
+        clearCache
     }
 })
