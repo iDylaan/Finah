@@ -21,6 +21,12 @@ export const useUIStore = defineStore('ui', () => {
             items: [{ label: 'Dashboard', icon: 'home', to: '/' }]
         },
         {
+            label: 'Personal',
+            items: [
+                { label: 'Cuentas', icon: 'account_balance_wallet', to: '/accounts' },
+            ]
+        },
+        {
             label: 'Modulos',
             items: [
                 { label: 'Gráficas', icon: 'bar_chart', to: '/charts' },
@@ -32,12 +38,6 @@ export const useUIStore = defineStore('ui', () => {
                 { label: 'Categorías', icon: 'category', to: '/categories' },
                 { label: 'Niveles', icon: 'backlight_low', to: '/levels' },
                 { label: 'Bancos', icon: 'account_balance', to: '/banks' }
-            ]
-        },
-        {
-            label: 'Personal',
-            items: [
-                { label: 'Cuentas', icon: 'account_balance_wallet', to: '/accounts' },
             ]
         },
         {

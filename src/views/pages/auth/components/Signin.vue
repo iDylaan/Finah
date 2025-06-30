@@ -76,6 +76,7 @@ const handlePasswordBlur = () => {
 
 // Función principal de login
 async function handleLogin() {
+    toast.removeAllGroups();
     // Marcar todos los campos como tocados para mostrar errores
     emailTouched.value = true;
     passwordTouched.value = true;
@@ -101,13 +102,6 @@ async function handleLogin() {
         );
 
         if (user) {
-            toast.add({
-                severity: 'success',
-                summary: 'Bienvenido',
-                detail: `Has iniciado sesión como ${user.email}`,
-                life: 3000
-            });
-
             // Limpiar formulario
             email.value = '';
             password.value = '';
