@@ -11,16 +11,16 @@ export function useFormValidation(accountForm, formErrors, needsBankSelection) {
             return false;
         }
         
-        if (needsBankSelection.value && !form.bank_id) {
+        if (needsBankSelection.value && !form.banco_id) {
             console.log('❌ Form invalid: missing bank');
             return false;
         }
 
         // Validaciones específicas para tarjeta de crédito
         if (form.type === 'credit_card') {
-            const creditLimit = Number(form.credit_limit);
-            const paymentDay = Number(form.payment_day);
-            const cutoffDay = Number(form.cutoff_day);
+            const creditLimit = Number(form.limite_credito);
+            const paymentDay = Number(form.dia_pago);
+            const cutoffDay = Number(form.dia_corte);
             
             if (!creditLimit || creditLimit <= 0) {
                 console.log('❌ Form invalid: invalid credit limit');
@@ -38,7 +38,7 @@ export function useFormValidation(accountForm, formErrors, needsBankSelection) {
 
         // Verificar que no hay errores de validación críticos
         const criticalErrors = Object.keys(formErrors.value).filter(key => 
-            !['cat_percentage', 'annual_fee', 'cashback_percentage', 'rewards_points_ratio', 'grace_period_days'].includes(key)
+            !['porcentaje_cat', 'anualidad', 'porcentaje_cashback', 'ratio_puntos_recompensa', 'dias_periodo_gracia'].includes(key)
         );
         
         const isValid = criticalErrors.length === 0;
@@ -67,24 +67,24 @@ export function useFormValidation(accountForm, formErrors, needsBankSelection) {
         }
 
         // Validar banco (si es requerido)
-        if (needsBankSelection.value && !form.bank_id) {
-            errors.bank_id = 'Debe seleccionar un banco';
+        if (needsBankSelection.value && !form.banco_id) {
+            errors.banco_id = 'Debe seleccionar un banco';
         }
 
         // Validaciones específicas para tarjeta de crédito
         if (form.type === 'credit_card') {
-            if (!form.credit_limit || Number(form.credit_limit) <= 0) {
-                errors.credit_limit = 'El límite de crédito debe ser mayor a 0';
+            if (!form.limite_credito || Number(form.limite_credito) <= 0) {
+                errors.limite_credito = 'El límite de crédito debe ser mayor a 0';
             }
 
-            const paymentDay = Number(form.payment_day);
+            const paymentDay = Number(form.dia_pago);
             if (!paymentDay || paymentDay < 1 || paymentDay > 31) {
-                errors.payment_day = 'El día de pago debe estar entre 1 y 31';
+                errors.dia_pago = 'El día de pago debe estar entre 1 y 31';
             }
 
-            const cutoffDay = Number(form.cutoff_day);
+            const cutoffDay = Number(form.dia_corte);
             if (!cutoffDay || cutoffDay < 1 || cutoffDay > 31) {
-                errors.cutoff_day = 'El día de corte debe estar entre 1 y 31';
+                errors.dia_corte = 'El día de corte debe estar entre 1 y 31';
             }
         }
 
@@ -96,9 +96,9 @@ export function useFormValidation(accountForm, formErrors, needsBankSelection) {
     // Validaciones específicas para steps
     const canProceedFromStep1 = computed(() => {
         const form = accountForm.value;
-        const isValid = !!(form.bank_id && form.name?.trim());
+        const isValid = !!(form.banco_id && form.name?.trim());
         console.log('🔍 Validando Step 1:', {
-            bank_id: form.bank_id,
+            banco_id: form.banco_id,
             name: form.name?.trim(),
             canProceed: isValid
         });
@@ -107,18 +107,18 @@ export function useFormValidation(accountForm, formErrors, needsBankSelection) {
 
     const canProceedFromStep2 = computed(() => {
         const form = accountForm.value;
-        const creditLimit = Number(form.credit_limit);
-        const paymentDay = Number(form.payment_day);
-        const cutoffDay = Number(form.cutoff_day);
+        const creditLimit = Number(form.limite_credito);
+        const paymentDay = Number(form.dia_pago);
+        const cutoffDay = Number(form.dia_corte);
         
         const isValid = creditLimit > 0 && 
                paymentDay >= 1 && paymentDay <= 31 && 
                cutoffDay >= 1 && cutoffDay <= 31;
         
         console.log('🔍 Validando Step 2:', {
-            credit_limit: creditLimit,
-            payment_day: paymentDay,
-            cutoff_day: cutoffDay,
+            limite_credito: creditLimit,
+            dia_pago: paymentDay,
+            dia_corte: cutoffDay,
             canProceed: isValid
         });
         
@@ -130,11 +130,11 @@ export function useFormValidation(accountForm, formErrors, needsBankSelection) {
         
         if (stepNumber === 1) {
             // Limpiar errores del step 1
-            delete currentErrors.bank_id;
+            delete currentErrors.banco_id;
             delete currentErrors.name;
             
-            if (!accountForm.value.bank_id) {
-                currentErrors.bank_id = 'Debe seleccionar un banco';
+            if (!accountForm.value.banco_id) {
+                currentErrors.banco_id = 'Debe seleccionar un banco';
             }
             
             if (!accountForm.value.name?.trim()) {
@@ -143,24 +143,24 @@ export function useFormValidation(accountForm, formErrors, needsBankSelection) {
             
         } else if (stepNumber === 2) {
             // Limpiar errores del step 2
-            delete currentErrors.credit_limit;
-            delete currentErrors.payment_day;
-            delete currentErrors.cutoff_day;
+            delete currentErrors.limite_credito;
+            delete currentErrors.dia_pago;
+            delete currentErrors.dia_corte;
             
-            const creditLimit = Number(accountForm.value.credit_limit);
-            const paymentDay = Number(accountForm.value.payment_day);
-            const cutoffDay = Number(accountForm.value.cutoff_day);
+            const creditLimit = Number(accountForm.value.limite_credito);
+            const paymentDay = Number(accountForm.value.dia_pago);
+            const cutoffDay = Number(accountForm.value.dia_corte);
             
             if (!creditLimit || creditLimit <= 0) {
-                currentErrors.credit_limit = 'El límite de crédito debe ser mayor a 0';
+                currentErrors.limite_credito = 'El límite de crédito debe ser mayor a 0';
             }
             
             if (!paymentDay || paymentDay < 1 || paymentDay > 31) {
-                currentErrors.payment_day = 'El día de pago debe estar entre 1 y 31';
+                currentErrors.dia_pago = 'El día de pago debe estar entre 1 y 31';
             }
             
             if (!cutoffDay || cutoffDay < 1 || cutoffDay > 31) {
-                currentErrors.cutoff_day = 'El día de corte debe estar entre 1 y 31';
+                currentErrors.dia_corte = 'El día de corte debe estar entre 1 y 31';
             }
         }
         

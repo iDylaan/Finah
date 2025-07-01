@@ -47,17 +47,17 @@
                             Banco *
                         </label>
                         <Dropdown
-                            v-model="accountForm.bank_id"
+                            v-model="accountForm.banco_id"
                             :options="banks"
-                            option-label="name"
+                            option-label="nombre"
                             option-value="id"
                             placeholder="Selecciona un banco"
                             :loading="banksLoading"
                             :disabled="disabled"
-                            :class="{ 'p-invalid': formErrors.bank_id }"
+                            :class="{ 'p-invalid': formErrors.banco_id }"
                         />
-                        <small v-if="formErrors.bank_id" class="p-error">
-                            {{ formErrors.bank_id }}
+                        <small v-if="formErrors.banco_id" class="p-error">
+                            {{ formErrors.banco_id }}
                         </small>
                     </div>
                 </div>
@@ -69,13 +69,13 @@
                             Nombre de la Cuenta *
                         </label>
                         <InputText
-                            v-model="accountForm.name"
+                            v-model="accountForm.nombre"
                             :placeholder="namePlaceholder"
                             :disabled="disabled"
-                            :class="{ 'p-invalid': formErrors.name }"
+                            :class="{ 'p-invalid': formErrors.nombre }"
                         />
-                        <small v-if="formErrors.name" class="p-error">
-                            {{ formErrors.name }}
+                        <small v-if="formErrors.nombre" class="p-error">
+                            {{ formErrors.nombre }}
                         </small>
                     </div>
 
@@ -128,16 +128,16 @@
                             Límite de Crédito *
                         </label>
                         <InputNumber
-                            v-model="accountForm.credit_limit"
+                            v-model="accountForm.limite_credito"
                             mode="currency"
                             currency="MXN"
                             locale="es-MX"
                             :min="0"
                             :disabled="disabled"
-                            :class="{ 'p-invalid': formErrors.credit_limit }"
+                            :class="{ 'p-invalid': formErrors.limite_credito }"
                         />
-                        <small v-if="formErrors.credit_limit" class="p-error">
-                            {{ formErrors.credit_limit }}
+                        <small v-if="formErrors.limite_credito" class="p-error">
+                            {{ formErrors.limite_credito }}
                         </small>
                     </div>
 
@@ -146,17 +146,17 @@
                             Crédito Disponible *
                         </label>
                         <InputNumber
-                            v-model="accountForm.available_credit"
+                            v-model="accountForm.credito_disponible"
                             mode="currency"
                             currency="MXN"
                             locale="es-MX"
                             :min="0"
-                            :max="accountForm.credit_limit"
+                            :max="accountForm.limite_credito"
                             :disabled="disabled"
-                            :class="{ 'p-invalid': formErrors.available_credit }"
+                            :class="{ 'p-invalid': formErrors.credito_disponible }"
                         />
-                        <small v-if="formErrors.available_credit" class="p-error">
-                            {{ formErrors.available_credit }}
+                        <small v-if="formErrors.credito_disponible" class="p-error">
+                            {{ formErrors.credito_disponible }}
                         </small>
                     </div>
                 </div>
@@ -168,14 +168,14 @@
                             Día de Pago *
                         </label>
                         <InputNumber
-                            v-model="accountForm.payment_day"
+                            v-model="accountForm.dia_pago"
                             :min="1"
                             :max="31"
                             :disabled="disabled"
-                            :class="{ 'p-invalid': formErrors.payment_day }"
+                            :class="{ 'p-invalid': formErrors.dia_pago }"
                         />
-                        <small v-if="formErrors.payment_day" class="p-error">
-                            {{ formErrors.payment_day }}
+                        <small v-if="formErrors.dia_pago" class="p-error">
+                            {{ formErrors.dia_pago }}
                         </small>
                     </div>
 
@@ -184,14 +184,14 @@
                             Día de Corte *
                         </label>
                         <InputNumber
-                            v-model="accountForm.cutoff_day"
+                            v-model="accountForm.dia_corte"
                             :min="1"
                             :max="31"
                             :disabled="disabled"
-                            :class="{ 'p-invalid': formErrors.cutoff_day }"
+                            :class="{ 'p-invalid': formErrors.dia_corte }"
                         />
-                        <small v-if="formErrors.cutoff_day" class="p-error">
-                            {{ formErrors.cutoff_day }}
+                        <small v-if="formErrors.dia_corte" class="p-error">
+                            {{ formErrors.dia_corte }}
                         </small>
                     </div>
                 </div>

@@ -29,15 +29,15 @@ export const useCategoriesStore = defineStore('categories', () => {
             const userId = user?.id;
 
             let query = supabase
-                .from('categories')
+                .from('categorias')
                 .select('*');
 
             if (userId) {
                 // Mostrar públicos O del usuario actual
-                query = query.or(`is_public.eq.true,user_id.eq.${userId}`);
+                query = query.or(`es_publico.eq.true,usuario_id.eq.${userId}`);
             } else {
                 // Solo públicos si no hay usuario
-                query = query.eq('is_public', true);
+                query = query.eq('es_publico', true);
             }
 
             const { data, error } = await query;
@@ -83,18 +83,18 @@ export const useCategoriesStore = defineStore('categories', () => {
 
             // Preparar datos para insertar
             const insertData = {
-                name: categoryData.name,
-                description: categoryData.description || null,
-                icon_name: categoryData.icon_name || 'pi pi-tag',
-                icon_library: categoryData.icon_type || 'primeicons',
-                is_public: false, // Por defecto, las categorías creadas por usuarios son privadas
-                user_id: user.id,
-                group_id: categoryData.group_id
+                nombre: categoryData.name,
+                descripcion: categoryData.description || null,
+                nombre_icono: categoryData.icon_name || 'pi pi-tag',
+                biblioteca_iconos: categoryData.icon_type || 'primeicons',
+                es_publico: false, // Por defecto, las categorías creadas por usuarios son privadas
+                usuario_id: user.id,
+                grupo_id: categoryData.group_id
             }
 
             // Insertar en la base de datos
             const { data, error } = await supabase
-                .from('categories')
+                .from('categorias')
                 .insert([insertData])
                 .select() // Retornar el registro insertado
 
@@ -157,20 +157,20 @@ export const useCategoriesStore = defineStore('categories', () => {
 
             // Preparar datos para actualizar
             const updateData = {
-                name: categoryData.name,
-                description: categoryData.description || null,
-                icon_name: categoryData.icon_name || 'pi pi-tag',
-                icon_library: categoryData.icon_type || 'primeicons',
-                group_id: categoryData.group_id
-                // No incluimos is_public ni user_id ya que no deben cambiarse en una actualización
+                nombre: categoryData.name,
+                descripcion: categoryData.description || null,
+                nombre_icono: categoryData.icon_name || 'pi pi-tag',
+                biblioteca_iconos: categoryData.icon_type || 'primeicons',
+                grupo_id: categoryData.group_id
+                // No incluimos es_publico ni usuario_id ya que no deben cambiarse en una actualización
             }
 
             // Actualizar en la base de datos
             const { data, error } = await supabase
-                .from('categories')
+                .from('categorias')
                 .update(updateData)
                 .eq('id', categoryId)
-                .eq('user_id', user.id) // Asegurar que solo el dueño pueda actualizarla
+                .eq('usuario_id', user.id) // Asegurar que solo el dueño pueda actualizarla
                 .select()
 
             if (error) {
@@ -269,14 +269,14 @@ export const useCategoriesStore = defineStore('categories', () => {
 
             // Buscar la categoría para saber a qué grupo pertenece (antes de eliminarla)
             const categoryToDelete = categories.value.find(c => c.id === categoryId)
-            const groupId = categoryToDelete?.group_id
+            const groupId = categoryToDelete?.grupo_id
 
             // Eliminar de la base de datos
             const { error } = await supabase
-                .from('categories')
+                .from('categorias')
                 .delete()
                 .eq('id', categoryId)
-                .eq('user_id', user.id) // Solo el dueño puede eliminar
+                .eq('usuario_id', user.id) // Solo el dueño puede eliminar
 
             if (error) {
                 console.error('💥 Error eliminando categoría:', error)
@@ -343,15 +343,15 @@ export const useCategoriesStore = defineStore('categories', () => {
             const userId = user?.id
 
             let query = supabase
-                .from('category_groups')
+                .from('grupos_categoria')
                 .select('*')
 
             if (userId) {
                 // Mostrar públicos O del usuario actual
-                query = query.or(`is_public.eq.true,user_id.eq.${userId}`)
+                query = query.or(`es_publico.eq.true,usuario_id.eq.${userId}`)
             } else {
                 // Solo públicos si no hay usuario
-                query = query.eq('is_public', true)
+                query = query.eq('es_publico', true)
             }
 
             const { data, error } = await query
@@ -386,13 +386,13 @@ export const useCategoriesStore = defineStore('categories', () => {
 
             // **PASO 1:** Obtener todas las categorías primero
             let categoriesQuery = supabase
-                .from('categories')
+                .from('categorias')
                 .select('*')
 
             if (userId) {
-                categoriesQuery = categoriesQuery.or(`is_public.eq.true,user_id.eq.${userId}`)
+                categoriesQuery = categoriesQuery.or(`es_publico.eq.true,usuario_id.eq.${userId}`)
             } else {
-                categoriesQuery = categoriesQuery.eq('is_public', true)
+                categoriesQuery = categoriesQuery.eq('es_publico', true)
             }
 
             const { data: categoriesData, error: categoriesError } = await categoriesQuery
@@ -404,13 +404,13 @@ export const useCategoriesStore = defineStore('categories', () => {
 
             // **PASO 2:** Obtener todos los grupos de categorías
             let groupsQuery = supabase
-                .from('category_groups')
+                .from('grupos_categoria')
                 .select('*')
 
             if (userId) {
-                groupsQuery = groupsQuery.or(`is_public.eq.true,user_id.eq.${userId}`)
+                groupsQuery = groupsQuery.or(`es_publico.eq.true,usuario_id.eq.${userId}`)
             } else {
-                groupsQuery = groupsQuery.eq('is_public', true)
+                groupsQuery = groupsQuery.eq('es_publico', true)
             }
 
             const { data: groupsData, error: groupsError } = await groupsQuery
@@ -423,17 +423,17 @@ export const useCategoriesStore = defineStore('categories', () => {
             // **PASO 3:** Ordenar categorías (Privadas primero, luego alfabético)
             const sortedCategories = categoriesData.sort((a, b) => {
                 // Primero: Privadas (false) antes que públicas (true)
-                if (a.is_public !== b.is_public) {
-                    return a.is_public - b.is_public // false (0) < true (1)
+                if (a.es_publico !== b.es_publico) {
+                    return a.es_publico - b.es_publico // false (0) < true (1)
                 }
                 // Segundo: Orden alfabético por nombre (case insensitive)
-                return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+                return a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase())
             })
 
-            // **PASO 4:** Agrupar categorías ordenadas por group_id
+            // **PASO 4:** Agrupar categorías ordenadas por grupo_id
             const categoriesByGroup = {}
             sortedCategories.forEach(category => {
-                const groupId = category.group_id
+                const groupId = category.grupo_id
                 if (!categoriesByGroup[groupId]) {
                     categoriesByGroup[groupId] = []
                 }
@@ -443,11 +443,11 @@ export const useCategoriesStore = defineStore('categories', () => {
             // **PASO 5:** Ordenar grupos (Privados primero, luego alfabético)
             const sortedGroups = groupsData.sort((a, b) => {
                 // Primero: Privadas (false) antes que públicas (true)
-                if (a.is_public !== b.is_public) {
-                    return a.is_public - b.is_public // false (0) < true (1)
+                if (a.es_publico !== b.es_publico) {
+                    return a.es_publico - b.es_publico // false (0) < true (1)
                 }
                 // Segundo: Orden alfabético por nombre (case insensitive)
-                return a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+                return a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase())
             })
 
             // **PASO 6:** Agregar categorías ordenadas a cada grupo
@@ -490,18 +490,18 @@ export const useCategoriesStore = defineStore('categories', () => {
 
             // Preparar datos para insertar
             const insertData = {
-                name: groupData.name,
-                description: groupData.description || null,
-                icon_name: groupData.icon_name || 'pi pi-folder',
-                icon_library: groupData.icon_type || 'primeicons',
+                nombre: groupData.name,
+                descripcion: groupData.description || null,
+                nombre_icono: groupData.icon_name || 'pi pi-folder',
+                biblioteca_iconos: groupData.icon_type || 'primeicons',
                 color: groupData.color || '#6366f1',
-                is_public: false, // Por defecto, los grupos creados por usuarios son privados
-                user_id: user.id
+                es_publico: false, // Por defecto, los grupos creados por usuarios son privados
+                usuario_id: user.id
             }
 
             // Insertar en la base de datos
             const { data, error } = await supabase
-                .from('category_groups')
+                .from('grupos_categoria')
                 .insert([insertData])
                 .select() // Retornar el registro insertado
 
@@ -564,20 +564,20 @@ export const useCategoriesStore = defineStore('categories', () => {
 
             // Preparar datos para actualizar
             const updateData = {
-                name: groupData.name,
-                description: groupData.description || null,
-                icon_name: groupData.icon_name || 'pi pi-folder',
-                icon_library: groupData.icon_type || 'primeicons',
+                nombre: groupData.name,
+                descripcion: groupData.description || null,
+                nombre_icono: groupData.icon_name || 'pi pi-folder',
+                biblioteca_iconos: groupData.icon_type || 'primeicons',
                 color: groupData.color || '#6366f1'
-                // No incluimos is_public ni user_id ya que no deben cambiarse en una actualización
+                // No incluimos es_publico ni usuario_id ya que no deben cambiarse en una actualización
             }
 
             // Actualizar en la base de datos
             const { data, error } = await supabase
-                .from('category_groups')
+                .from('grupos_categoria')
                 .update(updateData)
                 .eq('id', groupId)
-                .eq('user_id', user.id) // Asegurar que solo el dueño pueda actualizarlo
+                .eq('usuario_id', user.id) // Asegurar que solo el dueño pueda actualizarlo
                 .select()
 
             if (error) {
@@ -653,7 +653,7 @@ export const useCategoriesStore = defineStore('categories', () => {
             }
 
             // Verificar que el usuario sea el dueño del grupo
-            if (group.is_public || group.user_id !== user.id) {
+            if (group.es_publico || group.usuario_id !== user.id) {
                 throw new Error('No tienes permiso para eliminar este grupo')
             }
 
@@ -664,7 +664,7 @@ export const useCategoriesStore = defineStore('categories', () => {
             toast.add({
                 severity: 'info',
                 summary: 'Procesando',
-                detail: `Eliminando ${groupCategories.length} categorías y el grupo "${group.name}"...`,
+                detail: `Eliminando ${groupCategories.length} categorías y el grupo "${group.nombre}"...`,
                 life: 3000
             })
 
@@ -672,16 +672,16 @@ export const useCategoriesStore = defineStore('categories', () => {
             if (groupCategories.length > 0) {
                 // Construir una lista de IDs de categorías del usuario actual
                 const categoryIds = groupCategories
-                    .filter(cat => !cat.is_public && cat.user_id === user.id)
+                    .filter(cat => !cat.es_publico && cat.usuario_id === user.id)
                     .map(cat => cat.id)
                 
                 if (categoryIds.length > 0) {
                     // Eliminar todas las categorías del usuario en una sola operación
                     const { error: deleteError } = await supabase
-                        .from('categories')
+                        .from('categorias')
                         .delete()
                         .in('id', categoryIds)
-                        .eq('user_id', user.id)
+                        .eq('usuario_id', user.id)
                     
                     if (deleteError) {
                         throw new Error(`Error eliminando categorías: ${deleteError.message}`)
@@ -691,10 +691,10 @@ export const useCategoriesStore = defineStore('categories', () => {
 
             // 2. Eliminar el grupo
             const { error } = await supabase
-                .from('category_groups')
+                .from('grupos_categoria')
                 .delete()
                 .eq('id', groupId)
-                .eq('user_id', user.id)
+                .eq('usuario_id', user.id)
 
             if (error) {
                 throw new Error(`Error eliminando grupo: ${error.message}`)
@@ -702,7 +702,7 @@ export const useCategoriesStore = defineStore('categories', () => {
             
             // 3. Actualizar el estado local
             // Quitar las categorías eliminadas del estado plano
-            categories.value = categories.value.filter(c => c.group_id !== groupId || c.is_public)
+            categories.value = categories.value.filter(c => c.grupo_id !== groupId || c.es_publico)
             
             // Quitar el grupo del estado anidado
             categoryGroups.value = categoryGroups.value.filter(g => g.id !== groupId)
@@ -711,7 +711,7 @@ export const useCategoriesStore = defineStore('categories', () => {
             toast.add({
                 severity: 'success',
                 summary: 'Grupo Eliminado',
-                detail: `El grupo "${group.name}" y sus categorías han sido eliminados exitosamente`,
+                detail: `El grupo "${group.nombre}" y sus categorías han sido eliminados exitosamente`,
                 life: 3000
             })
 

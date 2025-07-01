@@ -16,11 +16,11 @@ export const useBankStore = defineStore('banks', () => {
 
   // COMPUTED
   const userBanks = computed(() => {
-    return banks.value.filter(bank => !bank.is_public && bank.user_id === sessionStore.userId);
+    return banks.value.filter(bank => !bank.es_publico && bank.usuario_id === sessionStore.userId);
   });
 
   const publicBanks = computed(() => {
-    return banks.value.filter(bank => bank.is_public);
+    return banks.value.filter(bank => bank.es_publico);
   });
 
   // ACTIONS
@@ -37,10 +37,10 @@ export const useBankStore = defineStore('banks', () => {
     try {
       console.log('🔍 Consultando bancos desde la base de datos');
       const { data, error: err } = await supabase
-        .from('banks')
+        .from('bancos')
         .select('*')
-        .or(`is_public.eq.true,user_id.eq.${sessionStore.userId}`)
-        .order('name', { ascending: true });
+        .or(`es_publico.eq.true,usuario_id.eq.${sessionStore.userId}`)
+        .order('nombre', { ascending: true });
 
       if (err) throw err;
 
@@ -74,16 +74,16 @@ export const useBankStore = defineStore('banks', () => {
 
       // Preparar datos para insertar
       const insertData = {
-        name: bankData.name.trim(),
-        icon_library: bankData.iconLibrary || 'primevue',
-        icon_name: bankData.iconName || 'pi pi-building',
+        nombre: bankData.name.trim(),
+        biblioteca_iconos: bankData.iconLibrary || 'primevue',
+        nombre_icono: bankData.iconName || 'pi pi-building',
         color: bankData.color || '#4B5563', // Color por defecto (gris)
-        is_public: false,
-        user_id: user.id
+        es_publico: false,
+        usuario_id: user.id
       };
 
       const { data, error: err } = await supabase
-        .from('banks')
+        .from('bancos')
         .insert(insertData)
         .select()
         .single();
@@ -122,24 +122,24 @@ export const useBankStore = defineStore('banks', () => {
         throw new Error('Banco no encontrado');
       }
       
-      if (bankToUpdate.is_public) {
+      if (bankToUpdate.es_publico) {
         throw new Error('No puedes modificar un banco público del sistema');
       }
       
-      if (bankToUpdate.user_id !== sessionStore.userId) {
+      if (bankToUpdate.usuario_id !== sessionStore.userId) {
         throw new Error('No tienes permiso para modificar este banco');
       }
 
       // Preparar datos para actualizar
       const updateData = {
-        name: bankData.name.trim(),
-        icon_library: bankData.iconLibrary,
-        icon_name: bankData.iconName,
+        nombre: bankData.name.trim(),
+        biblioteca_iconos: bankData.iconLibrary,
+        nombre_icono: bankData.iconName,
         color: bankData.color
       };
 
       const { data, error: err } = await supabase
-        .from('banks')
+        .from('bancos')
         .update(updateData)
         .eq('id', bankId)
         .select()
@@ -181,16 +181,16 @@ export const useBankStore = defineStore('banks', () => {
         throw new Error('Banco no encontrado');
       }
       
-      if (bankToDelete.is_public) {
+      if (bankToDelete.es_publico) {
         throw new Error('No puedes eliminar un banco público del sistema');
       }
       
-      if (bankToDelete.user_id !== sessionStore.userId) {
+      if (bankToDelete.usuario_id !== sessionStore.userId) {
         throw new Error('No tienes permiso para eliminar este banco');
       }
 
       const { error: err } = await supabase
-        .from('banks')
+        .from('bancos')
         .delete()
         .eq('id', bankId);
 
@@ -202,7 +202,7 @@ export const useBankStore = defineStore('banks', () => {
       toast.add({
         severity: 'success',
         summary: 'Banco eliminado',
-        detail: `El banco "${bankToDelete.name}" ha sido eliminado correctamente`,
+        detail: `El banco "${bankToDelete.nombre}" ha sido eliminado correctamente`,
         life: 3000
       });
 

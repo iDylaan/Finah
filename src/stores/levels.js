@@ -27,15 +27,15 @@ export const useLevelStore = defineStore('levels', () => {
             const userId = user?.id;
 
             let query = supabase
-                .from('levels')
+                .from('niveles')
                 .select('*');
 
             if (userId) {
                 // Mostrar públicos O del usuario actual
-                query = query.or(`is_public.eq.true,user_id.eq.${userId}`);
+                query = query.or(`es_publico.eq.true,usuario_id.eq.${userId}`);
             } else {
                 // Solo públicos si no hay usuario
-                query = query.eq('is_public', true);
+                query = query.eq('es_publico', true);
             }
 
             const { data, error } = await query;
@@ -46,11 +46,11 @@ export const useLevelStore = defineStore('levels', () => {
                 // Ordenar: primero privados, luego por nombre
                 levels.value = (data || []).sort((a, b) => {
                     // Primero: Privados (false) antes que públicos (true)
-                    if (a.is_public !== b.is_public) {
-                        return a.is_public - b.is_public; // false (0) < true (1)
+                    if (a.es_publico !== b.es_publico) {
+                        return a.es_publico - b.es_publico; // false (0) < true (1)
                     }
                     // Segundo: Orden alfabético por nombre
-                    return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+                    return a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase());
                 });
                 loaded.value = true;
                 lastFetchTime.value = Date.now();
@@ -89,15 +89,15 @@ export const useLevelStore = defineStore('levels', () => {
 
             // Preparar datos para insertar - aplicando trim
             const insertData = {
-                name: levelData.name.trim(),
+                nombre: levelData.name.trim(),
                 color: levelData.colorKey.trim(), // Aplicar trim al color
-                is_public: false, // Por defecto, los niveles creados por usuarios son privados
-                user_id: user.id
+                es_publico: false, // Por defecto, los niveles creados por usuarios son privados
+                usuario_id: user.id
             }
 
             // Insertar en la base de datos
             const { data, error } = await supabase
-                .from('levels')
+                .from('niveles')
                 .insert([insertData])
                 .select() // Retornar el registro insertado
 
@@ -153,17 +153,17 @@ export const useLevelStore = defineStore('levels', () => {
 
             // Preparar datos para actualizar - aplicando trim
             const updateData = {
-                name: levelData.name.trim(),
+                nombre: levelData.name.trim(),
                 color: levelData.colorKey.trim() // Aplicar trim al color
-                // No incluimos is_public ni user_id ya que no deben cambiarse en una actualización
+                // No incluimos es_publico ni usuario_id ya que no deben cambiarse en una actualización
             }
 
             // Actualizar en la base de datos
             const { data, error } = await supabase
-                .from('levels')
+                .from('niveles')
                 .update(updateData)
                 .eq('id', levelId)
-                .eq('user_id', user.id) // Asegurar que solo el dueño pueda actualizarlo
+                .eq('usuario_id', user.id) // Asegurar que solo el dueño pueda actualizarlo
                 .select()
 
             if (error) {
@@ -227,10 +227,10 @@ export const useLevelStore = defineStore('levels', () => {
 
             // Eliminar de la base de datos
             const { error } = await supabase
-                .from('levels')
+                .from('niveles')
                 .delete()
                 .eq('id', levelId)
-                .eq('user_id', user.id) // Solo el dueño puede eliminar
+                .eq('usuario_id', user.id) // Solo el dueño puede eliminar
 
             if (error) {
                 console.error('💥 Error eliminando nivel:', error)

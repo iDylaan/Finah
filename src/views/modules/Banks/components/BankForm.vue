@@ -130,8 +130,8 @@ const isNewBank = computed(() => props.isNew);
 const isEditMode = computed(() => !isNewBank.value);
 
 const isPublicBank = computed(() => {
-    // Asegurarnos de que is_public se interprete correctamente como booleano
-    return Boolean(loadedBankData.value?.is_public);
+    // Asegurarnos de que es_publico se interprete correctamente como booleano
+    return Boolean(loadedBankData.value?.es_publico);
 });
 
 const isReadOnlyMode = computed(() => {
@@ -139,7 +139,7 @@ const isReadOnlyMode = computed(() => {
     const readOnly = isPublicBank.value || (
         !isNewBank.value &&
         loadedBankData.value &&
-        loadedBankData.value.user_id !== sessionStore.userId
+        loadedBankData.value.usuario_id !== sessionStore.userId
     );
 
     return readOnly;
@@ -222,7 +222,7 @@ const loadBankFromProp = (bank) => {
         return;
     }
 
-    // Guardar banco completo para acceder a propiedades como is_public
+    // Guardar banco completo para acceder a propiedades como es_publico
     loadedBankData.value = { ...bank };
 
     // Normalizar el color para asegurarnos que tiene el formato correcto (#RRGGBB)
@@ -230,10 +230,10 @@ const loadBankFromProp = (bank) => {
 
     // Inicializar formulario con datos del banco
     initializeForm({
-        name: bank.name || '',
+        name: bank.nombre || '',
         color: color,
-        iconLibrary: bank.icon_library || ICONS.PRIMEVUE,
-        iconName: bank.icon_name || 'pi pi-building'
+        iconLibrary: bank.biblioteca_iconos || ICONS.PRIMEVUE,
+        iconName: bank.nombre_icono || 'pi pi-building'
     });
 
     console.log('📋 Formulario cargado:', bankForm.value);
@@ -275,10 +275,10 @@ const loadBankData = async (bankId) => {
 
         // Inicializar formulario con datos del banco
         initializeForm({
-            name: foundBank.name || '',
+            name: foundBank.nombre || '',
             color: color,
-            iconLibrary: foundBank.icon_library || ICONS.PRIMEVUE,
-            iconName: foundBank.icon_name || 'pi pi-building'
+            iconLibrary: foundBank.biblioteca_iconos || ICONS.PRIMEVUE,
+            iconName: foundBank.nombre_icono || 'pi pi-building'
         });
 
         console.log('📋 Formulario cargado:', bankForm.value);

@@ -5,25 +5,25 @@ export function useAccountForm() {
     // Estado del formulario
     const accountForm = ref({
         type: 'cash',
-        bank_id: null,
+        banco_id: null,
         name: '',
         account_number: '',
         last_four_digits: '',
         balance: 0,
         card_name: '',
-        credit_limit: 0,
-        available_credit: 0,
-        payment_day: 1,
-        cutoff_day: 1,
-        interest_rate: null,
-        min_payment_percent: 5,
-        cat_percentage: null,
-        annual_fee: 0,
-        annual_fee_waiver_spending: null,
-        cashback_percentage: null,
-        rewards_points_ratio: null,
-        grace_period_days: null,
-        notes: ''
+        limite_credito: 0,
+        credito_disponible: 0,
+        dia_pago: 1,
+        dia_corte: 1,
+        tasa_interes: null,
+        porcentaje_pago_minimo: 5,
+        porcentaje_cat: null,
+        anualidad: 0,
+        gasto_exencion_anualidad: null,
+        porcentaje_cashback: null,
+        ratio_puntos_recompensa: null,
+        dias_periodo_gracia: null,
+        notas: ''
     });
 
     const formErrors = ref({});
@@ -50,25 +50,25 @@ export function useAccountForm() {
         
         accountForm.value = {
             type: 'cash',
-            bank_id: null,
+            banco_id: null,
             name: '',
             account_number: '',
             last_four_digits: '',
             balance: 0,
             card_name: '',
-            credit_limit: 0,
-            available_credit: 0,
-            payment_day: 1,
-            cutoff_day: 1,
-            interest_rate: null,
-            min_payment_percent: 5,
-            cat_percentage: null,
-            annual_fee: 0,
-            annual_fee_waiver_spending: null,
-            cashback_percentage: null,
-            rewards_points_ratio: null,
-            grace_period_days: null,
-            notes: ''
+            limite_credito: 0,
+            credito_disponible: 0,
+            dia_pago: 1,
+            dia_corte: 1,
+            tasa_interes: null,
+            porcentaje_pago_minimo: 5,
+            porcentaje_cat: null,
+            anualidad: 0,
+            gasto_exencion_anualidad: null,
+            porcentaje_cashback: null,
+            ratio_puntos_recompensa: null,
+            dias_periodo_gracia: null,
+            notas: ''
         };
 
         formErrors.value = {};
@@ -87,18 +87,18 @@ export function useAccountForm() {
             // Limpiar campos de tarjeta de crédito
             Object.assign(accountForm.value, {
                 card_name: '',
-                credit_limit: 0,
-                available_credit: 0,
-                payment_day: 1,
-                cutoff_day: 1,
-                interest_rate: null,
-                cat_percentage: null,
-                annual_fee: 0,
-                annual_fee_waiver_spending: null,
-                cashback_percentage: null,
-                rewards_points_ratio: null,
-                grace_period_days: null,
-                notes: ''
+                limite_credito: 0,
+                credito_disponible: 0,
+                dia_pago: 1,
+                dia_corte: 1,
+                tasa_interes: null,
+                porcentaje_cat: null,
+                anualidad: 0,
+                gasto_exencion_anualidad: null,
+                porcentaje_cashback: null,
+                ratio_puntos_recompensa: null,
+                dias_periodo_gracia: null,
+                notas: ''
             });
         }
 
@@ -109,7 +109,7 @@ export function useAccountForm() {
 
         // Limpiar selección de banco si no es necesario
         if (!['bank', 'debit_card', 'credit_card'].includes(type)) {
-            accountForm.value.bank_id = null;
+            accountForm.value.banco_id = null;
         }
 
         if (type === 'credit_card') {
@@ -136,40 +136,40 @@ export function useAccountForm() {
         // Cargar datos en el formulario
         accountForm.value = {
             type: account.type || 'cash',
-            bank_id: account.metadata?.bank_id || account.credit_card?.bank_id || null,
-            name: account.name || '',
-            account_number: account.metadata?.account_number || '',
-            last_four_digits: account.metadata?.last4 || account.credit_card?.last_four_digits || '',
-            balance: account.balance || 0,
+            banco_id: account.metadatos?.banco_id || account.tarjeta_credito?.banco_id || null,
+            name: account.nombre || '',
+            account_number: account.metadatos?.numero_cuenta || '',
+            last_four_digits: account.metadatos?.ultimos_4_digitos || account.tarjeta_credito?.ultimos_4_digitos || '',
+            balance: account.saldo || 0,
             
             // Campos BÁSICOS de tarjeta de crédito
-            card_name: account.credit_card?.card_name || '',
-            credit_limit: account.credit_card?.credit_limit || 0,
-            available_credit: account.credit_card?.available_credit || 0,
-            payment_day: account.credit_card?.payment_day || 1,
-            cutoff_day: account.credit_card?.cutoff_day || 1,
-            interest_rate: account.credit_card?.interest_rate || null,
-            min_payment_percent: account.credit_card?.min_payment_percent || 5,
+            card_name: account.tarjeta_credito?.nombre_tarjeta || '',
+            limite_credito: account.tarjeta_credito?.limite_credito || 0,
+            credito_disponible: account.tarjeta_credito?.credito_disponible || 0,
+            dia_pago: account.tarjeta_credito?.dia_pago || 1,
+            dia_corte: account.tarjeta_credito?.dia_corte || 1,
+            tasa_interes: account.tarjeta_credito?.tasa_interes || null,
+            porcentaje_pago_minimo: account.tarjeta_credito?.porcentaje_pago_minimo || 5,
             
             // Campos OPCIONALES de tarjeta de crédito
-            cat_percentage: account.credit_card?.cat_percentage || null,
-            annual_fee: account.credit_card?.annual_fee || 0,
-            annual_fee_waiver_spending: account.credit_card?.annual_fee_waiver_spending || null,
-            cashback_percentage: account.credit_card?.cashback_percentage || null,
-            rewards_points_ratio: account.credit_card?.rewards_points_ratio || null,
-            grace_period_days: account.credit_card?.grace_period_days || null,
-            notes: account.credit_card?.notes || ''
+            porcentaje_cat: account.tarjeta_credito?.porcentaje_cat || null,
+            anualidad: account.tarjeta_credito?.anualidad || 0,
+            gasto_exencion_anualidad: account.tarjeta_credito?.gasto_exencion_anualidad || null,
+            porcentaje_cashback: account.tarjeta_credito?.porcentaje_cashback || null,
+            ratio_puntos_recompensa: account.tarjeta_credito?.ratio_puntos_recompensa || null,
+            dias_periodo_gracia: account.tarjeta_credito?.dias_periodo_gracia || null,
+            notas: account.tarjeta_credito?.notas || ''
         };
 
         console.log('📝 Formulario cargado con datos:', accountForm.value);
         console.log('📝 Campos de tarjeta específicos:', {
-            cat_percentage: accountForm.value.cat_percentage,
-            annual_fee: accountForm.value.annual_fee,
-            annual_fee_waiver_spending: accountForm.value.annual_fee_waiver_spending,
-            cashback_percentage: accountForm.value.cashback_percentage,
-            rewards_points_ratio: accountForm.value.rewards_points_ratio,
-            grace_period_days: accountForm.value.grace_period_days,
-            notes: accountForm.value.notes
+            porcentaje_cat: accountForm.value.porcentaje_cat,
+            anualidad: accountForm.value.anualidad,
+            gasto_exencion_anualidad: accountForm.value.gasto_exencion_anualidad,
+            porcentaje_cashback: accountForm.value.porcentaje_cashback,
+            ratio_puntos_recompensa: accountForm.value.ratio_puntos_recompensa,
+            dias_periodo_gracia: accountForm.value.dias_periodo_gracia,
+            notas: accountForm.value.notas
         });
     };
 
@@ -179,28 +179,28 @@ export function useAccountForm() {
         const accountData = {
             type: form.type,
             name: form.name.trim(),
-            bank_id: form.bank_id,
+            banco_id: form.banco_id,
             account_number: form.account_number?.trim() || null,
             last_four_digits: form.last_four_digits?.trim() || null,
             balance: Number(form.balance) || 0,
             
             // Campos específicos para tarjetas de crédito - BÁSICOS
             card_name: form.card_name?.trim() || null,
-            credit_limit: Number(form.credit_limit) || 0,
-            available_credit: Number(form.available_credit) || Number(form.credit_limit) || 0,
-            payment_day: Number(form.payment_day) || 1,
-            cutoff_day: Number(form.cutoff_day) || 1,
-            interest_rate: form.interest_rate ? Number(form.interest_rate) : null,
-            min_payment_percent: Number(form.min_payment_percent) || 5,
+            limite_credito: Number(form.limite_credito) || 0,
+            credito_disponible: Number(form.credito_disponible) || Number(form.limite_credito) || 0,
+            dia_pago: Number(form.dia_pago) || 1,
+            dia_corte: Number(form.dia_corte) || 1,
+            tasa_interes: form.tasa_interes ? Number(form.tasa_interes) : null,
+            porcentaje_pago_minimo: Number(form.porcentaje_pago_minimo) || 5,
             
             // Campos OPCIONALES de tarjeta de crédito
-            cat_percentage: form.cat_percentage ? Number(form.cat_percentage) : null,
-            annual_fee: form.annual_fee !== undefined && form.annual_fee !== null ? Number(form.annual_fee) : 0,
-            annual_fee_waiver_spending: form.annual_fee_waiver_spending ? Number(form.annual_fee_waiver_spending) : null,
-            cashback_percentage: form.cashback_percentage ? Number(form.cashback_percentage) : null,
-            rewards_points_ratio: form.rewards_points_ratio ? Number(form.rewards_points_ratio) : null,
-            grace_period_days: form.grace_period_days ? Number(form.grace_period_days) : null,
-            notes: form.notes?.trim() || null
+            porcentaje_cat: form.porcentaje_cat ? Number(form.porcentaje_cat) : null,
+            anualidad: form.anualidad !== undefined && form.anualidad !== null ? Number(form.anualidad) : 0,
+            gasto_exencion_anualidad: form.gasto_exencion_anualidad ? Number(form.gasto_exencion_anualidad) : null,
+            porcentaje_cashback: form.porcentaje_cashback ? Number(form.porcentaje_cashback) : null,
+            ratio_puntos_recompensa: form.ratio_puntos_recompensa ? Number(form.ratio_puntos_recompensa) : null,
+            dias_periodo_gracia: form.dias_periodo_gracia ? Number(form.dias_periodo_gracia) : null,
+            notas: form.notas?.trim() || null
         };
 
         // Agregar ID si es edición

@@ -36,18 +36,18 @@
                         <!-- Icono del grupo -->
                         <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm"
                             :style="{ backgroundColor: group.color || '#6366f1' }">
-                            <span v-if="group.icon_library === 'material'" class="material-symbols-rounded text-white">{{
-                                group.icon_name }}</span>
-                            <i v-else :class="group.icon_name || 'pi pi-folder'" class="text-white text-sm"></i>
+                            <span v-if="group.biblioteca_iconos === 'material'" class="material-symbols-rounded text-white">{{
+                                group.nombre_icono }}</span>
+                            <i v-else :class="group.nombre_icono || 'pi pi-folder'" class="text-white text-sm"></i>
                         </div>
 
                         <!-- Info del grupo -->
                         <div class="flex justify-center flex-col">
                             <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-0 truncate my-auto">
-                                {{ group.name }}
+                                {{ group.nombre }}
                             </h3>
-                            <p v-if="group.description" class="text-sm text-surface-600 dark:text-surface-400 truncate">
-                                {{ group.description }}
+                            <p v-if="group.descripcion" class="text-sm text-surface-600 dark:text-surface-400 truncate">
+                                {{ group.descripcion }}
                             </p>
                         </div>
                     </div>
@@ -83,32 +83,32 @@
                             <!-- Icono de la categoría -->
                             <div class="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 shadow-sm"
                                 :style="{ backgroundColor: group.color || '#6366f1' }">
-                                <span v-if="category.icon_library === 'material'" class="material-symbols-rounded text-white">{{
-                                    category.icon_name }}</span>
-                                <i v-else :class="category.icon_name || 'pi pi-tag'" class="text-white text-xs"></i>
+                                <span v-if="category.biblioteca_iconos === 'material'" class="material-symbols-rounded text-white">{{
+                                    category.nombre_icono }}</span>
+                                <i v-else :class="category.nombre_icono || 'pi pi-tag'" class="text-white text-xs"></i>
                             </div>
 
                             <!-- Info de la categoría -->
                             <div class="flex flex-col justify-center flex-1">
                                 <h4 class="text-sm font-semibold text-surface-900 dark:text-surface-100 truncate mb-0">
-                                    {{ category.name }}
+                                    {{ category.nombre }}
                                 </h4>
-                                <p v-if="category.description"
+                                <p v-if="category.descripcion"
                                     class="text-xs text-surface-600 dark:text-surface-400 truncate">
-                                    {{ category.description }}
+                                    {{ category.descripcion }}
                                 </p>
                             </div>
 
                             <!-- Badge personal -->
                             <div class="flex items-center gap-2">
-                                <Badge v-if="!category.is_public" value="Personal" severity="success" size="small" />
+                                <Badge v-if="!category.es_publico" value="Personal" severity="success" size="small" />
 
                                 <!-- Menú de opciones solo para categorías privadas -->
-                                <Button v-if="!category.is_public" icon="pi pi-ellipsis-v" severity="secondary" rounded
+                                <Button v-if="!category.es_publico" icon="pi pi-ellipsis-v" severity="secondary" rounded
                                     text size="small" @click.stop="(event) => toggleCategoryMenu(event, category.id)" />
 
                                 <!-- Menú popup para cada categoría -->
-                                <Menu v-if="!category.is_public" :ref="(el) => setCategoryMenuRef(el, category.id)"
+                                <Menu v-if="!category.es_publico" :ref="(el) => setCategoryMenuRef(el, category.id)"
                                     :id="`category_menu_${category.id}`" :model="getCategoryMenuItems(category)"
                                     popup />
                             </div>
@@ -202,7 +202,7 @@ const getGroupMenuItems = (group) => {
         }
     ];
 
-    if (!group.is_public) {
+    if (!group.es_publico) {
         items.push(
             {
                 separator: true // Separador visual
@@ -392,7 +392,7 @@ const handleDeleteCategory = async (category) => {
     try {
         // Usar el servicio de confirmación a través de la instancia confirm
         confirm.require({
-            message: `¿Estás seguro de eliminar la categoría "${category.name}"?`,
+            message: `¿Estás seguro de eliminar la categoría "${category.nombre}"?`,
             header: 'Confirmar eliminación',
             icon: 'pi pi-exclamation-triangle',
             acceptLabel: 'Eliminar',
@@ -471,11 +471,11 @@ const refreshData = async () => {
 const handleDeleteGroup = async (group) => {
     try {
         // Contar las categorías propias del usuario en este grupo
-        const userCategories = group.categories.filter(cat => !cat.is_public);
+        const userCategories = group.categories.filter(cat => !cat.es_publico);
         const categoryCount = userCategories.length;
         
         // Crear mensaje de confirmación adecuado
-        let message = `¿Estás seguro de eliminar el grupo "${group.name}"?`;
+        let message = `¿Estás seguro de eliminar el grupo "${group.nombre}"?`;
         
         if (categoryCount > 0) {
             message += `\n\nEsta acción también eliminará ${categoryCount} ${

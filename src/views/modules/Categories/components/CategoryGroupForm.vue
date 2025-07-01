@@ -243,12 +243,12 @@ const loadGroupForEdit = async (groupId) => {
         
         // Cargar datos en el formulario
         categoryForm.value = {
-            name: group.name || '',
-            description: group.description || '',
-            icon_name: group.icon_name || 'pi pi-folder',
-            icon_type: group.icon_type || group.icon_library || ICONS.PRIMEVUE, // Manejo de ambos nombres
+            name: group.nombre || '',
+            description: group.descripcion || '',
+            icon_name: group.nombre_icono || 'pi pi-folder',
+            icon_type: group.icon_type || group.biblioteca_iconos || ICONS.PRIMEVUE, // Manejo de ambos nombres
             color: group.color || '#6366f1',
-            is_public: group.is_public || false
+            is_public: group.es_publico || false
         };
         
         console.log('📝 Formulario cargado con datos:', categoryForm.value);
@@ -303,7 +303,7 @@ const submitCategory = async () => {
             icon_name: categoryForm.value.icon_name || 'pi pi-folder',
             icon_type: categoryForm.value.icon_type || ICONS.PRIMEVUE,
             color: categoryForm.value.color || '#6366f1',
-            is_public: categoryForm.value.is_public || false
+            es_publico: categoryForm.value.es_publico || false
         };
         
         // Agregar ID si es edición

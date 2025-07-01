@@ -32,11 +32,11 @@
                 class="cursor-pointer border border-surface-200 dark:border-surface-700 rounded-lg p-4 bg-surface-0 dark:bg-surface-800 relative hover:shadow-md transition-shadow duration-200"
                 @click="handleLevelClick(level)">
                 <!-- Menú de acciones (solo para niveles privados) -->
-                <Menu v-if="!level.is_public" :model="getLevelMenuItems(level)" :popup="true"
+                <Menu v-if="!level.es_publico" :model="getLevelMenuItems(level)" :popup="true"
                     :pt="{ root: { class: 'surface-0 dark:surface-800' } }"
                     :ref="el => setLevelMenuRef(el, level.id)" />
 
-                <button v-if="!level.is_public"
+                <button v-if="!level.es_publico"
                     class="absolute right-2 top-2 p-2 rounded-full"
                     @click.stop="toggleLevelMenu($event, level.id)">
                     <i class="pi pi-ellipsis-v text-surface-600 dark:text-surface-400"></i>
@@ -46,7 +46,7 @@
                 <div class="flex items-center mb-3 mt-2">
                     <Tag class="" rounded :style="getLevelTagStyle(level)">
                         <span class="block w-full text-center">
-                            {{ level.name }}
+                            {{ level.nombre }}
                         </span>
                     </Tag>
                 </div>
@@ -207,7 +207,7 @@ const handleDeleteLevel = async (level) => {
     try {
         // Usar el servicio de confirmación
         confirm.require({
-            message: `¿Estás seguro de eliminar el nivel "${level.name}"?`,
+            message: `¿Estás seguro de eliminar el nivel "${level.nombre}"?`,
             header: 'Confirmar eliminación',
             icon: 'pi pi-exclamation-triangle',
             acceptLabel: 'Eliminar',

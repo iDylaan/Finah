@@ -14,14 +14,14 @@
             <label class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">
                 Banco <span class="text-red-500">*</span>
             </label>
-            <Select v-model="accountForm.bank_id" 
+            <Select v-model="accountForm.banco_id" 
                     :options="banks" 
-                    option-label="name" 
+                    option-label="nombre" 
                     option-value="id"
                     placeholder="Selecciona un banco" 
                     class="w-full" 
                     :loading="banksLoading"
-                    :class="{ 'p-invalid': formErrors.bank_id }"
+                    :class="{ 'p-invalid': formErrors.banco_id }"
                     :disabled="disabled">
                 <template #option="{ option }">
                     <div class="flex items-center gap-2">
@@ -51,7 +51,7 @@
                     <span v-else class="text-surface-500">Selecciona un banco</span>
                 </template>
             </Select>
-            <small v-if="formErrors.bank_id" class="p-error">{{ formErrors.bank_id }}</small>
+            <small v-if="formErrors.banco_id" class="p-error">{{ formErrors.banco_id }}</small>
         </div>
 
         <!-- Nombre de la cuenta -->
@@ -59,12 +59,12 @@
             <label class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">
                 Nombre de la Cuenta <span class="text-red-500">*</span>
             </label>
-            <InputText v-model="accountForm.name" 
+            <InputText v-model="accountForm.nombre" 
                        placeholder="Ej: Tarjeta BBVA Oro" 
                        class="w-full"
-                       :class="{ 'p-invalid': formErrors.name }" 
+                       :class="{ 'p-invalid': formErrors.nombre }" 
                        :disabled="disabled" />
-            <small v-if="formErrors.name" class="p-error">{{ formErrors.name }}</small>
+            <small v-if="formErrors.nombre" class="p-error">{{ formErrors.nombre }}</small>
         </div>
 
         <!-- Nombre de la tarjeta -->
@@ -122,7 +122,7 @@ const props = defineProps({
 
 // COMPUTED
 const selectedBank = computed(() => {
-    return props.banks.find(bank => bank.id === props.accountForm.bank_id);
+    return props.banks.find(bank => bank.id === props.accountForm.banco_id);
 });
 </script>
 

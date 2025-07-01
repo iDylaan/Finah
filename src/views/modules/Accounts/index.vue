@@ -37,51 +37,50 @@
                             <i :class="getAccountIcon(account)" class="text-white text-lg"></i>
                         </div>
 
-                        <!-- Info de la cuenta -->
-                        <div class="flex-1">
+                        <!-- Info de la cuenta -->                            <div class="flex-1">
                             <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-0 mb-1">
-                                {{ account.name }}
+                                {{ account.nombre }}
                             </h3>
                             <div class="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
-                                <span>{{ getAccountTypeLabel(account.type) }}</span>
-                                <span v-if="account.bank">• {{ account.bank.name }}</span>
-                                <span v-if="account.metadata?.last4">• ••{{ account.metadata.last4 }}</span>
+                                <span>{{ getAccountTypeLabel(account.tipo) }}</span>
+                                <span v-if="account.banco">• {{ account.banco.nombre }}</span>
+                                <span v-if="account.metadatos?.last4">• ••{{ account.metadatos.last4 }}</span>
                             </div>
                         </div>
 
                         <!-- Información de saldo/crédito -->
                         <div class="text-right">
-                            <div v-if="account.type === 'credit_card' && account.credit_card">
+                            <div v-if="account.tipo === 'credit_card' && account.tarjeta_credito">
                                 <p class="text-lg font-bold text-surface-900 dark:text-surface-0">
-                                    {{ formatCurrency(account.credit_card.available_credit) }}
+                                    {{ formatCurrency(account.tarjeta_credito.credito_disponible) }}
                                 </p>
                                 <p class="text-xs text-surface-500">
-                                    disponible de {{ formatCurrency(account.credit_card.credit_limit) }}
+                                    disponible de {{ formatCurrency(account.tarjeta_credito.limite_credito) }}
                                 </p>
                                 <div class="mt-1 flex flex-wrap gap-1">
                                     <!-- Badges para información básica -->
-                                    <Badge :value="`Pago: ${account.credit_card.payment_day}`" severity="info" size="small" />
+                                    <Badge :value="`Pago: ${account.tarjeta_credito.dia_pago}`" severity="info" size="small" />
                                     
                                     <!-- Badges opcionales solo si tienen datos -->
-                                    <Badge v-if="account.credit_card.cat_percentage" 
-                                           :value="`CAT: ${account.credit_card.cat_percentage}%`" 
+                                    <Badge v-if="account.tarjeta_credito.porcentaje_cat" 
+                                           :value="`CAT: ${account.tarjeta_credito.porcentaje_cat}%`" 
                                            severity="warning" size="small" />
                                     
-                                    <Badge v-if="account.credit_card.annual_fee === 0" 
+                                    <Badge v-if="account.tarjeta_credito.anualidad === 0" 
                                            value="Sin anualidad" severity="success" size="small" />
                                     
-                                    <Badge v-if="account.credit_card.annual_fee > 0" 
-                                           :value="`Anualidad: ${formatCurrency(account.credit_card.annual_fee)}`" 
+                                    <Badge v-if="account.tarjeta_credito.anualidad > 0" 
+                                           :value="`Anualidad: ${formatCurrency(account.tarjeta_credito.anualidad)}`" 
                                            severity="warning" size="small" />
                                     
-                                    <Badge v-if="account.credit_card.cashback_percentage" 
-                                           :value="`Cashback: ${account.credit_card.cashback_percentage}%`" 
+                                    <Badge v-if="account.tarjeta_credito.porcentaje_cashback" 
+                                           :value="`Cashback: ${account.tarjeta_credito.porcentaje_cashback}%`" 
                                            severity="success" size="small" />
                                 </div>
                             </div>
                             <div v-else>
                                 <p class="text-lg font-bold text-surface-900 dark:text-surface-0">
-                                    {{ formatCurrency(account.balance) }}
+                                    {{ formatCurrency(account.saldo) }}
                                 </p>
                                 <p class="text-xs text-surface-500">saldo actual</p>
                             </div>
@@ -167,8 +166,8 @@ const getAccountTypeLabel = (type) => {
 };
 
 const getAccountColor = (account) => {
-    if (account.bank?.color) {
-        return account.bank.color;
+    if (account.banco?.color) {
+        return account.banco.color;
     }
     
     const colors = {
@@ -178,12 +177,12 @@ const getAccountColor = (account) => {
         'credit_card': '#f59e0b'
     };
     
-    return colors[account.type] || '#6366f1';
+    return colors[account.tipo] || '#6366f1';
 };
 
 const getAccountIcon = (account) => {
-    if (account.bank?.icon_name && account.bank?.icon_library === 'primevue') {
-        return account.bank.icon_name;
+    if (account.banco?.nombre_icono && account.banco?.libreria_icono === 'primevue') {
+        return account.banco.nombre_icono;
     }
     
     const icons = {
@@ -193,7 +192,7 @@ const getAccountIcon = (account) => {
         'credit_card': 'pi pi-credit-card'
     };
     
-    return icons[account.type] || 'pi pi-wallet';
+    return icons[account.tipo] || 'pi pi-wallet';
 };
 
 const formatCurrency = (amount) => {
@@ -318,7 +317,7 @@ const handleDeleteAccount = (account) => {
     console.log('🗑️ Eliminar cuenta:', account);
     
     confirm.require({
-        message: `¿Estás seguro de eliminar la cuenta "${account.name}"?`,
+        message: `¿Estás seguro de eliminar la cuenta "${account.nombre}"?`,
         header: 'Confirmar Eliminación',
         icon: 'pi pi-exclamation-triangle',
         rejectClass: 'p-button-secondary p-button-outlined',

@@ -200,7 +200,7 @@ const dialogTitle = computed(() => {
 });
 
 const isPublicCategory = computed(() => {
-    return loadedCategoryData.value?.is_public || false;
+    return loadedCategoryData.value?.es_publico || false;
 });
 
 const isReadOnlyMode = computed(() => {
@@ -210,7 +210,7 @@ const isReadOnlyMode = computed(() => {
     return isPublicCategory.value || (
         !isNewCategory.value && 
         loadedCategoryData.value && 
-        loadedCategoryData.value.user_id !== sessionStore.userId
+        loadedCategoryData.value.usuario_id !== sessionStore.userId
     );
 });
 
@@ -283,12 +283,12 @@ const loadCategoryFromProp = (category) => {
     loadedCategoryData.value = { ...category };
     
     categoryForm.value = {
-        name: category.name || '',
-        description: category.description || '',
-        icon_name: category.icon_name || 'pi pi-tag',
-        icon_type: category.icon_type || category.icon_library || ICONS.PRIMEVUE,
-        is_public: category.is_public || false,
-        group_id: category.group_id || category.category_group_id || null
+        name: category.nombre || '',
+        description: category.descripcion || '',
+        icon_name: category.nombre_icono || 'pi pi-tag',
+        icon_type: category.icon_type || category.biblioteca_iconos || ICONS.PRIMEVUE,
+        is_public: category.es_publico || false,
+        group_id: category.grupo_id || category.category_group_id || null
     };
 };
 
@@ -323,12 +323,12 @@ const loadCategoryData = async (categoryId) => {
         loadedCategoryData.value = { ...foundCategory };
         
         categoryForm.value = {
-            name: foundCategory.name || '',
-            description: foundCategory.description || '',
-            icon_name: foundCategory.icon_name || 'pi pi-tag',
-            icon_type: foundCategory.icon_type || foundCategory.icon_library || ICONS.PRIMEVUE,
-            is_public: foundCategory.is_public || false,
-            group_id: foundCategory.group_id || foundCategory.category_group_id || null
+            name: foundCategory.nombre || '',
+            description: foundCategory.descripcion || '',
+            icon_name: foundCategory.nombre_icono || 'pi pi-tag',
+            icon_type: foundCategory.icon_type || foundCategory.biblioteca_iconos || ICONS.PRIMEVUE,
+            is_public: foundCategory.es_publico || false,
+            group_id: foundCategory.grupo_id || foundCategory.category_group_id || null
         };
         
     } catch (error) {

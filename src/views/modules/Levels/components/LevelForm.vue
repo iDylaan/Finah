@@ -128,8 +128,8 @@ const isNewLevel = computed(() => props.isNew);
 const isEditMode = computed(() => !isNewLevel.value);
 
 const isPublicLevel = computed(() => {
-    // Asegurarnos de que is_public se interprete correctamente como booleano
-    return Boolean(loadedLevelData.value?.is_public);
+    // Asegurarnos de que es_publico se interprete correctamente como booleano
+    return Boolean(loadedLevelData.value?.es_publico);
 });
 
 const isReadOnlyMode = computed(() => {
@@ -137,7 +137,7 @@ const isReadOnlyMode = computed(() => {
     const readOnly = isPublicLevel.value || (
         !isNewLevel.value &&
         loadedLevelData.value &&
-        loadedLevelData.value.user_id !== sessionStore.userId
+        loadedLevelData.value.usuario_id !== sessionStore.userId
     );
     
     return readOnly;
@@ -229,12 +229,12 @@ const loadLevelFromProp = (level) => {
         return;
     }
 
-    // Guardar nivel completo para acceder a propiedades como is_public
+    // Guardar nivel completo para acceder a propiedades como es_publico
     loadedLevelData.value = { ...level };
 
     // Inicializar formulario con datos del nivel - aplicando trim al color
     initializeForm({
-        name: level.name || '',
+        name: level.nombre || '',
         colorKey: (level.color || 'blue').trim() // Aplicar trim al color
     });
     
@@ -274,7 +274,7 @@ const loadLevelData = async (levelId) => {
         
         // Inicializar formulario con datos del nivel - aplicando trim al color
         initializeForm({
-            name: foundLevel.name || '',
+            name: foundLevel.nombre || '',
             colorKey: (foundLevel.color || 'blue').trim() // Aplicar trim al color
         });
         

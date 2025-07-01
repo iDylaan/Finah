@@ -1,6 +1,6 @@
 <template>
     <div class="banks-page">
-        <div class="mb-4 flex justify-between items-center">
+        <div class="flex justify-between items-center">
             <h1 class="text-2xl font-bold">Bancos y entidades financieras</h1>
 
             <div class="flex gap-2">
@@ -58,18 +58,18 @@
                         <!-- Header with background color -->
                         <div class="w-full h-16 flex items-center justify-center"
                             :style="{ backgroundColor: bank.color }">
-                            <i v-if="bank.icon_library === 'primevue'"
-                                :class="[bank.icon_name, 'text-4xl text-white']"></i>
-                            <span v-else-if="bank.icon_library === 'material'"
+                            <i v-if="bank.biblioteca_iconos === 'primevue'"
+                                :class="[bank.nombre_icono, 'text-4xl text-white']"></i>
+                            <span v-else-if="bank.biblioteca_iconos === 'material'"
                                 class="material-symbols-rounded text-white text-2xl">
-                                {{ bank.icon_name }}
+                                {{ bank.nombre_icono }}
                             </span>
                         </div>
 
                         <!-- Content -->
                         <div class="p-4">
                             <h3 class="text-lg font-medium text-surface-900 dark:text-surface-100 mb-2">
-                                {{ bank.name }}
+                                {{ bank.nombre }}
                             </h3>
                         </div>
 
@@ -106,11 +106,11 @@
                         <!-- Header with background color -->
                         <div class="w-full h-16 flex items-center justify-center"
                             :style="{ backgroundColor: bank.color }">
-                            <i v-if="bank.icon_library === 'primevue'"
-                                :class="[bank.icon_name, 'text-4xl text-white']"></i>
-                            <span v-else-if="bank.icon_library === 'material'"
+                            <i v-if="bank.biblioteca_iconos === 'primevue'"
+                                :class="[bank.nombre_icono, 'text-4xl text-white']"></i>
+                            <span v-else-if="bank.biblioteca_iconos === 'material'"
                                 class="material-symbols-rounded text-white text-2xl">
-                                {{ bank.icon_name }}
+                                {{ bank.nombre_icono }}
                             </span>
                         </div>
 
@@ -118,7 +118,7 @@
                         <div class="p-4">
                             <div class="flex items-center gap-2">
                                 <h3 class="text-lg font-medium text-surface-900 dark:text-surface-100">
-                                    {{ bank.name }}
+                                    {{ bank.nombre }}
                                 </h3>
                             </div>
                         </div>
@@ -213,7 +213,7 @@ const handleViewBank = (bank) => {
 
 const handleDeleteBank = (bank) => {
     confirm.require({
-        message: `¿Estás seguro de que deseas eliminar el banco "${bank.name}"? Esta acción no se puede deshacer.`,
+        message: `¿Estás seguro de que deseas eliminar el banco "${bank.nombre}"? Esta acción no se puede deshacer.`,
         header: 'Confirmar eliminación',
         icon: 'pi pi-exclamation-triangle',
         acceptLabel: 'Eliminar',
@@ -228,7 +228,7 @@ const handleDeleteBank = (bank) => {
                 .then(success => {
                     if (success) {
                         // No agregamos un toast aquí, ya que el store ya lo hace
-                        console.log(`Banco "${bank.name}" eliminado correctamente`);
+                        console.log(`Banco "${bank.nombre}" eliminado correctamente`);
                     }
                 })
                 .catch(error => {
@@ -252,7 +252,7 @@ const handleFormSuccess = (bank) => {
     toast.add({
         severity: 'success',
         summary: isNewBank.value ? 'Banco creado' : 'Banco actualizado',
-        detail: `El banco "${bank.name}" ha sido ${isNewBank.value ? 'creado' : 'actualizado'} correctamente`,
+        detail: `El banco "${bank.nombre}" ha sido ${isNewBank.value ? 'creado' : 'actualizado'} correctamente`,
         life: 3000
     });
 };

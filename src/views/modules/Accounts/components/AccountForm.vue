@@ -12,14 +12,14 @@
         <form v-else @submit.prevent="submitAccount" class="space-y-6">
 
             <!-- ✅ MODO CREACIÓN CON STEPPER PARA TARJETAS DE CRÉDITO -->
-            <CreditCardStepperForm v-if="!isEditMode && accountForm.type === 'credit_card'" :account-form="accountForm"
+            <CreditCardStepperForm v-if="!isEditMode && accountForm.tipo === 'credit_card'" :account-form="accountForm"
                 :form-errors="formErrors" :banks="banks" :banks-loading="banksLoading" :is-submitting="isSubmitting"
                 :is-form-valid="isFormValid" :current-step-value="currentStepValue"
                 :validate-and-proceed-to-step="stepperValidateAndProceed" :go-to-previous-step="stepperGoToPrevious"
                 @submit="submitAccount" />
 
             <!-- ✅ MODO EDICIÓN CON TABS PARA TARJETAS DE CRÉDITO -->
-            <CreditCardEditTabs v-else-if="isEditMode && accountForm.type === 'credit_card'" 
+            <CreditCardEditTabs v-else-if="isEditMode && accountForm.tipo === 'credit_card'" 
                 :account-form="accountForm"
                 :form-errors="formErrors" 
                 :banks="banks" 
@@ -37,11 +37,11 @@
             <!-- ✅ FORMULARIO INICIAL Y OTROS TIPOS DE CUENTA -->
             <div v-else class="space-y-6">
                 <!-- Selector de tipo de cuenta -->
-                <AccountTypeSelector v-model="accountForm.type" :disabled="isSubmitting"
+                <AccountTypeSelector v-model="accountForm.tipo" :disabled="isSubmitting"
                     @update:model-value="selectAccountType" />
 
                 <!-- Formulario básico para otros tipos -->
-                <BasicAccountForm v-if="accountForm.type !== 'credit_card' || isEditMode" :account-form="accountForm"
+                <BasicAccountForm v-if="accountForm.tipo !== 'credit_card' || isEditMode" :account-form="accountForm"
                     :form-errors="formErrors" :banks="banks" :banks-loading="banksLoading" :disabled="isSubmitting"
                     :is-submitting="isSubmitting" :is-form-valid="isFormValid" :is-edit-mode="isEditMode"
                     :needs-bank-selection="needsBankSelection" :name-placeholder="getNamePlaceholder()"
@@ -141,10 +141,10 @@ const isEditMode = computed(() => !!props.editAccountId);
 const dialogTitle = computed(() => {
     if (isEditMode.value) {
         const account = loadedAccountData.value;
-        return account ? `Editar ${account.name}` : 'Editar Cuenta';
+        return account ? `Editar ${account.nombre}` : 'Editar Cuenta';
     }
 
-    if (accountForm.value.type === 'credit_card') {
+    if (accountForm.value.tipo === 'credit_card') {
         return 'Crear Tarjeta de Crédito';
     }
 
@@ -152,7 +152,7 @@ const dialogTitle = computed(() => {
 });
 
 const selectedBank = computed(() => {
-    return props.banks.find(bank => bank.id === accountForm.value.bank_id);
+    return props.banks.find(bank => bank.id === accountForm.value.banco_id);
 });
 
 // FUNCIONES LOCALES
@@ -169,7 +169,7 @@ const initializeForm = () => {
             loadAccountForEdit(account);
 
             // Si es tarjeta de crédito en modo edición, ir al primer tab
-            if (account.type === 'credit_card') {
+            if (account.tipo === 'credit_card') {
                 setCurrentTab('general');
             }
         }
@@ -257,10 +257,10 @@ watch(() => props.editAccountId, () => {
     }
 });
 
-// Auto-llenar available_credit cuando cambie credit_limit
-watch(() => accountForm.value.credit_limit, (newLimit) => {
-    if (accountForm.value.type === 'credit_card' && !accountForm.value.available_credit) {
-        accountForm.value.available_credit = newLimit;
+// Auto-llenar credito_disponible cuando cambie limite_credito
+watch(() => accountForm.value.limite_credito, (newLimit) => {
+    if (accountForm.value.tipo === 'credit_card' && !accountForm.value.credito_disponible) {
+        accountForm.value.credito_disponible = newLimit;
     }
 });
 
