@@ -23,6 +23,9 @@ DROP TABLE IF EXISTS categories           CASCADE;
 DROP TABLE IF EXISTS category_groups      CASCADE;
 DROP TABLE IF EXISTS user_groups          CASCADE;
 DROP TABLE IF EXISTS banks                CASCADE;
+DROP TABLE IF EXISTS credit_cards         CASCADE;
+DROP TABLE IF EXISTS msi_purchases       CASCADE;
+
 
 
 -- ==================================================================
@@ -390,24 +393,56 @@ CREATE INDEX ON banks(user_group_id);
 CREATE INDEX ON banks(is_public);
 
 
--- 4.17) Extensión para tarjetas de crédito
+-- 4.17) Extensión para tarjetas de crédito (CAMPOS OPCIONALES)
 CREATE TABLE credit_cards (
-  account_id         UUID             PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
-  bank_id            UUID             REFERENCES banks(id),
-  card_name          TEXT             NOT NULL,
-  last_four_digits   CHAR(4),
-  credit_limit       NUMERIC(14,2)    NOT NULL,
-  available_credit   NUMERIC(14,2)    NOT NULL,
-  payment_day        INT              NOT NULL, -- Día del mes para pago
-  cutoff_day         INT              NOT NULL, -- Día de corte
-  interest_rate      NUMERIC(5,2),    -- Tasa de interés anual
-  min_payment_percent NUMERIC(5,2),   -- Porcentaje para pago mínimo
-  next_payment_date  DATE,            -- Próxima fecha de pago
-  next_cutoff_date   DATE,            -- Próxima fecha de corte
-  created_at         TIMESTAMPTZ      NOT NULL DEFAULT now(),
-  updated_at         TIMESTAMPTZ      NOT NULL DEFAULT now()
+  account_id              UUID             PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+  bank_id                 UUID             REFERENCES banks(id),
+  card_name               TEXT             NOT NULL,
+  last_four_digits        CHAR(4),
+  credit_limit            NUMERIC(14,2)    NOT NULL,
+  available_credit        NUMERIC(14,2)    NOT NULL,
+  payment_day             INT              NOT NULL, -- Día del mes para pago
+  cutoff_day              INT              NOT NULL, -- Día de corte
+  interest_rate           NUMERIC(5,2),    -- Tasa de interés anual
+  min_payment_percent     NUMERIC(5,2),    -- Porcentaje para pago mínimo
+  next_payment_date       DATE,            -- Próxima fecha de pago
+  next_cutoff_date        DATE,            -- Próxima fecha de corte
+  
+  -- 🆕 CAMPOS OPCIONALES PARA INFORMACIÓN FINANCIERA AVANZADA
+  cat_percentage          NUMERIC(5,2),    -- CAT (Costo Anual Total) - OPCIONAL
+  annual_fee              NUMERIC(10,2)    DEFAULT 0, -- Anualidad - OPCIONAL (default 0)
+  annual_fee_waiver_spending NUMERIC(12,2), -- Gasto para exentar anualidad - OPCIONAL
+  cashback_percentage     NUMERIC(4,2),    -- Porcentaje de cashback - OPCIONAL
+  rewards_points_ratio    NUMERIC(6,2),    -- Puntos por peso gastado - OPCIONAL
+  grace_period_days       INTEGER,         -- Días de gracia sin intereses - OPCIONAL
+  
+  -- 🆕 CAMPO LIBRE PARA INFORMACIÓN ADICIONAL
+  notes                   TEXT,            -- Campo libre para CAT, beneficios, etc. - OPCIONAL
+  
+  created_at              TIMESTAMPTZ      NOT NULL DEFAULT now(),
+  updated_at              TIMESTAMPTZ      NOT NULL DEFAULT now(),
+  
+  -- ✅ CONSTRAINTS PARA VALIDACIÓN
+  CONSTRAINT chk_cat_percentage CHECK (cat_percentage IS NULL OR (cat_percentage >= 0 AND cat_percentage <= 500)),
+  CONSTRAINT chk_annual_fee CHECK (annual_fee >= 0),
+  CONSTRAINT chk_cashback_percentage CHECK (cashback_percentage IS NULL OR (cashback_percentage >= 0 AND cashback_percentage <= 20)),
+  CONSTRAINT chk_rewards_points_ratio CHECK (rewards_points_ratio IS NULL OR (rewards_points_ratio >= 0 AND rewards_points_ratio <= 100)),
+  CONSTRAINT chk_grace_period_days CHECK (grace_period_days IS NULL OR (grace_period_days >= 0 AND grace_period_days <= 60))
 );
+
+-- Índices para campos que se consultarán frecuentemente
 CREATE INDEX ON credit_cards(bank_id);
+CREATE INDEX ON credit_cards(cat_percentage) WHERE cat_percentage IS NOT NULL;
+CREATE INDEX ON credit_cards(annual_fee) WHERE annual_fee > 0;
+
+-- Comentarios para documentar el propósito de cada campo opcional
+COMMENT ON COLUMN credit_cards.cat_percentage IS 'Costo Anual Total (CAT) en porcentaje - Campo opcional para análisis financiero avanzado';
+COMMENT ON COLUMN credit_cards.annual_fee IS 'Anualidad en pesos mexicanos - Por defecto 0 (sin anualidad)';
+COMMENT ON COLUMN credit_cards.annual_fee_waiver_spending IS 'Monto de compras anuales requerido para exentar la anualidad - Campo opcional';
+COMMENT ON COLUMN credit_cards.cashback_percentage IS 'Porcentaje de cashback otorgado - Campo opcional para tarjetas con beneficios';
+COMMENT ON COLUMN credit_cards.rewards_points_ratio IS 'Puntos otorgados por cada peso gastado - Campo opcional para programas de recompensas';
+COMMENT ON COLUMN credit_cards.grace_period_days IS 'Días de gracia sin intereses después del corte - Campo opcional, típicamente 20-25 días';
+COMMENT ON COLUMN credit_cards.notes IS 'Campo libre para información adicional como promociones, beneficios especiales, etc.';
 
 
 -- 4.18) Extensión para MSI (Meses Sin Intereses)

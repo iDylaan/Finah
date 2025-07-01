@@ -17,6 +17,8 @@ ALTER TABLE recurring_rules     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE goals               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE banks               ENABLE ROW LEVEL SECURITY;
+ALTER TABLE credit_cards        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE msi_purchases       ENABLE ROW LEVEL SECURITY;
 
 -- ===================================================
 -- 2) Helpers para evitar recursión
@@ -293,12 +295,7 @@ CREATE POLICY delete_banks ON banks
 
 
 
--- ===================================================
--- Activar RLS en las tablas de tarjetas
--- ===================================================
-ALTER TABLE credit_cards        ENABLE ROW LEVEL SECURITY;
-ALTER TABLE msi_purchases       ENABLE ROW LEVEL SECURITY;
-ALTER TABLE debt_installments   ENABLE ROW LEVEL SECURITY;
+-- Las tablas credit_cards, msi_purchases y debt_installments ya están habilitadas arriba
 
 -- ===================================================
 -- POLÍTICAS PARA CREDIT_CARDS
@@ -528,8 +525,94 @@ CREATE POLICY delete_msi_purchases ON msi_purchases
     )
   );
 
+-- Las políticas para debt_installments ya están definidas arriba en el archivo
+
 -- ===================================================
--- POLÍTICAS ADICIONALES PARA DEBT_INSTALLMENTS
+-- POLÍTICAS PARA DEBT_PURCHASES
+-- ===================================================
+
+-- SELECT - Para ver compras a plazos propias o de grupos
+DROP POLICY IF EXISTS select_debt_purchases ON debt_purchases;
+CREATE POLICY select_debt_purchases ON debt_purchases
+  FOR SELECT USING (
+    -- Puede ver una compra a plazos si:
+    -- 1. Es el propietario de la compra
+    -- 2. Es miembro del grupo de la cuenta asociada
+    user_id = session_user_id()
+    OR EXISTS (
+      SELECT 1 FROM accounts a
+      WHERE a.id = debt_purchases.account_id
+      AND a.user_group_id IS NOT NULL 
+      AND is_group_member(a.user_group_id)
+    )
+  );
+
+-- INSERT - Para crear nuevas compras a plazos
+DROP POLICY IF EXISTS insert_debt_purchases ON debt_purchases;
+CREATE POLICY insert_debt_purchases ON debt_purchases
+  FOR INSERT WITH CHECK (
+    -- Puede insertar una compra a plazos si:
+    -- 1. Es el propietario de la compra (user_id = session_user_id())
+    -- 2. Tiene acceso a la cuenta asociada
+    user_id = session_user_id()
+    AND EXISTS (
+      SELECT 1 FROM accounts a
+      WHERE a.id = debt_purchases.account_id
+      AND (
+        a.created_by = session_user_id()
+        OR (
+          a.user_group_id IS NOT NULL 
+          AND is_group_member(a.user_group_id)
+        )
+      )
+    )
+  );
+
+-- UPDATE - Para actualizar compras a plazos
+DROP POLICY IF EXISTS update_debt_purchases ON debt_purchases;
+CREATE POLICY update_debt_purchases ON debt_purchases
+  FOR UPDATE 
+  USING (
+    -- Puede actualizar una compra a plazos si:
+    -- 1. Es el propietario de la compra
+    -- 2. Es admin del grupo de la cuenta asociada
+    user_id = session_user_id()
+    OR EXISTS (
+      SELECT 1 FROM accounts a
+      WHERE a.id = debt_purchases.account_id
+      AND a.user_group_id IS NOT NULL 
+      AND is_group_admin(a.user_group_id)
+    )
+  )
+  WITH CHECK (
+    -- Los mismos permisos para el resultado actualizado
+    user_id = session_user_id()
+    OR EXISTS (
+      SELECT 1 FROM accounts a
+      WHERE a.id = debt_purchases.account_id
+      AND a.user_group_id IS NOT NULL 
+      AND is_group_admin(a.user_group_id)
+    )
+  );
+
+-- DELETE - Para eliminar compras a plazos
+DROP POLICY IF EXISTS delete_debt_purchases ON debt_purchases;
+CREATE POLICY delete_debt_purchases ON debt_purchases
+  FOR DELETE USING (
+    -- Puede eliminar una compra a plazos si:
+    -- 1. Es el propietario de la compra
+    -- 2. Es admin del grupo de la cuenta asociada
+    user_id = session_user_id()
+    OR EXISTS (
+      SELECT 1 FROM accounts a
+      WHERE a.id = debt_purchases.account_id
+      AND a.user_group_id IS NOT NULL 
+      AND is_group_admin(a.user_group_id)
+    )
+  );
+
+-- ===================================================
+-- POLÍTICAS PARA DEBT_INSTALLMENTS
 -- ===================================================
 
 -- SELECT - Para ver cuotas de deuda propias o de grupos a los que pertenece
@@ -633,57 +716,225 @@ CREATE POLICY delete_debt_installments ON debt_installments
   );
 
 -- ===================================================
--- POLÍTICAS PARA DEBT_PURCHASES (Actualización)
+-- POLÍTICAS PARA PERIODICITIES (tabla de solo lectura)
 -- ===================================================
 
--- Si aún no existen políticas para debt_purchases, añadirlas:
+-- Las periodicidades son datos de catálogo que todos pueden leer
+DROP POLICY IF EXISTS select_periodicities ON periodicities;
+CREATE POLICY select_periodicities ON periodicities
+  FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS select_debt_purchases ON debt_purchases;
-CREATE POLICY select_debt_purchases ON debt_purchases
+-- ===================================================
+-- POLÍTICAS PARA ACCOUNTS
+-- ===================================================
+
+-- SELECT - Para ver cuentas propias o de grupos a los que pertenece
+DROP POLICY IF EXISTS select_accounts ON accounts;
+CREATE POLICY select_accounts ON accounts
   FOR SELECT USING (
-    -- Puede ver una compra a plazos si:
-    -- 1. Es el propietario de la compra
+    -- Puede ver una cuenta si:
+    -- 1. Es el creador de la cuenta
+    -- 2. Es miembro del grupo al que pertenece la cuenta
+    created_by = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_member(user_group_id)
+    )
+  );
+
+-- INSERT - Para crear nuevas cuentas
+DROP POLICY IF EXISTS insert_accounts ON accounts;
+CREATE POLICY insert_accounts ON accounts
+  FOR INSERT WITH CHECK (
+    -- Puede insertar una cuenta si:
+    -- 1. Es el creador de la cuenta
+    -- 2. Es admin del grupo (si se asigna a un grupo)
+    created_by = session_user_id()
+    AND (
+      user_group_id IS NULL
+      OR is_group_admin(user_group_id)
+    )
+  );
+
+-- UPDATE - Para actualizar cuentas
+DROP POLICY IF EXISTS update_accounts ON accounts;
+CREATE POLICY update_accounts ON accounts
+  FOR UPDATE 
+  USING (
+    -- Puede actualizar una cuenta si:
+    -- 1. Es el creador de la cuenta
+    -- 2. Es admin del grupo al que pertenece la cuenta
+    created_by = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_admin(user_group_id)
+    )
+  )
+  WITH CHECK (
+    -- Los mismos permisos para el resultado actualizado
+    created_by = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_admin(user_group_id)
+    )
+  );
+
+-- DELETE - Para eliminar cuentas
+DROP POLICY IF EXISTS delete_accounts ON accounts;
+CREATE POLICY delete_accounts ON accounts
+  FOR DELETE USING (
+    -- Puede eliminar una cuenta si:
+    -- 1. Es el creador de la cuenta
+    -- 2. Es admin del grupo al que pertenece la cuenta
+    created_by = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_admin(user_group_id)
+    )
+  );
+
+-- ===================================================
+-- POLÍTICAS PARA GROUP_MEMBERS
+-- ===================================================
+
+-- SELECT - Para ver miembros de grupos a los que pertenece
+DROP POLICY IF EXISTS select_group_members ON group_members;
+CREATE POLICY select_group_members ON group_members
+  FOR SELECT USING (
+    -- Puede ver los miembros si es miembro del grupo
+    is_group_member(group_id)
+  );
+
+-- INSERT - Para agregar nuevos miembros (solo admins)
+DROP POLICY IF EXISTS insert_group_members ON group_members;
+CREATE POLICY insert_group_members ON group_members
+  FOR INSERT WITH CHECK (
+    -- Solo los admins pueden agregar nuevos miembros
+    is_group_admin(group_id)
+  );
+
+-- UPDATE - Para actualizar información de miembros (solo admins)
+DROP POLICY IF EXISTS update_group_members ON group_members;
+CREATE POLICY update_group_members ON group_members
+  FOR UPDATE 
+  USING (
+    -- Solo los admins pueden actualizar miembros
+    is_group_admin(group_id)
+  )
+  WITH CHECK (
+    -- Los mismos permisos para el resultado actualizado
+    is_group_admin(group_id)
+  );
+
+-- DELETE - Para eliminar miembros (solo admins, excepto que un usuario se retire)
+DROP POLICY IF EXISTS delete_group_members ON group_members;
+CREATE POLICY delete_group_members ON group_members
+  FOR DELETE USING (
+    -- Puede eliminar si:
+    -- 1. Es admin del grupo
+    -- 2. Es el propio usuario que se quiere retirar
+    is_group_admin(group_id)
+    OR user_id = session_user_id()
+  );
+
+-- ===================================================
+-- POLÍTICAS PARA GROUP_SHARE_RULES
+-- ===================================================
+
+-- SELECT - Para ver reglas de reparto de grupos a los que pertenece
+DROP POLICY IF EXISTS select_group_share_rules ON group_share_rules;
+CREATE POLICY select_group_share_rules ON group_share_rules
+  FOR SELECT USING (
+    -- Puede ver las reglas si es miembro del grupo
+    is_group_member(group_id)
+  );
+
+-- INSERT - Para crear nuevas reglas (solo admins)
+DROP POLICY IF EXISTS insert_group_share_rules ON group_share_rules;
+CREATE POLICY insert_group_share_rules ON group_share_rules
+  FOR INSERT WITH CHECK (
+    -- Solo los admins pueden crear reglas de reparto
+    is_group_admin(group_id)
+  );
+
+-- UPDATE - Para actualizar reglas (solo admins)
+DROP POLICY IF EXISTS update_group_share_rules ON group_share_rules;
+CREATE POLICY update_group_share_rules ON group_share_rules
+  FOR UPDATE 
+  USING (
+    -- Solo los admins pueden actualizar reglas
+    is_group_admin(group_id)
+  )
+  WITH CHECK (
+    -- Los mismos permisos para el resultado actualizado
+    is_group_admin(group_id)
+  );
+
+-- DELETE - Para eliminar reglas (solo admins)
+DROP POLICY IF EXISTS delete_group_share_rules ON group_share_rules;
+CREATE POLICY delete_group_share_rules ON group_share_rules
+  FOR DELETE USING (
+    -- Solo los admins pueden eliminar reglas
+    is_group_admin(group_id)
+  );
+
+-- ===================================================
+-- POLÍTICAS PARA TRANSACTIONS
+-- ===================================================
+
+-- SELECT - Para ver transacciones propias o de cuentas de grupos a los que pertenece
+DROP POLICY IF EXISTS select_transactions ON transactions;
+CREATE POLICY select_transactions ON transactions
+  FOR SELECT USING (
+    -- Puede ver una transacción si:
+    -- 1. Es el propietario de la transacción
     -- 2. Es miembro del grupo de la cuenta asociada
     user_id = session_user_id()
     OR EXISTS (
       SELECT 1 FROM accounts a
-      WHERE a.id = debt_purchases.account_id
-      AND a.user_group_id IS NOT NULL 
-      AND is_group_member(a.user_group_id)
-    )
-  );
-
-DROP POLICY IF EXISTS insert_debt_purchases ON debt_purchases;
-CREATE POLICY insert_debt_purchases ON debt_purchases
-  FOR INSERT WITH CHECK (
-    -- Puede insertar una compra a plazos si:
-    -- 1. Es el propietario de la compra (user_id = session_user_id())
-    -- 2. Es admin del grupo de la cuenta asociada
-    user_id = session_user_id()
-    AND EXISTS (
-      SELECT 1 FROM accounts a
-      WHERE a.id = debt_purchases.account_id
+      WHERE a.id = transactions.account_id
       AND (
         a.created_by = session_user_id()
         OR (
           a.user_group_id IS NOT NULL 
-          AND is_group_admin(a.user_group_id)
+          AND is_group_member(a.user_group_id)
         )
       )
     )
   );
 
-DROP POLICY IF EXISTS update_debt_purchases ON debt_purchases;
-CREATE POLICY update_debt_purchases ON debt_purchases
+-- INSERT - Para crear nuevas transacciones
+DROP POLICY IF EXISTS insert_transactions ON transactions;
+CREATE POLICY insert_transactions ON transactions
+  FOR INSERT WITH CHECK (
+    -- Puede insertar una transacción si:
+    -- 1. Es el propietario de la transacción y tiene acceso a la cuenta
+    user_id = session_user_id()
+    AND EXISTS (
+      SELECT 1 FROM accounts a
+      WHERE a.id = transactions.account_id
+      AND (
+        a.created_by = session_user_id()
+        OR (
+          a.user_group_id IS NOT NULL 
+          AND is_group_member(a.user_group_id)
+        )
+      )
+    )
+  );
+
+-- UPDATE - Para actualizar transacciones
+DROP POLICY IF EXISTS update_transactions ON transactions;
+CREATE POLICY update_transactions ON transactions
   FOR UPDATE 
   USING (
-    -- Puede actualizar una compra a plazos si:
-    -- 1. Es el propietario de la compra
+    -- Puede actualizar una transacción si:
+    -- 1. Es el propietario de la transacción
     -- 2. Es admin del grupo de la cuenta asociada
     user_id = session_user_id()
     OR EXISTS (
       SELECT 1 FROM accounts a
-      WHERE a.id = debt_purchases.account_id
+      WHERE a.id = transactions.account_id
       AND a.user_group_id IS NOT NULL 
       AND is_group_admin(a.user_group_id)
     )
@@ -693,23 +944,346 @@ CREATE POLICY update_debt_purchases ON debt_purchases
     user_id = session_user_id()
     OR EXISTS (
       SELECT 1 FROM accounts a
-      WHERE a.id = debt_purchases.account_id
+      WHERE a.id = transactions.account_id
       AND a.user_group_id IS NOT NULL 
       AND is_group_admin(a.user_group_id)
     )
   );
 
-DROP POLICY IF EXISTS delete_debt_purchases ON debt_purchases;
-CREATE POLICY delete_debt_purchases ON debt_purchases
+-- DELETE - Para eliminar transacciones
+DROP POLICY IF EXISTS delete_transactions ON transactions;
+CREATE POLICY delete_transactions ON transactions
   FOR DELETE USING (
-    -- Puede eliminar una compra a plazos si:
-    -- 1. Es el propietario de la compra
+    -- Puede eliminar una transacción si:
+    -- 1. Es el propietario de la transacción
     -- 2. Es admin del grupo de la cuenta asociada
     user_id = session_user_id()
     OR EXISTS (
       SELECT 1 FROM accounts a
-      WHERE a.id = debt_purchases.account_id
+      WHERE a.id = transactions.account_id
       AND a.user_group_id IS NOT NULL 
       AND is_group_admin(a.user_group_id)
+    )
+  );
+
+-- ===================================================
+-- POLÍTICAS PARA TRANSACTION_SPLITS
+-- ===================================================
+
+-- SELECT - Para ver divisiones de transacciones
+DROP POLICY IF EXISTS select_transaction_splits ON transaction_splits;
+CREATE POLICY select_transaction_splits ON transaction_splits
+  FOR SELECT USING (
+    -- Puede ver una división si:
+    -- 1. Es el usuario asignado en la división
+    -- 2. Tiene acceso a la transacción principal
+    user_id = session_user_id()
+    OR EXISTS (
+      SELECT 1 FROM transactions t
+      JOIN accounts a ON t.account_id = a.id
+      WHERE t.id = transaction_splits.transaction_id
+      AND (
+        t.user_id = session_user_id()
+        OR a.created_by = session_user_id()
+        OR (
+          a.user_group_id IS NOT NULL 
+          AND is_group_member(a.user_group_id)
+        )
+      )
+    )
+  );
+
+-- INSERT - Para crear nuevas divisiones
+DROP POLICY IF EXISTS insert_transaction_splits ON transaction_splits;
+CREATE POLICY insert_transaction_splits ON transaction_splits
+  FOR INSERT WITH CHECK (
+    -- Puede insertar una división si tiene acceso a la transacción
+    EXISTS (
+      SELECT 1 FROM transactions t
+      JOIN accounts a ON t.account_id = a.id
+      WHERE t.id = transaction_splits.transaction_id
+      AND (
+        t.user_id = session_user_id()
+        OR a.created_by = session_user_id()
+        OR (
+          a.user_group_id IS NOT NULL 
+          AND is_group_admin(a.user_group_id)
+        )
+      )
+    )
+  );
+
+-- UPDATE - Para actualizar divisiones
+DROP POLICY IF EXISTS update_transaction_splits ON transaction_splits;
+CREATE POLICY update_transaction_splits ON transaction_splits
+  FOR UPDATE 
+  USING (
+    -- Puede actualizar una división si tiene acceso a la transacción
+    EXISTS (
+      SELECT 1 FROM transactions t
+      JOIN accounts a ON t.account_id = a.id
+      WHERE t.id = transaction_splits.transaction_id
+      AND (
+        t.user_id = session_user_id()
+        OR (
+          a.user_group_id IS NOT NULL 
+          AND is_group_admin(a.user_group_id)
+        )
+      )
+    )
+  )
+  WITH CHECK (
+    -- Los mismos permisos para el resultado actualizado
+    EXISTS (
+      SELECT 1 FROM transactions t
+      JOIN accounts a ON t.account_id = a.id
+      WHERE t.id = transaction_splits.transaction_id
+      AND (
+        t.user_id = session_user_id()
+        OR (
+          a.user_group_id IS NOT NULL 
+          AND is_group_admin(a.user_group_id)
+        )
+      )
+    )
+  );
+
+-- DELETE - Para eliminar divisiones
+DROP POLICY IF EXISTS delete_transaction_splits ON transaction_splits;
+CREATE POLICY delete_transaction_splits ON transaction_splits
+  FOR DELETE USING (
+    -- Puede eliminar una división si tiene acceso a la transacción
+    EXISTS (
+      SELECT 1 FROM transactions t
+      JOIN accounts a ON t.account_id = a.id
+      WHERE t.id = transaction_splits.transaction_id
+      AND (
+        t.user_id = session_user_id()
+        OR (
+          a.user_group_id IS NOT NULL 
+          AND is_group_admin(a.user_group_id)
+        )
+      )
+    )
+  );
+
+-- ===================================================
+-- POLÍTICAS PARA RECURRING_RULES
+-- ===================================================
+
+-- SELECT - Para ver reglas recurrentes propias o de grupos
+DROP POLICY IF EXISTS select_recurring_rules ON recurring_rules;
+CREATE POLICY select_recurring_rules ON recurring_rules
+  FOR SELECT USING (
+    -- Puede ver una regla si:
+    -- 1. Es el propietario de la regla
+    -- 2. Es miembro del grupo de la cuenta asociada
+    user_id = session_user_id()
+    OR EXISTS (
+      SELECT 1 FROM accounts a
+      WHERE a.id = recurring_rules.account_id
+      AND a.user_group_id IS NOT NULL 
+      AND is_group_member(a.user_group_id)
+    )
+  );
+
+-- INSERT - Para crear nuevas reglas recurrentes
+DROP POLICY IF EXISTS insert_recurring_rules ON recurring_rules;
+CREATE POLICY insert_recurring_rules ON recurring_rules
+  FOR INSERT WITH CHECK (
+    -- Puede insertar una regla si:
+    -- 1. Es el propietario y tiene acceso a la cuenta
+    user_id = session_user_id()
+    AND EXISTS (
+      SELECT 1 FROM accounts a
+      WHERE a.id = recurring_rules.account_id
+      AND (
+        a.created_by = session_user_id()
+        OR (
+          a.user_group_id IS NOT NULL 
+          AND is_group_member(a.user_group_id)
+        )
+      )
+    )
+  );
+
+-- UPDATE - Para actualizar reglas recurrentes
+DROP POLICY IF EXISTS update_recurring_rules ON recurring_rules;
+CREATE POLICY update_recurring_rules ON recurring_rules
+  FOR UPDATE 
+  USING (
+    -- Puede actualizar una regla si:
+    -- 1. Es el propietario de la regla
+    -- 2. Es admin del grupo de la cuenta asociada
+    user_id = session_user_id()
+    OR EXISTS (
+      SELECT 1 FROM accounts a
+      WHERE a.id = recurring_rules.account_id
+      AND a.user_group_id IS NOT NULL 
+      AND is_group_admin(a.user_group_id)
+    )
+  )
+  WITH CHECK (
+    -- Los mismos permisos para el resultado actualizado
+    user_id = session_user_id()
+    OR EXISTS (
+      SELECT 1 FROM accounts a
+      WHERE a.id = recurring_rules.account_id
+      AND a.user_group_id IS NOT NULL 
+      AND is_group_admin(a.user_group_id)
+    )
+  );
+
+-- DELETE - Para eliminar reglas recurrentes
+DROP POLICY IF EXISTS delete_recurring_rules ON recurring_rules;
+CREATE POLICY delete_recurring_rules ON recurring_rules
+  FOR DELETE USING (
+    -- Puede eliminar una regla si:
+    -- 1. Es el propietario de la regla
+    -- 2. Es admin del grupo de la cuenta asociada
+    user_id = session_user_id()
+    OR EXISTS (
+      SELECT 1 FROM accounts a
+      WHERE a.id = recurring_rules.account_id
+      AND a.user_group_id IS NOT NULL 
+      AND is_group_admin(a.user_group_id)
+    )
+  );
+
+-- ===================================================
+-- POLÍTICAS PARA GOALS
+-- ===================================================
+
+-- SELECT - Para ver metas propias o de grupos a los que pertenece
+DROP POLICY IF EXISTS select_goals ON goals;
+CREATE POLICY select_goals ON goals
+  FOR SELECT USING (
+    -- Puede ver una meta si:
+    -- 1. Es el propietario de la meta
+    -- 2. Es miembro del grupo al que pertenece la meta
+    user_id = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_member(user_group_id)
+    )
+  );
+
+-- INSERT - Para crear nuevas metas
+DROP POLICY IF EXISTS insert_goals ON goals;
+CREATE POLICY insert_goals ON goals
+  FOR INSERT WITH CHECK (
+    -- Puede insertar una meta si:
+    -- 1. Es el propietario de la meta
+    -- 2. Es admin del grupo (si se asigna a un grupo)
+    user_id = session_user_id()
+    AND (
+      user_group_id IS NULL
+      OR is_group_admin(user_group_id)
+    )
+  );
+
+-- UPDATE - Para actualizar metas
+DROP POLICY IF EXISTS update_goals ON goals;
+CREATE POLICY update_goals ON goals
+  FOR UPDATE 
+  USING (
+    -- Puede actualizar una meta si:
+    -- 1. Es el propietario de la meta
+    -- 2. Es admin del grupo al que pertenece la meta
+    user_id = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_admin(user_group_id)
+    )
+  )
+  WITH CHECK (
+    -- Los mismos permisos para el resultado actualizado
+    user_id = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_admin(user_group_id)
+    )
+  );
+
+-- DELETE - Para eliminar metas
+DROP POLICY IF EXISTS delete_goals ON goals;
+CREATE POLICY delete_goals ON goals
+  FOR DELETE USING (
+    -- Puede eliminar una meta si:
+    -- 1. Es el propietario de la meta
+    -- 2. Es admin del grupo al que pertenece la meta
+    user_id = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_admin(user_group_id)
+    )
+  );
+
+-- ===================================================
+-- POLÍTICAS PARA NOTIFICATIONS
+-- ===================================================
+
+-- SELECT - Para ver notificaciones propias o de grupos a los que pertenece
+DROP POLICY IF EXISTS select_notifications ON notifications;
+CREATE POLICY select_notifications ON notifications
+  FOR SELECT USING (
+    -- Puede ver una notificación si:
+    -- 1. Es el destinatario de la notificación
+    -- 2. Es miembro del grupo al que pertenece la notificación
+    user_id = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_member(user_group_id)
+    )
+  );
+
+-- INSERT - Para crear nuevas notificaciones (sistema o admins)
+DROP POLICY IF EXISTS insert_notifications ON notifications;
+CREATE POLICY insert_notifications ON notifications
+  FOR INSERT WITH CHECK (
+    -- Puede insertar una notificación si:
+    -- 1. Es para el propio usuario
+    -- 2. Es admin del grupo (si es notificación grupal)
+    user_id = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_admin(user_group_id)
+    )
+  );
+
+-- UPDATE - Para actualizar notificaciones (marcar como leída, etc.)
+DROP POLICY IF EXISTS update_notifications ON notifications;
+CREATE POLICY update_notifications ON notifications
+  FOR UPDATE 
+  USING (
+    -- Puede actualizar una notificación si:
+    -- 1. Es el destinatario de la notificación
+    -- 2. Es admin del grupo al que pertenece la notificación
+    user_id = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_admin(user_group_id)
+    )
+  )
+  WITH CHECK (
+    -- Los mismos permisos para el resultado actualizado
+    user_id = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_admin(user_group_id)
+    )
+  );
+
+-- DELETE - Para eliminar notificaciones
+DROP POLICY IF EXISTS delete_notifications ON notifications;
+CREATE POLICY delete_notifications ON notifications
+  FOR DELETE USING (
+    -- Puede eliminar una notificación si:
+    -- 1. Es el destinatario de la notificación
+    -- 2. Es admin del grupo al que pertenece la notificación
+    user_id = session_user_id()
+    OR (
+      user_group_id IS NOT NULL 
+      AND is_group_admin(user_group_id)
     )
   );
