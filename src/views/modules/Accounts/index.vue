@@ -14,18 +14,41 @@
             <div class="flex gap-2">
                 <Button icon="pi pi-refresh" @click="refreshData" :loading="accountsStore.loading" 
                     severity="secondary" outlined size="small" />
-                <Button icon="pi pi-plus" @click="handleNewAccount" :disabled="accountsStore.loading"
+                <Button icon="pi pi-plus" @click="handleNewAccount" :disabled="accountsStore.loading || showAccountForm"
                     severity="success" outlined size="small" label="Nueva Cuenta" />
             </div>
         </div>
 
+        <!-- Formulario Inline -->
+        <transition name="slide-fade">
+            <Card v-if="showAccountForm" class="mb-6 border border-primary-200 dark:border-primary-800 shadow-md">
+                <template #title>
+                    <div class="flex justify-between items-center">
+                        <span>{{ modalEditMode ? 'Editar Cuenta' : 'Nueva Cuenta' }}</span>
+                        <Button icon="pi pi-times" @click="handleFormCancel" text rounded aria-label="Cerrar" />
+                    </div>
+                </template>
+                <template #content>
+                    <AccountForm 
+                        :is-edit="modalEditMode"
+                        :edit-account-id="editingAccountId"
+                        :accounts="accounts"
+                        :banks="accountsStore.banks"
+                        :is-loading="accountsStore.loading" 
+                        @submit="handleAccountSubmit" 
+                        @cancel="handleFormCancel" />
+                </template>
+            </Card>
+        </transition>
+
         <!-- Loading State -->
-        <div v-if="accountsStore.loading && accounts.length === 0" class="flex justify-center items-center py-12">
+        <div v-if="accountsStore.loading && accounts.length === 0 && !showAccountForm" 
+             class="flex justify-center items-center py-12">
             <ProgressSpinner />
         </div>
 
         <!-- Content -->
-        <div v-else-if="accounts.length > 0" class="space-y-4">
+        <div v-else-if="accounts.length > 0 || showAccountForm" class="space-y-4">
             <Card v-for="account in accounts" :key="account.id"
                 class="bg-surface-0 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200">
                 
@@ -37,7 +60,8 @@
                             <i :class="getAccountIcon(account)" class="text-white text-lg"></i>
                         </div>
 
-                        <!-- Info de la cuenta -->                            <div class="flex-1">
+                        <!-- Info de la cuenta -->                            
+                        <div class="flex-1">
                             <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-0 mb-1">
                                 {{ account.nombre }}
                             </h3>
@@ -117,17 +141,6 @@
                 </div>
             </template>
         </Card>
-
-        <!-- Modal Component -->
-        <AccountForm 
-            v-model:visible="showAccountModal" 
-            :is-edit="modalEditMode"
-            :edit-account-id="editingAccountId"
-            :accounts="accounts"
-            :banks="accountsStore.banks"
-            :is-loading="accountsStore.loading" 
-            @submit="handleAccountSubmit" 
-            @close="handleModalClose" />
     </div>
 </template>
 
@@ -149,8 +162,8 @@ const isInitialLoad = ref(true);
 const accounts = computed(() => accountsStore.accounts);
 const accountMenuRefs = ref({});
 
-// MODAL STATE
-const showAccountModal = ref(false);
+// FORM STATE
+const showAccountForm = ref(false);
 const modalEditMode = ref(false);
 const editingAccountId = ref(null);
 
@@ -239,32 +252,38 @@ const toggleAccountMenu = (event, accountId) => {
     }
 };
 
-// MODAL HANDLERS
+// FORM HANDLERS
 const handleNewAccount = () => {
     console.log('🆕 Nueva cuenta');
     
+    // Hacer scroll hacia arriba para que el formulario sea visible
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
     modalEditMode.value = false;
     editingAccountId.value = null;
-    showAccountModal.value = true;
+    showAccountForm.value = true;
 };
 
 const handleEditAccount = (account) => {
     console.log('✏️ Editar cuenta:', account);
     
+    // Hacer scroll hacia arriba para que el formulario sea visible
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    
     modalEditMode.value = true;
     editingAccountId.value = account.id;
-    showAccountModal.value = true;
+    showAccountForm.value = true;
 };
 
-const handleModalClose = () => {
-    console.log('❌ Cerrar modal');
+const handleFormCancel = () => {
+    console.log('❌ Cancelar formulario');
     
-    showAccountModal.value = false;
+    showAccountForm.value = false;
     modalEditMode.value = false;
     editingAccountId.value = null;
 };
 
-const handleAccountSubmit = async ({ data, isEdit, accountId, onSuccess, onError }) => {
+const handleAccountSubmit = async ({ data, isEdit, accountId }) => {
     console.log('📤 Procesando envío de cuenta:', { data, isEdit, accountId });
     
     try {
@@ -282,7 +301,7 @@ const handleAccountSubmit = async ({ data, isEdit, accountId, onSuccess, onError
 
         if (result) {
             console.log('✅ Operación exitosa:', result);
-            onSuccess();
+            handleFormCancel(); // Cerrar el formulario al completar exitosamente
         } else {
             throw new Error('La operación no devolvió un resultado válido');
         }
@@ -297,8 +316,6 @@ const handleAccountSubmit = async ({ data, isEdit, accountId, onSuccess, onError
             detail: error.message || 'Error procesando la cuenta',
             life: 5000
         });
-        
-        onError(error);
     }
 };
 
@@ -339,7 +356,6 @@ const loadData = async () => {
     try {
         console.log('🔄 Cargando datos...');
         
-        // ✅ USAR FUNCIONES CON CACHÉ - NO FORZAR A MENOS QUE SEA NECESARIO
         await Promise.all([
             accountsStore.fetchBanks({ toast }),
             accountsStore.fetchAccountsWithDetails({ toast })
@@ -358,12 +374,11 @@ const loadData = async () => {
     }
 };
 
-// ✅ NUEVA FUNCIÓN PARA REFRESCAR DATOS FORZADAMENTE
+// Función para refrescar datos forzadamente
 const refreshData = async () => {
     try {
         console.log('🔄 Refrescando datos...');
         
-        // Usar las funciones de refresh que fuerzan la reconsulta
         await Promise.all([
             accountsStore.refreshBanks({ toast }),
             accountsStore.refreshAccounts({ toast })
@@ -405,5 +420,21 @@ onMounted(() => {
 
 .material-symbols-outlined {
     font-size: 20px;
+}
+
+/* Animaciones para la transición del formulario */
+.slide-fade-enter-active,
+.slide-fade-leave-active {
+  transition: all 0.3s ease-out;
+}
+
+.slide-fade-enter-from {
+  transform: translateY(-20px);
+  opacity: 0;
+}
+
+.slide-fade-leave-to {
+  transform: translateY(-20px);
+  opacity: 0;
 }
 </style>
