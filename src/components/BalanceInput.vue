@@ -30,9 +30,19 @@
       <div class="calculator-modal">
         <!-- Display para mostrar el valor actual y la expresión -->
         <div class="display-container mb-3">
-          <div class="expression" v-if="showExpression">{{ currentExpression || '0' }}</div>
+          <!-- Expresión actual -->
+          <div class="expression" v-if="showExpression">
+            {{ currentExpression || '0' }}
+          </div>
+          
+          <!-- Valor principal -->
           <div class="value" :class="{ 'has-expression': showExpression && currentExpression }">
-            {{ formattedValue }}
+            {{ formatDisplayValue(tempValue) }}
+          </div>
+          
+          <!-- Previsualización del resultado -->
+          <div class="preview" v-if="showPreview && previewResult !== null">
+            = {{ formatDisplayValue(previewResult) }}
           </div>
         </div>
 
@@ -269,18 +279,72 @@ const currentExpression = ref('');
 const isCalculating = ref(false);
 const hasDecimal = ref(false);
 const decimalDigits = ref(0);
+const previewResult = ref(null);
 
-// Formateo del valor como moneda
+// Computed para mostrar preview
+const showPreview = computed(() => {
+  return currentExpression.value && 
+         !isCalculating.value && 
+         previewResult.value !== null && 
+         previewResult.value !== tempValue.value &&
+         !endsWithOperator();
+});
+
+// Función para formatear valores sin decimales innecesarios
+const formatDisplayValue = (value) => {
+  if (value === null || value === undefined) return '0';
+  
+  const numValue = parseFloat(value);
+  
+  // Si es un número entero, mostrarlo sin decimales
+  if (Number.isInteger(numValue)) {
+    return numValue.toLocaleString('es-MX');
+  }
+  
+  // Si tiene decimales, mostrar hasta 2 decimales pero sin ceros innecesarios
+  return numValue.toLocaleString('es-MX', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2
+  });
+};
+
+// Formateo del valor como moneda para el input principal
 const formattedValue = computed(() => {
+  const value = showCalculator.value ? tempValue.value : currentValue.value;
+  const numValue = parseFloat(value) || 0;
+  
   const formatter = new Intl.NumberFormat('es-MX', {
     style: 'currency',
     currency: props.currency,
-    minimumFractionDigits: 2,
+    minimumFractionDigits: Number.isInteger(numValue) ? 0 : 2,
     maximumFractionDigits: 2
   });
   
-  return formatter.format(showCalculator.value ? tempValue.value : currentValue.value);
+  return formatter.format(numValue);
 });
+
+// Función para calcular preview en tiempo real
+const calculatePreview = () => {
+  if (!currentExpression.value || endsWithOperator() || isCalculating.value) {
+    previewResult.value = null;
+    return;
+  }
+  
+  try {
+    // Intentar evaluar la expresión para mostrar preview
+    // eslint-disable-next-line no-eval
+    const result = eval(currentExpression.value);
+    
+    if (result >= 0 && !isNaN(result) && isFinite(result)) {
+      // Redondear a 2 decimales
+      previewResult.value = Math.round((result + Number.EPSILON) * 100) / 100;
+    } else {
+      previewResult.value = null;
+    }
+  } catch (e) {
+    previewResult.value = null;
+  }
+};
 
 // Validar si un carácter es un operador
 const isOperator = (char) => {
@@ -334,7 +398,7 @@ const appendDigit = (digit) => {
     }
   }
   
-  // Evaluar la expresión en tiempo real
+  // Evaluar la expresión en tiempo real para el valor actual
   try {
     // eslint-disable-next-line no-eval
     let result = eval(currentExpression.value);
@@ -350,6 +414,9 @@ const appendDigit = (digit) => {
     // En caso de error, mantener el valor actual
     console.warn('Error evaluando expresión:', e);
   }
+  
+  // Calcular preview
+  calculatePreview();
 };
 
 const appendOperator = (operator) => {
@@ -377,6 +444,9 @@ const appendOperator = (operator) => {
   isCalculating.value = false;
   hasDecimal.value = false;
   decimalDigits.value = 0;
+  
+  // Limpiar preview al agregar operador
+  previewResult.value = null;
 };
 
 const appendDecimal = () => {
@@ -393,6 +463,9 @@ const appendDecimal = () => {
   }
   
   hasDecimal.value = true;
+  
+  // Calcular preview
+  calculatePreview();
 };
 
 const evaluate = () => {
@@ -421,6 +494,7 @@ const evaluate = () => {
     currentExpression.value = result.toString();
     
     isCalculating.value = true;
+    previewResult.value = null; // Limpiar preview después de evaluar
   } catch (e) {
     console.error('Error evaluando expresión:', e);
   }
@@ -432,6 +506,7 @@ const clear = () => {
   isCalculating.value = false;
   hasDecimal.value = false;
   decimalDigits.value = 0;
+  previewResult.value = null;
 };
 
 const backspace = () => {
@@ -448,6 +523,7 @@ const backspace = () => {
     // Si la expresión queda vacía, restablecer a 0
     if (currentExpression.value === '') {
       tempValue.value = 0;
+      previewResult.value = null;
     } else {
       // Evaluar la nueva expresión
       try {
@@ -459,6 +535,9 @@ const backspace = () => {
       } catch (e) {
         // En caso de error, mantener el valor actual
       }
+      
+      // Calcular preview
+      calculatePreview();
     }
   }
 };
@@ -487,6 +566,7 @@ watch(() => showCalculator.value, (isVisible) => {
     tempValue.value = currentValue.value;
     currentExpression.value = tempValue.value > 0 ? tempValue.value.toString() : '';
     isCalculating.value = false;
+    previewResult.value = null;
   }
 });
 </script>
@@ -507,7 +587,7 @@ watch(() => showCalculator.value, (isVisible) => {
 
 .display-container {
   padding: 16px;
-  background-color: var(--surface-section, #f8f9fa);
+  background-color: var(--surface-section);
   border-radius: 8px;
   text-align: right;
 }
@@ -530,6 +610,15 @@ watch(() => showCalculator.value, (isVisible) => {
 
 .value.has-expression {
   color: var(--primary-color, #3B82F6);
+}
+
+/* Nuevo estilo para la previsualización */
+.preview {
+  font-size: 0.875rem;
+  color: var(--text-color-secondary, #6c757d);
+  opacity: 0.7;
+  font-style: italic;
+  margin-top: 2px;
 }
 
 .calculator-keypad {
@@ -590,6 +679,10 @@ watch(() => showCalculator.value, (isVisible) => {
   
   .value {
     font-size: 1.25rem;
+  }
+  
+  .preview {
+    font-size: 0.75rem;
   }
 }
 </style>
