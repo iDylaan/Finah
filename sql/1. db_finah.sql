@@ -27,6 +27,7 @@ DROP TABLE IF EXISTS grupos_usuario      CASCADE;   -- Grupos familiares o compa
 DROP TABLE IF EXISTS bancos              CASCADE;   -- Catálogo de instituciones bancarias
 DROP TABLE IF EXISTS tarjetas_credito    CASCADE;   -- Información específica de tarjetas de crédito
 DROP TABLE IF EXISTS compras_msi         CASCADE;   -- Compras en meses sin intereses
+DROP TABLE IF EXISTS jerarquias_usuario  CASCADE;   -- Jerarquías personalizadas de usuario
 
 
 
@@ -192,6 +193,7 @@ CREATE TABLE niveles (
   nombre           TEXT             NOT NULL,                           -- Nombre del nivel (ej: "Necesario", "Lujo")
   color            VARCHAR(20),                                        -- Color representativo en cualquier formato
   es_publico       BOOLEAN          NOT NULL DEFAULT FALSE,            -- Si está disponible para todos
+  jerarquia        INT              NOT NULL,                           -- Orden de importancia (1 = más importante)
   usuario_id       UUID             REFERENCES profiles(id),           -- Propietario si es privado individual
   grupo_usuario_id UUID             REFERENCES grupos_usuario(id),     -- Grupo propietario si es compartido
   fecha_creacion   TIMESTAMPTZ      NOT NULL DEFAULT now(),           -- Cuándo se creó
@@ -486,7 +488,7 @@ CREATE INDEX ON tarjetas_credito(anualidad) WHERE anualidad > 0;               -
 -- Comentarios explicativos para cada campo opcional
 COMMENT ON COLUMN tarjetas_credito.porcentaje_cat IS 'Costo Anual Total (CAT) en porcentaje - Incluye intereses, comisiones y seguros';
 COMMENT ON COLUMN tarjetas_credito.anualidad IS 'Costo anual por tener la tarjeta en pesos mexicanos';
-COMMENT ON COLUMN tarjetas_credito.gasto_exencion_anualidad IS 'Monto mínimo de compras anuales para no pagar anualidad';
+COMMENT ON COLUMN tarjetas_credito.gasto_exencion_anualidad IS 'Compras anuales para no pagar anualidad';
 COMMENT ON COLUMN tarjetas_credito.porcentaje_cashback IS 'Porcentaje de dinero que regresa por compras realizadas';
 COMMENT ON COLUMN tarjetas_credito.puntos_por_peso IS 'Cantidad de puntos de recompensa por cada peso gastado';
 COMMENT ON COLUMN tarjetas_credito.dias_gracia IS 'Días sin intereses después del corte si se paga el total';
@@ -522,8 +524,153 @@ COMMENT ON COLUMN compras_msi.fecha_fin_promocion IS 'Fecha límite de la promoc
 COMMENT ON COLUMN compras_msi.tasa_interes_posterior IS 'Tasa de interés que se aplicaría si no se completa el pago en tiempo';
 
 
+-- 4.19) Jerarquías personalizadas de niveles por usuario
+CREATE TABLE jerarquias_usuario (
+  id                UUID             DEFAULT gen_random_uuid() PRIMARY KEY,
+  usuario_id        UUID             NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  nivel_id          UUID             NOT NULL REFERENCES niveles(id) ON DELETE CASCADE,
+  jerarquia_personalizada INT        NOT NULL,                         -- Jerarquía personalizada del usuario
+  fecha_creacion    TIMESTAMPTZ      NOT NULL DEFAULT now(),
+  fecha_actualizacion TIMESTAMPTZ    NOT NULL DEFAULT now(),
+  
+  -- Restricciones
+  CONSTRAINT unico_usuario_nivel UNIQUE(usuario_id, nivel_id),
+  CONSTRAINT chk_jerarquia_positiva CHECK (jerarquia_personalizada > 0)
+);
+
+-- Índices
+CREATE INDEX ON jerarquias_usuario(usuario_id);
+CREATE INDEX ON jerarquias_usuario(usuario_id, jerarquia_personalizada);
+CREATE INDEX ON jerarquias_usuario(nivel_id);
+
+-- Comentarios
+COMMENT ON TABLE jerarquias_usuario IS 'Jerarquías personalizadas de niveles por usuario - permite a cada usuario reordenar niveles según su preferencia';
+COMMENT ON COLUMN jerarquias_usuario.usuario_id IS 'Usuario propietario de la jerarquía personalizada';
+COMMENT ON COLUMN jerarquias_usuario.nivel_id IS 'Nivel al que se aplica la jerarquía personalizada';
+COMMENT ON COLUMN jerarquias_usuario.jerarquia_personalizada IS 'Orden personalizado del usuario (1 = más importante)';
+COMMENT ON COLUMN jerarquias_usuario.fecha_creacion IS 'Timestamp de cuando se creó la jerarquía personalizada';
+COMMENT ON COLUMN jerarquias_usuario.fecha_actualizacion IS 'Timestamp de la última modificación de la jerarquía';
+
+
 -- ==================================================================
--- 5) Función auxiliar para obtener el ID del usuario en sesión
+-- 7) Funciones para gestión de jerarquías personalizadas
+-- ==================================================================
+
+-- 7.1) Función para inicializar jerarquías de usuario
+DROP FUNCTION IF EXISTS inicializar_jerarquias_usuario(UUID);
+
+CREATE OR REPLACE FUNCTION inicializar_jerarquias_usuario(p_usuario_id UUID)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Insertar jerarquías basadas en los niveles públicos y privados del usuario
+  INSERT INTO jerarquias_usuario (usuario_id, nivel_id, jerarquia_personalizada)
+  SELECT 
+    p_usuario_id,
+    n.id,
+    CASE 
+      -- Los niveles públicos mantienen su jerarquía original
+      WHEN n.es_publico = TRUE THEN n.jerarquia
+      -- Los niveles privados se añaden después de los públicos
+      ELSE (
+        SELECT COALESCE(MAX(pub.jerarquia), 0) + 
+               ROW_NUMBER() OVER (ORDER BY n.jerarquia, n.fecha_creacion)
+        FROM niveles pub 
+        WHERE pub.es_publico = TRUE
+      )
+    END
+  FROM niveles n
+  WHERE 
+    -- Incluir niveles públicos y privados del usuario
+    (n.es_publico = TRUE OR n.usuario_id = p_usuario_id)
+    -- Solo si no existe ya una jerarquía personalizada
+    AND NOT EXISTS (
+      SELECT 1 FROM jerarquias_usuario ju 
+      WHERE ju.usuario_id = p_usuario_id AND ju.nivel_id = n.id
+    )
+  ORDER BY 
+    n.es_publico DESC,  -- Públicos primero
+    n.jerarquia,        -- Luego por jerarquía
+    n.fecha_creacion;   -- Finalmente por fecha de creación
+END;
+$$;
+
+-- 7.2) Trigger para auto-inicializar jerarquías al crear niveles
+DROP FUNCTION IF EXISTS auto_inicializar_jerarquias();
+
+CREATE OR REPLACE FUNCTION auto_inicializar_jerarquias()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  -- Si se crea un nuevo nivel privado, añadirlo a la jerarquía del usuario
+  IF NEW.es_publico = FALSE AND NEW.usuario_id IS NOT NULL THEN
+    INSERT INTO jerarquias_usuario (usuario_id, nivel_id, jerarquia_personalizada)
+    SELECT 
+      NEW.usuario_id,
+      NEW.id,
+      COALESCE(MAX(ju.jerarquia_personalizada), 0) + 1
+    FROM jerarquias_usuario ju
+    WHERE ju.usuario_id = NEW.usuario_id;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+-- Aplicar trigger a la tabla niveles
+DROP TRIGGER IF EXISTS trigger_auto_inicializar_jerarquias ON niveles;
+CREATE TRIGGER trigger_auto_inicializar_jerarquias
+  AFTER INSERT ON niveles
+  FOR EACH ROW
+  EXECUTE FUNCTION auto_inicializar_jerarquias();
+
+-- 7.3) Función para obtener niveles ordenados por usuario
+DROP FUNCTION IF EXISTS obtener_niveles_usuario(UUID);
+
+CREATE OR REPLACE FUNCTION obtener_niveles_usuario(p_usuario_id UUID)
+RETURNS TABLE (
+  id UUID,
+  nombre TEXT,
+  color VARCHAR(20),
+  es_publico BOOLEAN,
+  jerarquia INT,
+  jerarquia_personalizada INT,
+  usuario_id UUID,
+  fecha_creacion TIMESTAMPTZ
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Inicializar jerarquías si no existen
+  PERFORM inicializar_jerarquias_usuario(p_usuario_id);
+  
+  -- Retornar niveles ordenados por jerarquía personalizada
+  RETURN QUERY
+  SELECT 
+    n.id,
+    n.nombre,
+    n.color,
+    n.es_publico,
+    n.jerarquia,
+    ju.jerarquia_personalizada,
+    n.usuario_id,
+    n.fecha_creacion
+  FROM niveles n
+  JOIN jerarquias_usuario ju ON n.id = ju.nivel_id
+  WHERE 
+    ju.usuario_id = p_usuario_id
+    AND (n.es_publico = TRUE OR n.usuario_id = p_usuario_id)
+  ORDER BY ju.jerarquia_personalizada;
+END;
+$$;
+
+
+-- ==================================================================
+-- 8) Función auxiliar para obtener el ID del usuario en sesión
 -- ==================================================================
 -- Esta función se ejecuta una sola vez por consulta para obtener el usuario autenticado
 -- Es usada por las políticas RLS (Row Level Security) para filtrar datos por usuario
@@ -538,7 +685,7 @@ $$;
 
 
 -- ==================================================================
--- 6) Comentarios descriptivos de las tablas principales
+-- 9) Comentarios descriptivos de las tablas principales
 -- ==================================================================
 
 -- Comentarios para grupos de usuarios
@@ -638,6 +785,6 @@ COMMENT ON TABLE tarjetas_credito IS 'Información detallada de tarjetas de cré
 COMMENT ON COLUMN tarjetas_credito.limite_credito IS 'Línea de crédito máxima otorgada por el banco';
 COMMENT ON COLUMN tarjetas_credito.credito_disponible IS 'Crédito que puede usarse actualmente (límite - adeudo)';
 COMMENT ON COLUMN tarjetas_credito.dia_pago IS 'Día del mes en que vence el pago (1-31)';
-COMMENT ON COLUMN tarjetas_credito.dia_corte IS 'Día del mes del corte del estado de cuenta (1-31)';
+COMMENT ON COLUMN tarjetas_credito.dia_corte IS 'Día de corte del estado de cuenta (1-31)';
 COMMENT ON COLUMN tarjetas_credito.tasa_interes IS 'Tasa de interés anual por financiamiento';
 COMMENT ON COLUMN tarjetas_credito.porcentaje_pago_minimo IS 'Porcentaje mínimo a pagar del saldo total';

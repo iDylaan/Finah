@@ -26,6 +26,7 @@ ALTER TABLE notificaciones         ENABLE ROW LEVEL SECURITY;  -- Notificaciones
 ALTER TABLE bancos                 ENABLE ROW LEVEL SECURITY;  -- Catálogo de bancos
 ALTER TABLE tarjetas_credito       ENABLE ROW LEVEL SECURITY;  -- Información de tarjetas de crédito
 ALTER TABLE compras_msi            ENABLE ROW LEVEL SECURITY;  -- Compras en meses sin intereses
+ALTER TABLE jerarquias_usuario     ENABLE ROW LEVEL SECURITY;  -- Jerarquías de usuario
 
 -- ===================================================
 -- 2) Funciones auxiliares para evitar recursión en políticas RLS
@@ -1072,4 +1073,38 @@ CREATE POLICY delete_notificaciones ON notificaciones
       grupo_usuario_id IS NOT NULL 
       AND es_admin_grupo(grupo_usuario_id)
     )
+  );
+
+-- ===================================================
+-- POLÍTICAS RLS PARA JERARQUÍAS DE USUARIO
+-- ===================================================
+
+-- Habilitar RLS
+ALTER TABLE jerarquias_usuario ENABLE ROW LEVEL SECURITY;
+
+-- SELECT - Ver solo sus propias jerarquías
+CREATE POLICY select_jerarquias_usuario ON jerarquias_usuario
+  FOR SELECT USING (
+    usuario_id = id_usuario_sesion()
+  );
+
+-- INSERT - Solo crear sus propias jerarquías
+CREATE POLICY insert_jerarquias_usuario ON jerarquias_usuario
+  FOR INSERT WITH CHECK (
+    usuario_id = id_usuario_sesion()
+  );
+
+-- UPDATE - Solo actualizar sus propias jerarquías
+CREATE POLICY update_jerarquias_usuario ON jerarquias_usuario
+  FOR UPDATE USING (
+    usuario_id = id_usuario_sesion()
+  )
+  WITH CHECK (
+    usuario_id = id_usuario_sesion()
+  );
+
+-- DELETE - Solo eliminar sus propias jerarquías
+CREATE POLICY delete_jerarquias_usuario ON jerarquias_usuario
+  FOR DELETE USING (
+    usuario_id = id_usuario_sesion()
   );

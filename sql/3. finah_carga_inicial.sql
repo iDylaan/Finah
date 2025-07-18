@@ -21,12 +21,11 @@ VALUES
 -- ===================================================
 -- 2) Niveles de gasto/ingreso - Clasificación por prioridad
 -- ===================================================
-INSERT INTO niveles (nombre, color, es_publico)
+INSERT INTO niveles (nombre, color, es_publico, jerarquia)
 VALUES
-  ('No negociable', 'red',    TRUE),
-  ('Necesario',     'blue',   TRUE),
-  ('Deseo',         'cyan',   TRUE),
-  ('Lujo',          'orange', TRUE);
+  ('Necesario', 'green',    TRUE, 1),
+  ('Lujo',     'orange',   TRUE, 2),
+  ('Ahorro',         'cyan',   TRUE, 3);
 
 -- ===================================================
 -- 3) Grupos de categorías - Organizadores principales
