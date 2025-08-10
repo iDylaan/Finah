@@ -13,10 +13,10 @@
 
             <!-- Botón de recarga -->
             <div class="flex gap-2">
-                <Button icon="pi pi-refresh" @click="refreshData" :loading="categoriesStore.loading" severity="secondary"
-                    outlined size="small" />
+                <Button icon="pi pi-refresh" @click="refreshData" :loading="categoriesStore.loading"
+                    severity="secondary" outlined size="small" />
                 <Button icon="pi pi-plus" @click="handleNewCategoryGroup" :disabled="categoriesStore.loading"
-                    severity="success" size="small" label="Nuevo Grupo" />
+                    size="small" label="Nuevo Grupo" />
             </div>
         </div>
 
@@ -36,8 +36,9 @@
                         <!-- Icono del grupo -->
                         <div class="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm"
                             :style="{ backgroundColor: group.color || '#6366f1' }">
-                            <span v-if="group.biblioteca_iconos === 'material'" class="material-symbols-rounded text-white">{{
-                                group.nombre_icono }}</span>
+                            <span v-if="group.biblioteca_iconos === 'material'"
+                                class="material-symbols-rounded text-white">{{
+                                    group.nombre_icono }}</span>
                             <i v-else :class="group.nombre_icono || 'pi pi-folder'" class="text-white text-sm"></i>
                         </div>
 
@@ -83,8 +84,9 @@
                             <!-- Icono de la categoría -->
                             <div class="w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 shadow-sm"
                                 :style="{ backgroundColor: group.color || '#6366f1' }">
-                                <span v-if="category.biblioteca_iconos === 'material'" class="material-symbols-rounded text-white">{{
-                                    category.nombre_icono }}</span>
+                                <span v-if="category.biblioteca_iconos === 'material'"
+                                    class="material-symbols-rounded text-white">{{
+                                        category.nombre_icono }}</span>
                                 <i v-else :class="category.nombre_icono || 'pi pi-tag'" class="text-white text-xs"></i>
                             </div>
 
@@ -144,17 +146,11 @@
         <CategoryGroupForm v-model:visible="showCategoryGroupModal" :is-edit="modalEditMode"
             :edit-group-id="editingGroupId" :category-groups="categoryGroups" :is-loading="categoriesStore.loading"
             @submit="handleCategoryGroupSubmit" @close="handleModalClose" />
-            
+
         <!-- Modal de Categoría -->
-        <CategoryForm v-model:visible="showCategoryModal" 
-            :is-new="newCategoryMode" 
-            :category-id="editingCategoryId" 
-            :group-id="selectedGroupId"
-            :category="selectedCategory" 
-            :category-groups="categoryGroups"
-            :is-loading="categoriesStore.loading" 
-            @close="handleCategoryModalClose"
-            @success="handleCategorySuccess" />
+        <CategoryForm v-model:visible="showCategoryModal" :is-new="newCategoryMode" :category-id="editingCategoryId"
+            :group-id="selectedGroupId" :category="selectedCategory" :category-groups="categoryGroups"
+            :is-loading="categoriesStore.loading" @close="handleCategoryModalClose" @success="handleCategorySuccess" />
     </div>
 </template>
 
@@ -328,21 +324,21 @@ const handleNewCategory = (groupID) => {
     selectedGroupId.value = groupID;
     editingCategoryId.value = null;
     selectedCategory.value = null;
-    
+
     // Mostrar el modal
     showCategoryModal.value = true;
 };
 
 const handleEditCategory = (category) => {
     // Encontrar el grupo de la categoría
-    const group = categoryGroups.value.find(g => 
+    const group = categoryGroups.value.find(g =>
         g.categories?.some(c => c.id === category.id)
     );
-    
+
     if (group) {
         selectedGroupId.value = group.id;
     }
-    
+
     // Configurar estado para edición
     newCategoryMode.value = false;
     editingCategoryId.value = category.id;
@@ -350,7 +346,7 @@ const handleEditCategory = (category) => {
         ...category,
         group_id: group?.id // Asegurar que tenemos el group_id
     };
-    
+
     // Mostrar el modal
     showCategoryModal.value = true;
 };
@@ -364,7 +360,7 @@ const handleCategoryClick = (category, group) => {
         group_id: group.id // Asegurar que tenemos el group_id
     };
     selectedGroupId.value = group.id;
-    
+
     // Mostrar el modal
     showCategoryModal.value = true;
 };
@@ -382,7 +378,7 @@ const handleCategoryModalClose = () => {
 const handleCategorySuccess = async (category) => {
     // Recargar datos para asegurar que los cambios sean visibles
     await loadData();
-    
+
     // Cerrar modal
     handleCategoryModalClose();
 };
@@ -409,10 +405,10 @@ const handleDeleteCategory = async (category) => {
                     detail: 'Eliminando categoría...',
                     life: 2000
                 });
-                
+
                 // Eliminar categoría usando el store
                 await categoriesStore.deleteCategory(category.id, { toast });
-                
+
                 // Recargar datos para reflejar los cambios
                 await loadData();
             }
@@ -430,10 +426,8 @@ const handleDeleteCategory = async (category) => {
 // Función para cargar datos
 const loadData = async () => {
     try {
-        console.log('🔄 Cargando datos...');
         const result = await categoriesStore.fetchCategoryGroupsWithCategories({ toast });
         isInitialLoad.value = false;
-        console.log('✅ Datos cargados exitosamente');
     } catch (error) {
         console.error('💥 Error cargando datos:', error);
         toast.add({
@@ -448,7 +442,6 @@ const loadData = async () => {
 // Nueva función para refrescar datos
 const refreshData = async () => {
     try {
-        console.log('🔄 Actualizando datos...');
         // Usamos refresh que fuerza la reconsulta
         await categoriesStore.refreshCategoryGroupsWithCategories({ toast });
         toast.add({
@@ -473,16 +466,15 @@ const handleDeleteGroup = async (group) => {
         // Contar las categorías propias del usuario en este grupo
         const userCategories = group.categories.filter(cat => !cat.es_publico);
         const categoryCount = userCategories.length;
-        
+
         // Crear mensaje de confirmación adecuado
         let message = `¿Estás seguro de eliminar el grupo "${group.nombre}"?`;
-        
+
         if (categoryCount > 0) {
-            message += `\n\nEsta acción también eliminará ${categoryCount} ${
-                categoryCount === 1 ? 'categoría asociada' : 'categorías asociadas'
-            } a este grupo.`;
+            message += `\n\nEsta acción también eliminará ${categoryCount} ${categoryCount === 1 ? 'categoría asociada' : 'categorías asociadas'
+                } a este grupo.`;
         }
-        
+
         // Mostrar diálogo de confirmación
         confirm.require({
             message: message,
@@ -502,17 +494,17 @@ const handleDeleteGroup = async (group) => {
                     detail: 'Eliminando grupo y sus categorías...',
                     life: 2000
                 });
-                
+
                 // Eliminar grupo y sus categorías usando el store
                 await categoriesStore.deleteCategoryGroup(group.id, { toast });
-                
+
                 // Recargar datos para reflejar los cambios
                 await loadData();
             }
         });
     } catch (error) {
         console.error('💥 Error eliminando grupo:', error);
-        
+
         toast.add({
             severity: 'error',
             summary: 'Error',

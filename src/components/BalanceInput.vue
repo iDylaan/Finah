@@ -1,32 +1,18 @@
 <template>
   <div class="balance-input-wrapper">
     <!-- Input visible que actúa como trigger para el modal -->
-    <div class="p-inputgroup">
-      <InputText
-        :value="formattedValue"
-        class="balance-display w-full text-right"
-        readonly
-        @click="showCalculator = true"
-        :class="{'p-filled': modelValue > 0}"
-      />
-      <Button 
-        type="button" 
-        icon="pi pi-calculator" 
-        @click="showCalculator = true" 
-        class="p-button-secondary"
-        aria-label="Calculadora"
-      />
+    <div class="flex w-full">
+      <IconField :pt="{ root: 'w-full' }">
+        <InputIcon class="pi pi-dollar" />
+        <InputText :value="formattedValue" class="w-full" readonly @click="showCalculator = true" />
+      </IconField>
+      <Button type="button" icon="pi pi-calculator" @click="showCalculator = true" class="p-button-secondary"
+        aria-label="Calculadora" />
     </div>
 
     <!-- Modal de calculadora -->
-    <Dialog 
-      v-model:visible="showCalculator" 
-      modal 
-      :header="modalTitle"
-      :style="{ width: '350px' }" 
-      :dismissableMask="true"
-      :closeOnEscape="true"
-    >
+    <Dialog v-model:visible="showCalculator" modal :header="modalTitle" :style="{ width: '350px' }"
+      :dismissableMask="true" :closeOnEscape="true">
       <div class="calculator-modal">
         <!-- Display para mostrar el valor actual y la expresión -->
         <div class="display-container mb-3">
@@ -34,12 +20,12 @@
           <div class="expression" v-if="showExpression">
             {{ currentExpression || '0' }}
           </div>
-          
+
           <!-- Valor principal -->
           <div class="value" :class="{ 'has-expression': showExpression && currentExpression }">
             {{ formatDisplayValue(tempValue) }}
           </div>
-          
+
           <!-- Previsualización del resultado -->
           <div class="preview" v-if="showPreview && previewResult !== null">
             = {{ formatDisplayValue(previewResult) }}
@@ -50,163 +36,77 @@
         <div class="calculator-keypad">
           <!-- Fila 1: Operaciones avanzadas -->
           <div class="calculator-row">
-            <button 
-              type="button" 
-              class="calculator-btn operation" 
-              @click="clear"
-              title="Borrar todo"
-            >
+            <button type="button" class="calculator-btn operation" @click="clear" title="Borrar todo">
               C
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn operation" 
-              @click="backspace"
-              title="Borrar último dígito"
-            >
+            <button type="button" class="calculator-btn operation" @click="backspace" title="Borrar último dígito">
               <i class="pi pi-delete-left"></i>
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn operation" 
-              @click="appendOperator('%')"
-              title="Porcentaje"
-            >
+            <button type="button" class="calculator-btn operation" @click="appendOperator('%')" title="Porcentaje">
               %
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn operation" 
-              @click="appendOperator('/')"
-              title="Dividir"
-            >
+            <button type="button" class="calculator-btn operation" @click="appendOperator('/')" title="Dividir">
               ÷
             </button>
           </div>
 
           <!-- Fila 2: 7-8-9 y multiplicación -->
           <div class="calculator-row">
-            <button 
-              type="button" 
-              class="calculator-btn" 
-              @click="appendDigit('7')"
-            >
+            <button type="button" class="calculator-btn" @click="appendDigit('7')">
               7
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn" 
-              @click="appendDigit('8')"
-            >
+            <button type="button" class="calculator-btn" @click="appendDigit('8')">
               8
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn" 
-              @click="appendDigit('9')"
-            >
+            <button type="button" class="calculator-btn" @click="appendDigit('9')">
               9
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn operation" 
-              @click="appendOperator('*')"
-              title="Multiplicar"
-            >
+            <button type="button" class="calculator-btn operation" @click="appendOperator('*')" title="Multiplicar">
               ×
             </button>
           </div>
 
           <!-- Fila 3: 4-5-6 y resta -->
           <div class="calculator-row">
-            <button 
-              type="button" 
-              class="calculator-btn" 
-              @click="appendDigit('4')"
-            >
+            <button type="button" class="calculator-btn" @click="appendDigit('4')">
               4
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn" 
-              @click="appendDigit('5')"
-            >
+            <button type="button" class="calculator-btn" @click="appendDigit('5')">
               5
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn" 
-              @click="appendDigit('6')"
-            >
+            <button type="button" class="calculator-btn" @click="appendDigit('6')">
               6
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn operation" 
-              @click="appendOperator('-')"
-              title="Restar"
-            >
+            <button type="button" class="calculator-btn operation" @click="appendOperator('-')" title="Restar">
               −
             </button>
           </div>
 
           <!-- Fila 4: 1-2-3 y suma -->
           <div class="calculator-row">
-            <button 
-              type="button" 
-              class="calculator-btn" 
-              @click="appendDigit('1')"
-            >
+            <button type="button" class="calculator-btn" @click="appendDigit('1')">
               1
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn" 
-              @click="appendDigit('2')"
-            >
+            <button type="button" class="calculator-btn" @click="appendDigit('2')">
               2
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn" 
-              @click="appendDigit('3')"
-            >
+            <button type="button" class="calculator-btn" @click="appendDigit('3')">
               3
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn operation" 
-              @click="appendOperator('+')"
-              title="Sumar"
-            >
+            <button type="button" class="calculator-btn operation" @click="appendOperator('+')" title="Sumar">
               +
             </button>
           </div>
 
           <!-- Fila 5: 0, punto decimal y evaluar -->
           <div class="calculator-row">
-            <button 
-              type="button" 
-              class="calculator-btn" 
-              @click="appendDigit('0')"
-              style="flex: 2"
-            >
+            <button type="button" class="calculator-btn" @click="appendDigit('0')" style="flex: 2">
               0
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn" 
-              @click="appendDecimal"
-              title="Punto decimal"
-            >
+            <button type="button" class="calculator-btn" @click="appendDecimal" title="Punto decimal">
               .
             </button>
-            <button 
-              type="button" 
-              class="calculator-btn evaluate" 
-              @click="evaluate"
-              title="Calcular"
-            >
+            <button type="button" class="calculator-btn evaluate" @click="evaluate" title="Calcular">
               =
             </button>
           </div>
@@ -214,20 +114,9 @@
 
         <!-- Botones de acción del modal -->
         <div class="flex justify-end gap-2 mt-4 pt-3 border-t border-surface-200 dark:border-surface-700">
-          <Button 
-            type="button" 
-            label="Cancelar" 
-            icon="pi pi-times" 
-            @click="cancelCalculator" 
-            class="p-button-secondary p-button-text"
-          />
-          <Button 
-            type="button" 
-            label="Aceptar" 
-            icon="pi pi-check" 
-            @click="acceptCalculator" 
-            class="p-button-primary"
-          />
+          <Button type="button" label="Cancelar" icon="pi pi-times" @click="cancelCalculator"
+            class="p-button-secondary p-button-text" />
+          <Button type="button" label="Aceptar" icon="pi pi-check" @click="acceptCalculator" class="p-button-primary" />
         </div>
       </div>
     </Dialog>
@@ -283,24 +172,24 @@ const previewResult = ref(null);
 
 // Computed para mostrar preview
 const showPreview = computed(() => {
-  return currentExpression.value && 
-         !isCalculating.value && 
-         previewResult.value !== null && 
-         previewResult.value !== tempValue.value &&
-         !endsWithOperator();
+  return currentExpression.value &&
+    !isCalculating.value &&
+    previewResult.value !== null &&
+    !endsWithOperator() &&
+    /[+\-*/%]/.test(currentExpression.value);
 });
 
 // Función para formatear valores sin decimales innecesarios
 const formatDisplayValue = (value) => {
   if (value === null || value === undefined) return '0';
-  
+
   const numValue = parseFloat(value);
-  
+
   // Si es un número entero, mostrarlo sin decimales
   if (Number.isInteger(numValue)) {
     return numValue.toLocaleString('es-MX');
   }
-  
+
   // Si tiene decimales, mostrar hasta 2 decimales pero sin ceros innecesarios
   return numValue.toLocaleString('es-MX', {
     minimumFractionDigits: 0,
@@ -312,29 +201,41 @@ const formatDisplayValue = (value) => {
 const formattedValue = computed(() => {
   const value = showCalculator.value ? tempValue.value : currentValue.value;
   const numValue = parseFloat(value) || 0;
-  
+
+  // Formatear solo como número con separadores de miles, sin símbolo de moneda
   const formatter = new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: props.currency,
     minimumFractionDigits: Number.isInteger(numValue) ? 0 : 2,
     maximumFractionDigits: 2
   });
-  
+
   return formatter.format(numValue);
 });
-
 // Función para calcular preview en tiempo real
 const calculatePreview = () => {
-  if (!currentExpression.value || endsWithOperator() || isCalculating.value) {
+  if (!currentExpression.value || isCalculating.value) {
     previewResult.value = null;
     return;
   }
-  
+
+  // Si la expresión contiene algún operador, intentar calcular preview
+  const hasOperators = /[+\-*/%]/.test(currentExpression.value);
+
+  if (!hasOperators) {
+    previewResult.value = null;
+    return;
+  }
+
+  // Si termina con operador, no mostrar preview
+  if (endsWithOperator()) {
+    previewResult.value = null;
+    return;
+  }
+
   try {
     // Intentar evaluar la expresión para mostrar preview
     // eslint-disable-next-line no-eval
     const result = eval(currentExpression.value);
-    
+
     if (result >= 0 && !isNaN(result) && isFinite(result)) {
       // Redondear a 2 decimales
       previewResult.value = Math.round((result + Number.EPSILON) * 100) / 100;
@@ -353,8 +254,8 @@ const isOperator = (char) => {
 
 // Validar si la expresión termina en operador
 const endsWithOperator = () => {
-  return currentExpression.value.length > 0 && 
-         isOperator(currentExpression.value.slice(-1));
+  return currentExpression.value.length > 0 &&
+    isOperator(currentExpression.value.slice(-1));
 };
 
 // Validar si ya se ha agregado un punto decimal en el número actual
@@ -366,7 +267,7 @@ const hasDecimalPoint = () => {
     currentExpression.value.lastIndexOf('*'),
     currentExpression.value.lastIndexOf('/')
   );
-  
+
   // Verificar si hay un punto después del último operador
   return currentExpression.value.slice(lastOperatorIndex + 1).includes('.');
 };
@@ -388,7 +289,7 @@ const appendDigit = (digit) => {
     if (currentExpression.value.replace(/[+\-*/%.]/g, '').length >= props.maxDigits) {
       return;
     }
-    
+
     // Si estamos calculando, comenzar una nueva expresión
     if (!isCalculating.value) {
       currentExpression.value += digit;
@@ -397,12 +298,12 @@ const appendDigit = (digit) => {
       isCalculating.value = false;
     }
   }
-  
+
   // Evaluar la expresión en tiempo real para el valor actual
   try {
     // eslint-disable-next-line no-eval
     let result = eval(currentExpression.value);
-    
+
     // Asegurar que el resultado no sea negativo
     if (result >= 0) {
       tempValue.value = result;
@@ -414,7 +315,7 @@ const appendDigit = (digit) => {
     // En caso de error, mantener el valor actual
     console.warn('Error evaluando expresión:', e);
   }
-  
+
   // Calcular preview
   calculatePreview();
 };
@@ -431,20 +332,20 @@ const appendOperator = (operator) => {
       // Para otros operadores, comenzar con el valor actual
       currentExpression.value = tempValue.value.toString() + operator;
     }
-  } 
+  }
   // Si la expresión ya termina en operador, reemplazarlo
   else if (endsWithOperator()) {
     currentExpression.value = currentExpression.value.slice(0, -1) + operator;
-  } 
+  }
   // Caso normal: añadir el operador
   else {
     currentExpression.value += operator;
   }
-  
+
   isCalculating.value = false;
   hasDecimal.value = false;
   decimalDigits.value = 0;
-  
+
   // Limpiar preview al agregar operador
   previewResult.value = null;
 };
@@ -454,16 +355,16 @@ const appendDecimal = () => {
   if (hasDecimalPoint()) {
     return;
   }
-  
+
   // Si la expresión está vacía o termina en operador, añadir "0."
   if (currentExpression.value === '' || endsWithOperator()) {
     currentExpression.value += '0.';
   } else {
     currentExpression.value += '.';
   }
-  
+
   hasDecimal.value = true;
-  
+
   // Calcular preview
   calculatePreview();
 };
@@ -472,27 +373,27 @@ const evaluate = () => {
   if (currentExpression.value === '') {
     return;
   }
-  
+
   try {
     // Si termina en operador, quitar el operador
     if (endsWithOperator()) {
       currentExpression.value = currentExpression.value.slice(0, -1);
     }
-    
+
     // eslint-disable-next-line no-eval
     let result = eval(currentExpression.value);
-    
+
     // Asegurar que el resultado no sea negativo
     if (result < 0) {
       result = 0;
     }
-    
+
     // Limitar a 2 decimales
     result = Math.round((result + Number.EPSILON) * 100) / 100;
-    
+
     tempValue.value = result;
     currentExpression.value = result.toString();
-    
+
     isCalculating.value = true;
     previewResult.value = null; // Limpiar preview después de evaluar
   } catch (e) {
@@ -514,12 +415,12 @@ const backspace = () => {
     // Eliminar el último carácter
     const lastChar = currentExpression.value.slice(-1);
     currentExpression.value = currentExpression.value.slice(0, -1);
-    
+
     // Si borramos un punto decimal
     if (lastChar === '.') {
       hasDecimal.value = false;
     }
-    
+
     // Si la expresión queda vacía, restablecer a 0
     if (currentExpression.value === '') {
       tempValue.value = 0;
@@ -535,7 +436,7 @@ const backspace = () => {
       } catch (e) {
         // En caso de error, mantener el valor actual
       }
-      
+
       // Calcular preview
       calculatePreview();
     }
@@ -676,11 +577,11 @@ watch(() => showCalculator.value, (isVisible) => {
     min-height: 40px;
     font-size: 1.1rem;
   }
-  
+
   .value {
     font-size: 1.25rem;
   }
-  
+
   .preview {
     font-size: 0.75rem;
   }

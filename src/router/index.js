@@ -95,14 +95,6 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
     const sessionStore = useSessionStore();
 
-    console.log('🛡️ Navigation guard ejecutado:', {
-        to: to.path,
-        from: from.path,
-        initialized: sessionStore.initialized,
-        isAuthenticated: sessionStore.isAuthenticated,
-        userEmail: sessionStore.userEmail
-    });
-
     // **CAMBIO CRÍTICO:** No llamar initializeAuth aquí
     // Solo esperar a que se inicialice si no está listo
     let attempts = 0;
@@ -126,15 +118,6 @@ router.beforeEach(async (to, from, next) => {
     const requiresAuth = to.matched.some(record => record.meta.requiresAuth);
     const redirectIfAuth = to.matched.some(record => record.meta.redirectIfAuth);
 
-    console.log('🔍 Estado de navegación:', {
-        to: to.path,
-        isAuthenticated,
-        requiresAuth,
-        redirectIfAuth,
-        userEmail: sessionStore.userEmail,
-        hasUser: !!sessionStore.user
-    });
-
     // Si la ruta requiere autenticación y el usuario no está autenticado
     if (requiresAuth && !isAuthenticated) {
         console.log('🚫 Redirecting to auth - user not authenticated');
@@ -144,13 +127,10 @@ router.beforeEach(async (to, from, next) => {
 
     // Si el usuario está autenticado y trata de ir a auth, redirigir al dashboard
     if (redirectIfAuth && isAuthenticated) {
-        console.log('✅ Redirecting to dashboard - user already authenticated');
         next('/');
         return;
     }
 
-    // Si todo está bien, continuar
-    console.log('✅ Navigation allowed:', to.path);
     next();
 });
 

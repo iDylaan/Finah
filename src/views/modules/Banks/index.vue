@@ -5,7 +5,7 @@
 
             <div class="flex gap-2">
                 <Button icon="pi pi-refresh" outlined @click="refreshBanks" :loading="bankStore.loading"
-                    class="p-button-sm" />
+                    class="p-button-sm" severity="secondary" />
                 <Button label="Nuevo banco" icon="pi pi-plus" @click="openNewBankForm" severity="primary"
                     class="p-button-sm" />
             </div>

@@ -56,17 +56,9 @@ async function initializeApp() {
         const uiStore = useUIStore()
         const sessionStore = useSessionStore()
         
-        console.log('📋 Configurando stores...');
-        
         // Cargar configuración UI
         uiStore.loadUISetup()
-        
-        // **PASO 1:** Configurar listener PRIMERO (no bloquea)
-        console.log('🎧 Configurando auth listener...');
         sessionStore.setupAuthListener()
-        
-        // **PASO 2:** Inicializar auth con timeout
-        console.log('⏳ Inicializando autenticación...');
         
         const initPromise = sessionStore.initializeAuth()
         const timeoutPromise = new Promise((_, reject) => 
@@ -74,13 +66,6 @@ async function initializeApp() {
         )
         
         await Promise.race([initPromise, timeoutPromise])
-        
-        console.log('✅ Autenticación inicializada:', {
-            isAuthenticated: sessionStore.isAuthenticated,
-            userEmail: sessionStore.userEmail,
-            initialized: sessionStore.initialized
-        });
-        
     } catch (error) {
         console.error('⚠️ Error/timeout en inicialización:', error.message);
         // Continuar de todas formas

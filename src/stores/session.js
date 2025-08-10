@@ -35,7 +35,6 @@ export const useSessionStore = defineStore('session', () => {
             }
 
             profile.value = data
-            console.log('Perfil obtenido exitosamente:', data?.username || 'Sin username')
             return { data, error: null, success: true }
         } catch (error) {
             console.error('Error inesperado al obtener perfil:', error)
@@ -239,25 +238,16 @@ export const useSessionStore = defineStore('session', () => {
     const initializeAuth = async () => {
         // Evitar inicialización múltiple
         if (initialized.value || isInitializing) {
-            console.log('⚠️ Auth ya inicializado o en proceso:', { 
-                initialized: initialized.value, 
-                isInitializing,
-                hasUser: !!user.value
-            })
             return
         }
         
         isInitializing = true
-        console.log('🔐 Iniciando inicialización de auth...')
         
         try {
             // Obtener sesión actual de forma síncrona
             const { data: { session }, error } = await supabase.auth.getSession()
             
-            if (error) {
-                console.error('❌ Error al obtener sesión:', error)
-            } else if (session) {
-                console.log('✅ Sesión encontrada:', session.user.email)
+            if (session) {
                 user.value = session.user
                 
                 // Obtener perfil de forma no bloqueante
@@ -269,33 +259,23 @@ export const useSessionStore = defineStore('session', () => {
                     console.error('❌ Error obteniendo perfil:', err)
                 })
                 
-            } else {
-                console.log('ℹ️ No hay sesión activa')
             }
         } catch (error) {
             console.error('💥 Error al inicializar autenticación:', error)
         } finally {
             initialized.value = true
             isInitializing = false
-            console.log('✅ Inicialización de auth completada - Estado:', {
-                isAuthenticated: isAuthenticated.value,
-                userEmail: userEmail.value,
-                hasUser: !!user.value
-            })
         }
     }
 
     // Configurar listener para cambios de autenticación (simplificado)
     const setupAuthListener = () => {
-        console.log('🎧 Configurando auth listener...')
         
         supabase.auth.onAuthStateChange((event, session) => {
-            console.log('🔔 Auth event:', event, session?.user?.email || 'no-user')
             
             switch (event) {
                 case 'INITIAL_SESSION':
                     if (session) {
-                        console.log('📝 Configurando usuario desde INITIAL_SESSION:', session.user.email)
                         user.value = session.user
                         
                         // Obtener perfil de forma no bloqueante
@@ -307,12 +287,10 @@ export const useSessionStore = defineStore('session', () => {
                     // **IMPORTANTE:** Solo marcar como inicializado si no lo está ya
                     if (!initialized.value) {
                         initialized.value = true
-                        console.log('✅ Auth marcado como inicializado desde INITIAL_SESSION')
                     }
                     break
                     
                 case 'SIGNED_IN':
-                    console.log('📝 Usuario inició sesión:', session.user.email)
                     user.value = session.user
                     
                     // Obtener perfil de forma no bloqueante
@@ -324,24 +302,19 @@ export const useSessionStore = defineStore('session', () => {
                     break
                     
                 case 'SIGNED_OUT':
-                    console.log('📝 Usuario cerró sesión')
                     user.value = null
                     profile.value = null
                     break
                     
                 case 'TOKEN_REFRESHED':
-                    console.log('📝 Token actualizado para:', session.user.email)
                     user.value = session.user
                     break
                     
                 case 'USER_UPDATED':
-                    console.log('📝 Usuario actualizado:', session.user.email)
                     user.value = session.user
                     break
             }
         })
-        
-        console.log('✅ Auth listener configurado')
     }
 
     return {

@@ -1,5 +1,5 @@
 <template>
-    <div class="p-6 max-w-5xl mx-auto">
+    <div class="p-6 mx-auto">
         <!-- Header -->
         <div class="flex justify-between items-center mb-6">
             <div>
@@ -12,46 +12,23 @@
             </div>
 
             <div class="flex gap-2">
-                <Button icon="pi pi-refresh" @click="refreshData" :loading="accountsStore.loading" 
-                    severity="secondary" outlined size="small" />
-                <Button icon="pi pi-plus" @click="handleNewAccount" :disabled="accountsStore.loading || showAccountForm"
-                    severity="success" outlined size="small" label="Nueva Cuenta" />
+                <Button icon="pi pi-refresh" @click="refreshData" :loading="accountsStore.loading" severity="secondary"
+                    outlined size="small" />
+                <Button icon="pi pi-plus" @click="handleNewAccount" :disabled="accountsStore.loading" size="small" label="Nueva Cuenta" />
             </div>
         </div>
 
-        <!-- Formulario Inline -->
-        <transition name="slide-fade">
-            <Card v-if="showAccountForm" class="mb-6 border border-primary-200 dark:border-primary-800 shadow-md">
-                <template #title>
-                    <div class="flex justify-between items-center">
-                        <span>{{ modalEditMode ? 'Editar Cuenta' : 'Nueva Cuenta' }}</span>
-                        <Button icon="pi pi-times" @click="handleFormCancel" text rounded aria-label="Cerrar" />
-                    </div>
-                </template>
-                <template #content>
-                    <AccountForm 
-                        :is-edit="modalEditMode"
-                        :edit-account-id="editingAccountId"
-                        :accounts="accounts"
-                        :banks="accountsStore.banks"
-                        :is-loading="accountsStore.loading" 
-                        @submit="handleAccountSubmit" 
-                        @cancel="handleFormCancel" />
-                </template>
-            </Card>
-        </transition>
-
         <!-- Loading State -->
-        <div v-if="accountsStore.loading && accounts.length === 0 && !showAccountForm" 
-             class="flex justify-center items-center py-12">
+        <div v-if="accountsStore.loading && accounts.length === 0"
+            class="flex justify-center items-center py-12">
             <ProgressSpinner />
         </div>
 
         <!-- Content -->
-        <div v-else-if="accounts.length > 0 || showAccountForm" class="space-y-4">
+        <div v-else-if="accounts.length > 0" class="space-y-4">
             <Card v-for="account in accounts" :key="account.id"
                 class="bg-surface-0 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200">
-                
+
                 <template #content>
                     <div class="flex items-center gap-4 p-4">
                         <!-- Icono de la cuenta/banco -->
@@ -60,7 +37,7 @@
                             <i :class="getAccountIcon(account)" class="text-white text-lg"></i>
                         </div>
 
-                        <!-- Info de la cuenta -->                            
+                        <!-- Info de la cuenta -->
                         <div class="flex-1">
                             <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-0 mb-1">
                                 {{ account.nombre }}
@@ -83,23 +60,24 @@
                                 </p>
                                 <div class="mt-1 flex flex-wrap gap-1">
                                     <!-- Badges para información básica -->
-                                    <Badge :value="`Pago: ${account.tarjeta_credito.dia_pago}`" severity="info" size="small" />
-                                    
+                                    <Badge :value="`Pago: ${account.tarjeta_credito.dia_pago}`" severity="info"
+                                        size="small" />
+
                                     <!-- Badges opcionales solo si tienen datos -->
-                                    <Badge v-if="account.tarjeta_credito.porcentaje_cat" 
-                                           :value="`CAT: ${account.tarjeta_credito.porcentaje_cat}%`" 
-                                           severity="warning" size="small" />
-                                    
-                                    <Badge v-if="account.tarjeta_credito.anualidad === 0" 
-                                           value="Sin anualidad" severity="success" size="small" />
-                                    
-                                    <Badge v-if="account.tarjeta_credito.anualidad > 0" 
-                                           :value="`Anualidad: ${formatCurrency(account.tarjeta_credito.anualidad)}`" 
-                                           severity="warning" size="small" />
-                                    
-                                    <Badge v-if="account.tarjeta_credito.porcentaje_cashback" 
-                                           :value="`Cashback: ${account.tarjeta_credito.porcentaje_cashback}%`" 
-                                           severity="success" size="small" />
+                                    <Badge v-if="account.tarjeta_credito.porcentaje_cat"
+                                        :value="`CAT: ${account.tarjeta_credito.porcentaje_cat}%`" severity="warning"
+                                        size="small" />
+
+                                    <Badge v-if="account.tarjeta_credito.anualidad === 0" value="Sin anualidad"
+                                        severity="success" size="small" />
+
+                                    <Badge v-if="account.tarjeta_credito.anualidad > 0"
+                                        :value="`Anualidad: ${formatCurrency(account.tarjeta_credito.anualidad)}`"
+                                        severity="warning" size="small" />
+
+                                    <Badge v-if="account.tarjeta_credito.porcentaje_cashback"
+                                        :value="`Cashback: ${account.tarjeta_credito.porcentaje_cashback}%`"
+                                        severity="success" size="small" />
                                 </div>
                             </div>
                             <div v-else>
@@ -115,8 +93,7 @@
                             <Button icon="pi pi-ellipsis-v" severity="secondary" rounded text
                                 @click="(event) => toggleAccountMenu(event, account.id)" />
 
-                            <Menu :ref="(el) => setAccountMenuRef(el, account.id)" 
-                                :id="`account_menu_${account.id}`"
+                            <Menu :ref="(el) => setAccountMenuRef(el, account.id)" :id="`account_menu_${account.id}`"
                                 :model="getAccountMenuItems(account)" popup />
                         </div>
                     </div>
@@ -125,7 +102,8 @@
         </div>
 
         <!-- Empty State -->
-        <Card v-else class="backdrop-blur-md bg-surface-0/80 dark:bg-surface-800/80 border border-surface-200/30 dark:border-surface-700/30">
+        <Card v-else
+            class="backdrop-blur-md bg-surface-0/80 dark:bg-surface-800/80 border border-surface-200/30 dark:border-surface-700/30">
             <template #content>
                 <div class="text-center py-12">
                     <div class="mb-6">
@@ -141,6 +119,19 @@
                 </div>
             </template>
         </Card>
+
+        <!-- Modal de Cuenta -->
+        <AccountModal 
+            v-model:visible="showAccountModal"
+            :is-edit="modalEditMode" 
+            :edit-account-id="editingAccountId" 
+            :accounts="accounts"
+            :banks="accountsStore.banks" 
+            :is-loading="accountsStore.loading" 
+            @submit="handleAccountSubmit"
+            @cancel="handleModalCancel"
+            @close="handleModalCancel"
+        />
     </div>
 </template>
 
@@ -150,7 +141,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import { useAccountsStore } from '@/stores/accounts.js';
-import AccountForm from './components/AccountForm.vue';
+import AccountModal from './components/AccountModal.vue';
 
 // STORES & COMPOSABLES
 const toast = useToast();
@@ -162,8 +153,8 @@ const isInitialLoad = ref(true);
 const accounts = computed(() => accountsStore.accounts);
 const accountMenuRefs = ref({});
 
-// FORM STATE
-const showAccountForm = ref(false);
+// MODAL STATE
+const showAccountModal = ref(false);
 const modalEditMode = ref(false);
 const editingAccountId = ref(null);
 
@@ -182,14 +173,14 @@ const getAccountColor = (account) => {
     if (account.banco?.color) {
         return account.banco.color;
     }
-    
+
     const colors = {
         'cash': '#10b981',
         'bank': '#3b82f6',
         'debit_card': '#8b5cf6',
         'credit_card': '#f59e0b'
     };
-    
+
     return colors[account.tipo] || '#6366f1';
 };
 
@@ -197,14 +188,14 @@ const getAccountIcon = (account) => {
     if (account.banco?.nombre_icono && account.banco?.libreria_icono === 'primevue') {
         return account.banco.nombre_icono;
     }
-    
+
     const icons = {
         'cash': 'pi pi-dollar',
         'bank': 'pi pi-building',
         'debit_card': 'pi pi-credit-card',
         'credit_card': 'pi pi-credit-card'
     };
-    
+
     return icons[account.tipo] || 'pi pi-wallet';
 };
 
@@ -252,40 +243,30 @@ const toggleAccountMenu = (event, accountId) => {
     }
 };
 
-// FORM HANDLERS
+// MODAL HANDLERS
 const handleNewAccount = () => {
     console.log('🆕 Nueva cuenta');
-    
-    // Hacer scroll hacia arriba para que el formulario sea visible
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    
     modalEditMode.value = false;
     editingAccountId.value = null;
-    showAccountForm.value = true;
+    showAccountModal.value = true;
 };
 
 const handleEditAccount = (account) => {
     console.log('✏️ Editar cuenta:', account);
-    
-    // Hacer scroll hacia arriba para que el formulario sea visible
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    
     modalEditMode.value = true;
     editingAccountId.value = account.id;
-    showAccountForm.value = true;
+    showAccountModal.value = true;
 };
 
-const handleFormCancel = () => {
-    console.log('❌ Cancelar formulario');
-    
-    showAccountForm.value = false;
+const handleModalCancel = () => {
+    showAccountModal.value = false;
     modalEditMode.value = false;
     editingAccountId.value = null;
 };
 
 const handleAccountSubmit = async ({ data, isEdit, accountId }) => {
     console.log('📤 Procesando envío de cuenta:', { data, isEdit, accountId });
-    
+
     try {
         let result;
 
@@ -301,14 +282,14 @@ const handleAccountSubmit = async ({ data, isEdit, accountId }) => {
 
         if (result) {
             console.log('✅ Operación exitosa:', result);
-            handleFormCancel(); // Cerrar el formulario al completar exitosamente
+            handleModalCancel(); // Cerrar el modal al completar exitosamente
         } else {
             throw new Error('La operación no devolvió un resultado válido');
         }
 
     } catch (error) {
         console.error('💥 Error en handleAccountSubmit:', error);
-        
+
         // Mostrar error específico
         toast.add({
             severity: 'error',
@@ -332,7 +313,7 @@ const handleViewTransactions = (account) => {
 
 const handleDeleteAccount = (account) => {
     console.log('🗑️ Eliminar cuenta:', account);
-    
+
     confirm.require({
         message: `¿Estás seguro de eliminar la cuenta "${account.nombre}"?`,
         header: 'Confirmar Eliminación',
@@ -354,15 +335,12 @@ const handleDeleteAccount = (account) => {
 // Función para cargar datos
 const loadData = async () => {
     try {
-        console.log('🔄 Cargando datos...');
-        
         await Promise.all([
             accountsStore.fetchBanks({ toast }),
             accountsStore.fetchAccountsWithDetails({ toast })
         ]);
-        
+
         isInitialLoad.value = false;
-        console.log('✅ Datos cargados exitosamente');
     } catch (error) {
         console.error('💥 Error cargando datos:', error);
         toast.add({
@@ -378,19 +356,19 @@ const loadData = async () => {
 const refreshData = async () => {
     try {
         console.log('🔄 Refrescando datos...');
-        
+
         await Promise.all([
             accountsStore.refreshBanks({ toast }),
             accountsStore.refreshAccounts({ toast })
         ]);
-        
+
         toast.add({
             severity: 'success',
             summary: 'Actualizado',
             detail: 'Datos actualizados correctamente',
             life: 3000
         });
-        
+
         console.log('✅ Datos refrescados exitosamente');
     } catch (error) {
         console.error('💥 Error refrescando datos:', error);
@@ -420,21 +398,5 @@ onMounted(() => {
 
 .material-symbols-outlined {
     font-size: 20px;
-}
-
-/* Animaciones para la transición del formulario */
-.slide-fade-enter-active,
-.slide-fade-leave-active {
-  transition: all 0.3s ease-out;
-}
-
-.slide-fade-enter-from {
-  transform: translateY(-20px);
-  opacity: 0;
-}
-
-.slide-fade-leave-to {
-  transform: translateY(-20px);
-  opacity: 0;
 }
 </style>

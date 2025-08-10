@@ -1,184 +1,180 @@
 <template>
-    <div class="account-form">
+    <div class="p-2">
         <div v-if="isLoading" class="flex justify-center py-6">
             <ProgressSpinner />
         </div>
-        <div v-else class="account-form-content">
-            <form @submit.prevent="submitForm">
+        <div v-else>
+            <form @submit.prevent="submitForm" class="space-y-6">
                 <!-- Tipo de cuenta -->
-                <div class="field mb-4">
-                    <span class="block mb-2 font-medium">Tipo de Cuenta</span>
-                    <div class="flex flex-wrap gap-3">
-                        <div v-for="type in accountTypes" :key="type.value" class="account-type-selector">
-                            <RadioButton v-model="accountForm.tipo" :inputId="`type_${type.value}`" name="accountType"
-                                :value="type.value" :disabled="isEdit && !canChangeType" />
-                            <label :for="`type_${type.value}`" class="account-type-label ml-2">
-                                <i :class="type.icon" class="mr-2"></i>
-                                {{ type.label }}
-                            </label>
-                        </div>
+                <div class="field">
+                    <label class="block mb-3 font-medium text-lg">Tipo de Cuenta *</label>
+                    <div class="flex justify-center">
+                        <SelectButton v-model="accountForm.tipo" :options="accountTypes" optionLabel="label"
+                            optionValue="value" :disabled="isEdit && !canChangeType">
+                            <template #option="slotProps">
+                                <div class="flex flex-col items-center gap-1 p-0 min-w-0">
+                                    <i :class="slotProps.option.icon" class="text-lg"></i>
+                                    <span class="text-xs text-center leading-tight">{{ slotProps.option.label }}</span>
+                                </div>
+                            </template>
+                        </SelectButton>
                     </div>
                 </div>
 
-                <!-- Información básica -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <!-- Nombre -->
-                    <div class="field">
-                        <label for="accountName" class="block mb-2 font-medium">Nombre de la cuenta *</label>
-                        <InputText id="accountName" v-model.trim="accountForm.nombre" class="w-full"
-                            placeholder="Ej: Cuenta Nómina"
-                            :class="{ 'p-invalid': v$.nombre.$invalid && v$.nombre.$dirty }"
-                            @blur="v$.nombre.$touch()" />
-                        <small v-if="v$.nombre.$invalid && v$.nombre.$dirty" class="p-error block mt-1">
-                            {{ v$.nombre.$errors[0].$message }}
-                        </small>
-                    </div>
+                <!-- Nombre de la cuenta -->
+                <div class="field">
+                    <label for="accountName" class="block mb-2 font-medium">Nombre de la cuenta *</label>
+                    <InputText id="accountName" v-model.trim="accountForm.nombre" class="w-full"
+                        placeholder="Ej: Cuenta Nómina" :class="{ 'p-invalid': v$.nombre.$invalid && v$.nombre.$dirty }"
+                        @blur="v$.nombre.$touch()" />
+                    <small v-if="v$.nombre.$invalid && v$.nombre.$dirty" class="p-error block mt-1">
+                        {{ v$.nombre.$errors[0].$message }}
+                    </small>
+                </div>
 
-                    <!-- Banco -->
-                    <div class="field">
-                        <label for="accountBank" class="block mb-2 font-medium">Banco</label>
-                        <Dropdown id="accountBank" v-model="accountForm.banco_id" :options="bankOptions"
-                            optionLabel="label" optionValue="value" class="w-full" placeholder="Seleccionar banco"
-                            :filter="true">
-                            <template #value="slotProps">
-                                <div v-if="slotProps.value" class="flex items-center">
-                                    <span v-if="getBankById(slotProps.value)?.color" class="w-3 h-3 rounded-full mr-2"
-                                        :style="{ backgroundColor: getBankById(slotProps.value)?.color }"></span>
-                                    {{ getBankById(slotProps.value)?.name || slotProps.placeholder }}
-                                </div>
-                                <span v-else>{{ slotProps.placeholder }}</span>
-                            </template>
-                            <template #option="slotProps">
-                                <div class="flex items-center">
-                                    <span v-if="slotProps.option.color" class="w-3 h-3 rounded-full mr-2"
-                                        :style="{ backgroundColor: slotProps.option.color }"></span>
-                                    {{ slotProps.option.label }}
-                                </div>
-                            </template>
-                        </Dropdown>
-                    </div>
+                <!-- Banco -->
+                <div class="field">
+                    <label for="accountBank" class="block mb-2 font-medium">Banco</label>
+                    <Select id="accountBank" v-model="accountForm.banco_id" :options="bankOptions" optionLabel="label"
+                        optionValue="value" class="w-full" placeholder="Seleccionar banco" :filter="true">
+                        <template #value="slotProps">
+                            <div v-if="slotProps.value" class="flex items-center">
+                                <span v-if="getBankById(slotProps.value)?.color" class="w-3 h-3 rounded-full mr-2"
+                                    :style="{ backgroundColor: getBankById(slotProps.value)?.color }"></span>
+                                {{ getBankById(slotProps.value)?.name || slotProps.placeholder }}
+                            </div>
+                            <span v-else>{{ slotProps.placeholder }}</span>
+                        </template>
+                        <template #option="slotProps">
+                            <div class="flex items-center">
+                                <span v-if="getBankById(slotProps.option.value)?.color"
+                                    class="w-3 h-3 rounded-full mr-2"
+                                    :style="{ backgroundColor: getBankById(slotProps.option.value)?.color }"></span>
+                                {{ slotProps.option.label }}
+                            </div>
+                        </template>
+                    </Select>
                 </div>
 
                 <!-- Campos específicos según el tipo de cuenta -->
-                <div class="mb-4">
+                <div class="space-y-6">
                     <!-- Tarjeta de Crédito -->
                     <div v-if="accountForm.tipo === 'credit_card'" class="space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <!-- Últimos 4 dígitos -->
-                            <div class="field">
-                                <label for="lastFourDigits" class="block mb-2 font-medium">Últimos 4 dígitos</label>
-                                <InputText id="lastFourDigits" v-model="accountForm.metadatos.last4" class="w-full"
-                                    placeholder="0000" maxlength="4" @input="formatLastFourDigits" />
-                            </div>
-
-                            <!-- Límite de crédito -->
-                            <div class="field">
-                                <label for="creditLimit" class="block mb-2 font-medium">Límite de crédito *</label>
-                                <div class="p-inputgroup">
-                                    <span class="p-inputgroup-addon">$</span>
-                                    <BalanceInput v-model="accountForm.tarjeta_credito.limite_credito" :maxDigits="10"
-                                        :showExpression="false" />
-                                </div>
-                                <small
-                                    v-if="v$.tarjeta_credito?.limite_credito?.$invalid && v$.tarjeta_credito?.limite_credito?.$dirty"
-                                    class="p-error block mt-1">
-                                    El límite de crédito es obligatorio y debe ser mayor a cero
-                                </small>
-                            </div>
+                        <!-- Últimos 4 dígitos -->
+                        <div class="field">
+                            <label for="lastFourDigits" class="block mb-2 font-medium">Últimos 4 dígitos</label>
+                            <InputText id="lastFourDigits" v-model="accountForm.metadatos.last4" class="w-full"
+                                placeholder="0000" maxlength="4" @input="formatLastFourDigits" />
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <!-- Día de corte -->
-                            <div class="field">
-                                <label for="cutoffDay" class="block mb-2 font-medium">Día de corte *</label>
-                                <InputNumber id="cutoffDay" v-model="accountForm.tarjeta_credito.dia_corte"
-                                    class="w-full" :min="1" :max="31" showButtons
-                                    :class="{ 'p-invalid': v$.tarjeta_credito?.dia_corte?.$invalid && v$.tarjeta_credito?.dia_corte?.$dirty }"
-                                    @blur="v$.tarjeta_credito?.dia_corte?.$touch()" />
-                                <small
-                                    v-if="v$.tarjeta_credito?.dia_corte?.$invalid && v$.tarjeta_credito?.dia_corte?.$dirty"
-                                    class="p-error block mt-1">
-                                    Debe ser un día del mes válido (1-31)
-                                </small>
+                        <!-- Límite de crédito -->
+                        <div class="field">
+                            <label for="creditLimit" class="block mb-2 font-medium">Límite de crédito *</label>
+                            <div class="p-inputgroup">
+                                <BalanceInput v-model="accountForm.tarjeta_credito.limite_credito" :maxDigits="10"
+                                    :showExpression="false" />
                             </div>
-
-                            <!-- Día de pago -->
-                            <div class="field">
-                                <label for="paymentDay" class="block mb-2 font-medium">Día de pago *</label>
-                                <InputNumber id="paymentDay" v-model="accountForm.tarjeta_credito.dia_pago"
-                                    class="w-full" :min="1" :max="31" showButtons
-                                    :class="{ 'p-invalid': v$.tarjeta_credito?.dia_pago?.$invalid && v$.tarjeta_credito?.dia_pago?.$dirty }"
-                                    @blur="v$.tarjeta_credito?.dia_pago?.$touch()" />
-                                <small
-                                    v-if="v$.tarjeta_credito?.dia_pago?.$invalid && v$.tarjeta_credito?.dia_pago?.$dirty"
-                                    class="p-error block mt-1">
-                                    Debe ser un día del mes válido (1-31)
-                                </small>
-                            </div>
-
-                            <!-- CAT % -->
-                            <div class="field">
-                                <label for="catRate" class="block mb-2 font-medium">CAT %</label>
-                                <InputNumber id="catRate" v-model="accountForm.tarjeta_credito.porcentaje_cat"
-                                    class="w-full" :min="0" :max="200" suffix="%" :minFractionDigits="2" />
-                            </div>
+                            <small
+                                v-if="v$.tarjeta_credito?.limite_credito?.$invalid && v$.tarjeta_credito?.limite_credito?.$dirty"
+                                class="p-error block mt-1">
+                                {{ v$.tarjeta_credito?.limite_credito?.$errors[0].$message }}
+                            </small>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- Crédito disponible -->
-                            <div class="field">
-                                <label for="availableCredit" class="block mb-2 font-medium">Crédito disponible *</label>
-                                <div class="p-inputgroup">
-                                    <span class="p-inputgroup-addon">$</span>
-                                    <BalanceInput v-model="accountForm.tarjeta_credito.credito_disponible"
-                                        :maxDigits="10" :showExpression="false" />
-                                </div>
-                                <small
-                                    v-if="v$.tarjeta_credito?.credito_disponible?.$invalid && v$.tarjeta_credito?.credito_disponible?.$dirty"
-                                    class="p-error block mt-1">
-                                    El crédito disponible es obligatorio y debe ser mayor o igual a cero
-                                </small>
+                        <!-- Crédito disponible -->
+                        <div class="field">
+                            <label for="availableCredit" class="block mb-2 font-medium">Crédito disponible *</label>
+                            <div class="p-inputgroup">
+                                <BalanceInput v-model="accountForm.tarjeta_credito.credito_disponible" :maxDigits="10"
+                                    :showExpression="false" />
                             </div>
+                            <small
+                                v-if="v$.tarjeta_credito?.credito_disponible?.$invalid && v$.tarjeta_credito?.credito_disponible?.$dirty"
+                                class="p-error block mt-1">
+                                {{ v$.tarjeta_credito?.credito_disponible?.$errors[0].$message }}
+                            </small>
+                        </div>
 
-                            <!-- Anualidad -->
-                            <div class="field">
-                                <label for="annualFee" class="block mb-2 font-medium">Anualidad</label>
-                                <div class="p-inputgroup">
-                                    <span class="p-inputgroup-addon">$</span>
-                                    <BalanceInput v-model="accountForm.tarjeta_credito.anualidad" :maxDigits="8"
-                                        :showExpression="false" />
-                                </div>
+                        <!-- Día de corte -->
+                        <div class="field">
+                            <label for="cutoffDay" class="block mb-2 font-medium">Día de corte *</label>
+                            <InputNumber id="cutoffDay" v-model="accountForm.tarjeta_credito.dia_corte" :min="1"
+                                :max="31" class="w-full"
+                                :class="{ 'p-invalid': v$.tarjeta_credito?.dia_corte?.$invalid && v$.tarjeta_credito?.dia_corte?.$dirty }"
+                                @blur="v$.tarjeta_credito?.dia_corte?.$touch()" />
+                            <small
+                                v-if="v$.tarjeta_credito?.dia_corte?.$invalid && v$.tarjeta_credito?.dia_corte?.$dirty"
+                                class="p-error block mt-1">
+                                {{ v$.tarjeta_credito?.dia_corte?.$errors[0].$message }}
+                            </small>
+                        </div>
+
+                        <!-- Día de pago -->
+                        <div class="field">
+                            <label for="paymentDay" class="block mb-2 font-medium">Día de pago *</label>
+                            <InputNumber id="paymentDay" v-model="accountForm.tarjeta_credito.dia_pago" :min="1"
+                                :max="31" class="w-full"
+                                :class="{ 'p-invalid': v$.tarjeta_credito?.dia_pago?.$invalid && v$.tarjeta_credito?.dia_pago?.$dirty }"
+                                @blur="v$.tarjeta_credito?.dia_pago?.$touch()" />
+                            <small v-if="v$.tarjeta_credito?.dia_pago?.$invalid && v$.tarjeta_credito?.dia_pago?.$dirty"
+                                class="p-error block mt-1">
+                                {{ v$.tarjeta_credito?.dia_pago?.$errors[0].$message }}
+                            </small>
+                        </div>
+
+                        <!-- CAT % -->
+                        <div class="field">
+                            <label for="catRate" class="block mb-2 font-medium">CAT %</label>
+                            <InputNumber id="catRate" v-model="accountForm.tarjeta_credito.porcentaje_cat" :min="0"
+                                :max="100" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
+                                class="w-full" />
+                        </div>
+
+                        <!-- Anualidad -->
+                        <div class="field">
+                            <label for="annualFee" class="block mb-2 font-medium">Anualidad</label>
+                            <div class="p-inputgroup">
+                                <BalanceInput v-model="accountForm.tarjeta_credito.anualidad" :maxDigits="10"
+                                    :showExpression="false" />
                             </div>
                         </div>
 
                         <!-- Beneficios adicionales -->
                         <div class="field">
-                            <label class="block mb-2 font-medium">Beneficios adicionales</label>
-                            <div class="flex flex-wrap gap-4">
-                                <div class="field-checkbox">
-                                    <Checkbox v-model="accountForm.metadatos.hasInsurance" :binary="true"
-                                        inputId="hasInsurance" />
-                                    <label for="hasInsurance" class="ml-2">Seguro de compras</label>
+                            <label class="block mb-3 font-medium">Beneficios adicionales</label>
+                            <div class="space-y-3">
+                                <div class="field-checkbox flex items-center">
+                                    <Checkbox id="hasRewards" v-model="accountForm.metadatos.hasRewards"
+                                        :binary="true" />
+                                    <label for="hasRewards" class="ml-2">Programa de recompensas</label>
                                 </div>
-                                <div class="field-checkbox">
-                                    <Checkbox v-model="accountForm.metadatos.hasRewards" :binary="true"
-                                        inputId="hasRewards" />
-                                    <label for="hasRewards" class="ml-2">Programa de puntos</label>
+                                <div class="field-checkbox flex items-center">
+                                    <Checkbox id="hasInsurance" v-model="accountForm.metadatos.hasInsurance"
+                                        :binary="true" />
+                                    <label for="hasInsurance" class="ml-2">Seguro incluido</label>
                                 </div>
-                                <div class="flex items-center gap-2">
-                                    <Checkbox v-model="accountForm.metadatos.hasCashback" :binary="true"
-                                        inputId="hasCashback" />
-                                    <label for="hasCashback" class="mr-2">Cashback</label>
-                                    <InputNumber v-if="accountForm.metadatos.hasCashback"
-                                        v-model="accountForm.tarjeta_credito.porcentaje_cashback" class="w-24" :min="0"
-                                        :max="100" suffix="%" :minFractionDigits="2" />
+                                <div class="space-y-2">
+                                    <div class="field-checkbox flex items-center">
+                                        <Checkbox id="hasCashback" v-model="accountForm.metadatos.hasCashback"
+                                            :binary="true" />
+                                        <label for="hasCashback" class="ml-2">Cashback</label>
+                                    </div>
+                                    <div v-if="accountForm.metadatos.hasCashback" class="ml-6">
+                                        <label for="cashbackPercentage"
+                                            class="block mb-2 text-sm font-medium">Porcentaje de
+                                            cashback</label>
+                                        <InputNumber id="cashbackPercentage"
+                                            v-model="accountForm.tarjeta_credito.porcentaje_cashback" :min="0"
+                                            :max="100" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
+                                            suffix="%" placeholder="0.0%" class="w-full" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Tarjeta de débito -->
-                    <div v-if="accountForm.tipo === 'debit_card'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div v-if="accountForm.tipo === 'debit_card'" class="space-y-4">
                         <!-- Últimos 4 dígitos -->
                         <div class="field">
                             <label for="lastFourDigits" class="block mb-2 font-medium">Últimos 4 dígitos</label>
@@ -190,7 +186,6 @@
                         <div class="field">
                             <label for="balance" class="block mb-2 font-medium">Saldo actual *</label>
                             <div class="p-inputgroup">
-                                <span class="p-inputgroup-addon">$</span>
                                 <BalanceInput v-model="accountForm.saldo" :maxDigits="10" :showExpression="false" />
                             </div>
                             <small v-if="v$.saldo.$invalid && v$.saldo.$dirty" class="p-error block mt-1">
@@ -200,7 +195,7 @@
                     </div>
 
                     <!-- Cuenta bancaria -->
-                    <div v-if="accountForm.tipo === 'bank'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div v-if="accountForm.tipo === 'bank'" class="space-y-4">
                         <!-- Número de cuenta (últimos 4 dígitos) -->
                         <div class="field">
                             <label for="accountNumber" class="block mb-2 font-medium">Últimos 4 dígitos</label>
@@ -212,7 +207,6 @@
                         <div class="field">
                             <label for="balance" class="block mb-2 font-medium">Saldo actual *</label>
                             <div class="p-inputgroup">
-                                <span class="p-inputgroup-addon">$</span>
                                 <BalanceInput v-model="accountForm.saldo" :maxDigits="10" :showExpression="false" />
                             </div>
                             <small v-if="v$.saldo.$invalid && v$.saldo.$dirty" class="p-error block mt-1">
@@ -222,11 +216,11 @@
                     </div>
 
                     <!-- Efectivo -->
-                    <div v-if="accountForm.tipo === 'cash'" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div v-if="accountForm.tipo === 'cash'" class="space-y-4">
                         <!-- Ubicación -->
                         <div class="field">
                             <label for="location" class="block mb-2 font-medium">Ubicación</label>
-                            <Dropdown id="location" v-model="accountForm.metadatos.location"
+                            <Select id="location" v-model="accountForm.metadatos.location"
                                 :options="cashLocationOptions" optionLabel="label" optionValue="value" class="w-full"
                                 placeholder="Seleccionar ubicación" />
                         </div>
@@ -235,7 +229,6 @@
                         <div class="field">
                             <label for="balance" class="block mb-2 font-medium">Saldo actual *</label>
                             <div class="p-inputgroup">
-                                <span class="p-inputgroup-addon">$</span>
                                 <BalanceInput v-model="accountForm.saldo" :maxDigits="10" :showExpression="false" />
                             </div>
                             <small v-if="v$.saldo.$invalid && v$.saldo.$dirty" class="p-error block mt-1">
@@ -246,11 +239,11 @@
                 </div>
 
                 <!-- Botones de acción -->
-                <div class="flex justify-end gap-2 pt-4 border-t border-surface-200 dark:border-surface-700">
-                    <Button type="button" label="Cancelar" class="p-button-secondary p-button-outlined"
-                        @click="cancelForm" :disabled="isLoading" />
-                    <Button type="submit" :label="isEdit ? 'Actualizar' : 'Guardar'" :loading="isSubmitting"
+                <div class="flex justify-end gap-2">
+                    <Button type="submit" :label="isEdit ? 'Actualizar Cuenta' : 'Crear Cuenta'" :loading="isSubmitting"
                         :disabled="isLoading" />
+                    <Button type="button" label="Cancelar" severity="secondary" outlined @click="cancelForm"
+                        :disabled="isLoading || isSubmitting" />
                 </div>
             </form>
         </div>
@@ -263,13 +256,6 @@ import { useVuelidate } from '@vuelidate/core';
 import { required, minValue, helpers } from '@vuelidate/validators';
 import { useToast } from 'primevue/usetoast';
 import BalanceInput from '@/components/BalanceInput.vue';
-import ProgressSpinner from 'primevue/progressspinner';
-import Button from 'primevue/button';
-import InputText from 'primevue/inputtext';
-import InputNumber from 'primevue/inputnumber';
-import Dropdown from 'primevue/dropdown';
-import RadioButton from 'primevue/radiobutton';
-import Checkbox from 'primevue/checkbox';
 
 // Props
 const props = defineProps({
@@ -401,7 +387,7 @@ const loadAccountData = async () => {
 
         if (accountToEdit) {
             // Determinar si podemos cambiar el tipo
-            canChangeType.value = !accountToEdit.tarjeta_credito; // No permitir cambiar si es tarjeta de crédito
+            canChangeType.value = !accountToEdit.tarjeta_credito;
 
             // Actualizar el formulario con los datos existentes
             accountForm.value = {
@@ -429,6 +415,9 @@ const loadAccountData = async () => {
                 accountForm.value.metadatos.hasCashback = true;
             }
         }
+    } else {
+        // Resetear formulario para nueva cuenta
+        accountForm.value = { ...defaultForm };
     }
 };
 
@@ -528,6 +517,11 @@ watch(() => accountForm.value.tarjeta_credito.limite_credito, (newLimit) => {
     }
 });
 
+// Watch para resetear el formulario cuando cambian las props
+watch(() => [props.isEdit, props.editAccountId], () => {
+    loadAccountData();
+}, { immediate: true });
+
 // Ciclo de vida
 onMounted(() => {
     loadAccountData();
@@ -535,14 +529,39 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.account-type-selector {
-    display: flex;
-    align-items: center;
+/* Estilos para el SelectButton personalizado */
+:deep(.p-selectbutton) {
+    width: 100%;
 }
 
-.account-type-label {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
+:deep(.p-selectbutton .p-button) {
+    flex: 1;
+    min-width: 0;
+    padding: 0.75rem 0.5rem;
+}
+
+:deep(.p-selectbutton .p-button.p-highlight) {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: var(--primary-color-text);
+}
+
+:deep(.p-selectbutton .p-button:not(.p-highlight)) {
+    background: var(--surface-100);
+    border-color: var(--surface-300);
+    color: var(--text-color-secondary);
+}
+
+:deep(.p-selectbutton .p-button:not(.p-highlight):hover) {
+    background: var(--surface-200);
+    border-color: var(--surface-400);
+}
+
+/* Responsive para dispositivos móviles */
+@media (max-width: 640px) {
+    :deep(.p-selectbutton .p-button) {
+        padding: 0.5rem 0.25rem;
+        font-size: 0.75rem;
+    }
 }
 </style>
