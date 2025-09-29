@@ -49,6 +49,11 @@ const router = createRouter({
                     name: 'accounts',
                     component: () => import('@/views/modules/Accounts/index.vue'),
                 },
+                {
+                    path: '/divisor_de_gastos',
+                    name: 'divisor_de_gastos',
+                    component: () => import('@/views/modules/DivisorGastos/index.vue'),
+                },
             ]
         },
         // Rutas públicas
