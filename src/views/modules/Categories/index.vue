@@ -29,33 +29,36 @@
         </div>
 
         <!-- Content -->
-        <div v-else-if="categoryGroups.length > 0" class="categories-content">
-            <div v-for="group in categoryGroups" :key="group.id" class="category-group-card bg-surface-0 dark:bg-surface-800 border-surface-200 dark:border-surface-700">
+        <div v-else-if="categoryGroups.length > 0" class="flex flex-col gap-4">
+            <div v-for="group in categoryGroups" :key="group.id" 
+                class="bg-surface-0 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
                 <!-- Header del Grupo -->
-                <div class="group-header" @click="toggleGroup(group.id)">
-                    <div class="group-info">
+                <div class="flex items-center justify-between p-4 md:py-5 md:px-6 cursor-pointer gap-3 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors duration-200" 
+                    @click="toggleGroup(group.id)">
+                    <div class="flex items-center gap-3 flex-1 min-w-0">
                         <!-- Icono del grupo -->
-                        <div class="group-icon" :style="{ backgroundColor: group.color || '#6366f1' }">
+                        <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md" 
+                            :style="{ backgroundColor: hexToRgba(group.color || '#6366f1', 0.65) }">
                             <span v-if="group.biblioteca_iconos === 'material'"
-                                class="material-symbols-outlined">{{ group.nombre_icono }}</span>
-                            <i v-else :class="group.nombre_icono || 'pi pi-folder'"></i>
+                                class="material-symbols-outlined text-white text-2xl">{{ group.nombre_icono }}</span>
+                            <i v-else :class="group.nombre_icono || 'pi pi-folder'" class="text-white text-2xl"></i>
                         </div>
 
                         <!-- Nombre y descripción -->
-                        <div class="group-text">
-                            <h3 class="group-name">{{ group.nombre }}</h3>
-                            <p v-if="group.descripcion" class="group-description">{{ group.descripcion }}</p>
-                            <span class="group-count">{{ group.categories.length }} {{ group.categories.length === 1 ? 'categoría' : 'categorías' }}</span>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-0 m-0 mb-1 truncate">{{ group.nombre }}</h3>
+                            <p v-if="group.descripcion" class="text-sm text-surface-600 dark:text-surface-400 m-0 mt-[-8px] mb-0 truncate">{{ group.descripcion }}</p>
+                            <span class="text-xs text-surface-500 font-medium">{{ group.categories.length }} {{ group.categories.length === 1 ? 'categoría' : 'categorías' }}</span>
                         </div>
                     </div>
 
                     <!-- Acciones del grupo -->
-                    <div class="group-actions">
+                    <div class="flex gap-1 flex-shrink-0">
                         <Button icon="pi pi-plus" severity="success" rounded text size="small"
-                            @click.stop="handleNewCategory(group.id)" class="action-icon-btn" />
+                            @click.stop="handleNewCategory(group.id)" class="!w-9 !h-9" />
 
                         <Button icon="pi pi-ellipsis-v" severity="secondary" rounded text size="small"
-                            @click.stop="(event) => toggleGroupMenu(event, group.id)" class="action-icon-btn" />
+                            @click.stop="(event) => toggleGroupMenu(event, group.id)" class="!w-9 !h-9" />
 
                         <!-- Menú popup para cada grupo -->
                         <Menu :ref="(el) => setGroupMenuRef(el, group.id)" :id="`group_menu_${group.id}`"
@@ -65,43 +68,44 @@
 
                 <!-- Contenido del Grupo (Categorías) -->
                 <Transition name="expand">
-                    <div v-show="!collapsedGroups[group.id]" class="group-content">
+                    <div v-show="!collapsedGroups[group.id]" class="p-0 px-4 pb-4 md:px-6 md:pb-6">
                         <!-- Mensaje si no hay categorías -->
-                        <div v-if="group.categories.length === 0" class="empty-categories bg-surface-50 dark:bg-surface-900 border-surface-300 dark:border-surface-600">
-                            <i class="pi pi-inbox"></i>
-                            <span>No hay categorías en este grupo</span>
+                        <div v-if="group.categories.length === 0" class="flex flex-col items-center justify-center py-8 px-4 gap-3 rounded-lg border border-dashed border-surface-300 dark:border-surface-600 bg-surface-50 dark:bg-surface-900">
+                            <i class="pi pi-inbox text-4xl text-surface-400 dark:text-surface-500"></i>
+                            <span class="text-sm text-surface-600 dark:text-surface-400">No hay categorías en este grupo</span>
                             <Button label="Agregar categoría" icon="pi pi-plus" size="small" text
                                 @click="handleNewCategory(group.id)" />
                         </div>
 
                         <!-- Lista de categorías en grid mobile -->
-                        <div v-else class="categories-grid">
-                            <div v-for="category in group.categories" :key="category.id" class="category-item bg-surface-50 dark:bg-surface-700 border-surface-200 dark:border-surface-600"
+                        <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div v-for="category in group.categories" :key="category.id" 
+                                class="flex items-center gap-3 py-3.5 px-3.5 border border-solid rounded-lg cursor-pointer transition-all duration-200 min-h-[64px] bg-surface-50 dark:bg-surface-700 border-surface-200 dark:border-surface-600 hover:bg-surface-100 dark:hover:bg-surface-600 hover:border-surface-300 dark:hover:border-surface-500 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98]"
                                 @click="() => handleCategoryClick(category, group)">
                                 <!-- Icono de la categoría -->
-                                <div class="category-icon" :style="{ backgroundColor: group.color || '#6366f1' }">
+                                <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md" :style="{ backgroundColor: hexToRgba(group.color || '#6366f1', 0.65) }">
                                     <span v-if="category.biblioteca_iconos === 'material'"
-                                        class="material-symbols-outlined">{{ category.nombre_icono }}</span>
-                                    <i v-else :class="category.nombre_icono || 'pi pi-tag'"></i>
+                                        class="material-symbols-outlined text-white text-xl">{{ category.nombre_icono }}</span>
+                                    <i v-else :class="category.nombre_icono || 'pi pi-tag'" class="text-white text-xl"></i>
                                 </div>
 
                                 <!-- Info de la categoría -->
-                                <div class="category-info">
-                                    <h4 class="category-name">{{ category.nombre }}</h4>
-                                    <p v-if="category.descripcion" class="category-description">
+                                <div class="flex-1 min-w-0">
+                                    <h4 class="text-sm font-semibold text-surface-900 dark:text-surface-100 m-0 mb-0.5 truncate">{{ category.nombre }}</h4>
+                                    <p v-if="category.descripcion" class="text-xs text-surface-600 dark:text-surface-400 m-0 truncate">
                                         {{ category.descripcion }}
                                     </p>
                                 </div>
 
                                 <!-- Badge y menú -->
-                                <div class="category-actions">
+                                <div class="flex items-center gap-2 flex-shrink-0">
                                     <Badge v-if="!category.es_publico" value="Personal" severity="success" size="small" />
 
                                     <!-- Menú de opciones solo para categorías privadas -->
                                     <Button v-if="!category.es_publico" icon="pi pi-ellipsis-v" severity="secondary"
                                         rounded text size="small"
                                         @click.stop="(event) => toggleCategoryMenu(event, category.id)"
-                                        class="action-icon-btn" />
+                                        class="!w-9 !h-9" />
 
                                     <!-- Menú popup para cada categoría -->
                                     <Menu v-if="!category.es_publico" :ref="(el) => setCategoryMenuRef(el, category.id)"
@@ -116,13 +120,13 @@
         </div>
 
         <!-- Empty State -->
-        <div v-else class="empty-state">
-            <div class="empty-state-content">
-                <i class="pi pi-folder-open empty-icon"></i>
+        <div v-else class="flex items-center justify-center min-h-[400px] py-8 px-4">
+            <div class="text-center max-w-md">
+                <i class="pi pi-folder-open text-6xl text-surface-300 dark:text-surface-600 mb-6"></i>
                 
-                <h3 class="empty-title">No hay grupos de categorías</h3>
+                <h3 class="text-xl font-semibold text-surface-700 dark:text-surface-300 m-0 mb-2">No hay grupos de categorías</h3>
                 
-                <p class="empty-description">
+                <p class="text-sm text-surface-500 dark:text-surface-400 m-0 mb-6">
                     No se encontraron grupos de categorías disponibles
                 </p>
                 
@@ -163,6 +167,24 @@ const categoryGroups = computed(() => categoriesStore.categoryGroups);
 const groupMenuRefs = ref({});
 const categoryMenuRefs = ref({});
 const collapsedGroups = ref({});
+
+// FUNCTIONS - Helper para convertir hex a rgba con opacidad
+const hexToRgba = (hex, opacity = 1) => {
+    // Remover el # si existe
+    hex = hex.replace('#', '');
+    
+    // Convertir hex de 3 dígitos a 6 dígitos
+    if (hex.length === 3) {
+        hex = hex.split('').map(char => char + char).join('');
+    }
+    
+    // Extraer RGB
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
 
 // FUNCTIONS - Toggle group collapse
 const toggleGroup = (groupId) => {
@@ -516,139 +538,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* ===== CONTENT ===== */
-.categories-content {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-/* ===== CATEGORY GROUP CARD ===== */
-.category-group-card {
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    transition: box-shadow 0.2s;
-}
-
-.category-group-card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-/* ===== GROUP HEADER ===== */
-.group-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1rem;
-    cursor: pointer;
-    transition: background-color 0.2s;
-    gap: 0.75rem;
-}
-
-.group-header:hover {
-    background: var(--p-surface-50);
-}
-
-:global(.app-dark) .group-header:hover {
-    background: var(--p-surface-700);
-}
-
-@media (min-width: 768px) {
-    .group-header {
-        padding: 1.25rem 1.5rem;
-    }
-}
-
-.group-info {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex: 1;
-    min-width: 0;
-}
-
-.group-icon {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.group-icon .material-symbols-outlined,
-.group-icon i {
-    color: white;
-    font-size: 24px;
-}
-
-.group-text {
-    flex: 1;
-    min-width: 0;
-}
-
-.group-name {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: var(--p-surface-900);
-    margin: 0 0 0.25rem 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-:global(.app-dark) .group-name {
-    color: var(--p-surface-0);
-}
-
-.group-description {
-    font-size: 0.875rem;
-    color: var(--p-surface-600);
-    margin: 0 0 0.25rem 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-:global(.app-dark) .group-description {
-    color: var(--p-surface-400);
-}
-
-.group-count {
-    font-size: 0.75rem;
-    color: var(--p-surface-500);
-    font-weight: 500;
-}
-
-:global(.app-dark) .group-count {
-    color: var(--p-surface-500);
-}
-
-.group-actions {
-    display: flex;
-    gap: 0.25rem;
-    flex-shrink: 0;
-}
-
-.action-icon-btn {
-    width: 36px !important;
-    height: 36px !important;
-}
-
-/* ===== GROUP CONTENT ===== */
-.group-content {
-    padding: 0 1rem 1rem 1rem;
-}
-
-@media (min-width: 768px) {
-    .group-content {
-        padding: 0 1.5rem 1.5rem 1.5rem;
-    }
-}
-
 /* Animación de expansión */
 .expand-enter-active,
 .expand-leave-active {
@@ -661,196 +550,5 @@ onMounted(() => {
 .expand-leave-to {
     max-height: 0;
     opacity: 0;
-}
-
-/* ===== EMPTY CATEGORIES ===== */
-.empty-categories {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 2rem 1rem;
-    gap: 0.75rem;
-    border-radius: 8px;
-    border-width: 1px;
-    border-style: dashed;
-}
-
-.empty-categories i {
-    font-size: 2rem;
-    color: var(--p-surface-400);
-}
-
-:global(.app-dark) .empty-categories i {
-    color: var(--p-surface-500);
-}
-
-.empty-categories span {
-    font-size: 0.875rem;
-    color: var(--p-surface-600);
-}
-
-:global(.app-dark) .empty-categories span {
-    color: var(--p-surface-400);
-}
-
-/* ===== CATEGORIES GRID ===== */
-.categories-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-}
-
-@media (min-width: 640px) {
-    .categories-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (min-width: 1024px) {
-    .categories-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-
-/* ===== CATEGORY ITEM ===== */
-.category-item {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.875rem;
-    border-width: 1px;
-    border-style: solid;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-    min-height: 64px;
-}
-
-.category-item:hover {
-    background: var(--p-surface-100);
-    border-color: var(--p-surface-300);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-}
-
-:global(.app-dark) .category-item:hover {
-    background: var(--p-surface-600);
-    border-color: var(--p-surface-500);
-}
-
-.category-item:active {
-    transform: scale(0.98);
-}
-
-.category-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-}
-
-.category-icon .material-symbols-outlined,
-.category-icon i {
-    color: white;
-    font-size: 20px;
-}
-
-.category-info {
-    flex: 1;
-    min-width: 0;
-}
-
-.category-name {
-    font-size: 0.875rem;
-    font-weight: 600;
-    color: var(--p-surface-900);
-    margin: 0 0 0.125rem 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-:global(.app-dark) .category-name {
-    color: var(--p-surface-100);
-}
-
-.category-description {
-    font-size: 0.75rem;
-    color: var(--p-surface-600);
-    margin: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-:global(.app-dark) .category-description {
-    color: var(--p-surface-400);
-}
-
-.category-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-}
-
-/* ===== EMPTY STATE ===== */
-.empty-state {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 400px;
-    padding: 2rem 1rem;
-}
-
-.empty-state-content {
-    text-align: center;
-    max-width: 400px;
-}
-
-.empty-icon {
-    font-size: 4rem;
-    color: var(--p-surface-300);
-    margin-bottom: 1.5rem;
-}
-
-:global(.app-dark) .empty-icon {
-    color: var(--p-surface-600);
-}
-
-.empty-title {
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: var(--p-surface-700);
-    margin: 0 0 0.5rem 0;
-}
-
-:global(.app-dark) .empty-title {
-    color: var(--p-surface-300);
-}
-
-.empty-description {
-    font-size: 0.875rem;
-    color: var(--p-surface-500);
-    margin: 0 0 1.5rem 0;
-}
-
-:global(.app-dark) .empty-description {
-    color: var(--p-surface-400);
-}
-
-/* ===== LOADING STATE ===== */
-.categories-container :deep(.p-progress-spinner) {
-    margin: 3rem auto;
-}
-
-/* ===== MATERIAL ICONS ===== */
-.material-symbols-outlined {
-    font-size: 20px;
 }
 </style>
