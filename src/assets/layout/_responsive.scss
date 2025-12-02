@@ -71,7 +71,12 @@
     .layout-wrapper {
         .layout-main-container {
             margin-left: 0;
-            padding-left: 2rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .layout-main {
+            padding: 1rem;
         }
 
         .layout-sidebar {
@@ -106,5 +111,40 @@
                 display: block;
             }
         }
+    }
+
+    // Hacer que el contenido ocupe todo el ancho en mobile
+    .card,
+    .surface-card {
+        margin: 0 !important;
+    }
+
+    // Distribución vertical de grids en mobile
+    .grid {
+        flex-direction: column !important;
+        
+        > div[class*="col-"] {
+            width: 100% !important;
+            max-width: 100% !important;
+            padding: 0.5rem !important;
+        }
+    }
+
+    // Optimizar tablas en mobile
+    .p-datatable {
+        font-size: 0.875rem;
+        
+        .p-datatable-wrapper {
+            overflow-x: auto;
+        }
+    }
+
+    // Optimizar formularios en mobile
+    .p-fluid .p-field {
+        margin-bottom: 1rem;
+    }
+
+    .field {
+        margin-bottom: 1rem;
     }
 }

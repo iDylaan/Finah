@@ -5,7 +5,7 @@ import { useSessionStore } from '@/stores/session.js';
 const router = createRouter({
     history: createWebHistory(),
     routes: [
-        // Rutas protegidas
+        // Rutas protegidas con layout
         {
             path: '/',
             component: AppLayout,
