@@ -1,48 +1,67 @@
 <template>
-    <div class="p-6 mx-auto">
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-6">
-            <div>
-                <h1 class="text-3xl font-bold text-surface-900 dark:text-surface-0 mb-2">
-                    Mis Cuentas
-                </h1>
-                <p class="text-surface-600 dark:text-surface-400">
-                    Gestiona tus cuentas bancarias, tarjetas de crédito y efectivo
-                </p>
-            </div>
-
-            <div class="flex gap-2">
-                <Button icon="pi pi-refresh" @click="refreshData" :loading="accountsStore.loading" severity="secondary"
-                    outlined size="small" />
-                <Button icon="pi pi-plus" @click="handleNewAccount" :disabled="accountsStore.loading" size="small" label="Nueva Cuenta" />
-            </div>
-        </div>
+    <PageLayout 
+        title="Mis Cuentas" 
+        description="Gestiona tus cuentas bancarias, tarjetas de crédito y efectivo"
+    >
+        <!-- Acciones del header -->
+        <template #actions>
+            <Button 
+                icon="pi pi-refresh" 
+                @click="refreshData" 
+                :loading="accountsStore.loading" 
+                severity="secondary" 
+                outlined 
+                size="small"
+                v-tooltip.bottom="'Actualizar'"
+            />
+            <Button 
+                icon="pi pi-plus" 
+                @click="handleNewAccount" 
+                :disabled="accountsStore.loading" 
+                size="small" 
+                label="Nueva Cuenta"
+                class="mobile-icon-only"
+            />
+        </template>
 
         <!-- Loading State -->
-        <div v-if="accountsStore.loading && accounts.length === 0"
-            class="flex justify-center items-center py-12">
+        <div v-if="accountsStore.loading && accounts.length === 0" class="flex justify-center items-center py-12">
             <ProgressSpinner />
         </div>
 
         <!-- Content -->
-        <div v-else-if="accounts.length > 0" class="space-y-4">
-            <Card v-for="account in accounts" :key="account.id"
-                class="bg-surface-0 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200">
+        <div v-else-if="accounts.length > 0" class="grid grid-cols-1 gap-4">
+            <div v-for="account in accounts" :key="account.id"
+                class="group cursor-pointer rounded-xl overflow-hidden relative hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-surface-300 dark:hover:border-surface-600"
+                :style="{ backgroundColor: hexToRgba(getAccountColor(account), 0.1) }"
+                @click="handleEditAccount(account)">
 
-                <template #content>
+                <!-- Fondo con gradiente sutil -->
+                <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    :style="{ background: `linear-gradient(135deg, ${hexToRgba(getAccountColor(account), 0.15)} 0%, ${hexToRgba(getAccountColor(account), 0.05)} 100%)` }">
+                </div>
+
+                <!-- Contenido -->
+                <div class="relative">
                     <div class="flex items-center gap-4 p-4">
                         <!-- Icono de la cuenta/banco -->
-                        <div class="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm"
-                            :style="{ backgroundColor: getAccountColor(account) }">
-                            <i :class="getAccountIcon(account)" class="text-white text-lg"></i>
+                        <div class="flex-shrink-0 w-14 h-14 rounded-lg flex items-center justify-center"
+                            :style="{ backgroundColor: hexToRgba(getAccountColor(account), 0.9) }">
+                            <i v-if="account.banco?.libreria_icono === 'primevue'"
+                                :class="[account.banco.nombre_icono, 'text-2xl text-white']"></i>
+                            <span v-else-if="account.banco?.libreria_icono === 'material'"
+                                class="material-symbols-rounded text-white text-2xl">
+                                {{ account.banco.nombre_icono }}
+                            </span>
+                            <i v-else :class="getAccountIcon(account)" class="text-white text-2xl"></i>
                         </div>
 
                         <!-- Info de la cuenta -->
-                        <div class="flex-1">
-                            <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-0 mb-1">
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-base font-semibold text-surface-900 dark:text-surface-100 truncate mb-0.5">
                                 {{ account.nombre }}
                             </h3>
-                            <div class="flex items-center gap-2 text-sm text-surface-600 dark:text-surface-400">
+                            <div class="flex items-center gap-2 text-xs text-surface-500 dark:text-surface-400">
                                 <span>{{ getAccountTypeLabel(account.tipo) }}</span>
                                 <span v-if="account.banco">• {{ account.banco.nombre }}</span>
                                 <span v-if="account.metadatos?.last4">• ••{{ account.metadatos.last4 }}</span>
@@ -50,15 +69,15 @@
                         </div>
 
                         <!-- Información de saldo/crédito -->
-                        <div class="text-right">
+                        <div class="text-right flex-shrink-0">
                             <div v-if="account.tipo === 'credit_card' && account.tarjeta_credito">
                                 <p class="text-lg font-bold text-surface-900 dark:text-surface-0">
                                     {{ formatCurrency(account.tarjeta_credito.credito_disponible) }}
                                 </p>
                                 <p class="text-xs text-surface-500">
-                                    disponible de {{ formatCurrency(account.tarjeta_credito.limite_credito) }}
+                                    de {{ formatCurrency(account.tarjeta_credito.limite_credito) }}
                                 </p>
-                                <div class="mt-1 flex flex-wrap gap-1">
+                                <div class="mt-2 flex flex-wrap gap-1 justify-end">
                                     <!-- Badges para información básica -->
                                     <Badge :value="`Pago: ${account.tarjeta_credito.dia_pago}`" severity="info"
                                         size="small" />
@@ -89,36 +108,33 @@
                         </div>
 
                         <!-- Menú de acciones -->
-                        <div class="flex items-center">
-                            <Button icon="pi pi-ellipsis-v" severity="secondary" rounded text
-                                @click="(event) => toggleAccountMenu(event, account.id)" />
+                        <div class="flex-shrink-0">
+                            <button class="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors opacity-0 group-hover:opacity-100"
+                                @click.stop="toggleAccountMenu($event, account.id)">
+                                <i class="pi pi-ellipsis-v text-surface-600 dark:text-surface-400 text-sm"></i>
+                            </button>
 
                             <Menu :ref="(el) => setAccountMenuRef(el, account.id)" :id="`account_menu_${account.id}`"
                                 :model="getAccountMenuItems(account)" popup />
                         </div>
                     </div>
-                </template>
-            </Card>
+                </div>
+            </div>
         </div>
 
         <!-- Empty State -->
-        <Card v-else
-            class="backdrop-blur-md bg-surface-0/80 dark:bg-surface-800/80 border border-surface-200/30 dark:border-surface-700/30">
-            <template #content>
-                <div class="text-center py-12">
-                    <div class="mb-6">
-                        <i class="pi pi-credit-card text-6xl text-surface-300 dark:text-surface-600"></i>
-                    </div>
-                    <h3 class="text-xl font-semibold text-surface-700 dark:text-surface-300 mb-2">
-                        No hay cuentas registradas
-                    </h3>
-                    <p class="text-surface-500 dark:text-surface-400 mb-6 max-w-md mx-auto">
-                        Registra tu primera cuenta bancaria, tarjeta o efectivo para comenzar
-                    </p>
-                    <Button label="Crear Primera Cuenta" icon="pi pi-plus" @click="handleNewAccount" />
-                </div>
-            </template>
-        </Card>
+        <div v-else class="flex items-center justify-center min-h-[200px] py-8 px-4">
+            <div class="text-center max-w-md">
+                <span class="material-symbols-outlined text-surface-300 dark:text-surface-600" style="font-size: 3.5rem">account_balance_wallet</span>
+                <h3 class="text-base font-medium text-surface-700 dark:text-surface-300 mb-2">
+                    No hay cuentas registradas
+                </h3>
+                <p class="text-sm text-surface-500 dark:text-surface-400 mb-4">
+                    Registra tu primera cuenta bancaria, tarjeta o efectivo para comenzar
+                </p>
+                <Button label="Crear Primera Cuenta" icon="pi pi-plus" @click="handleNewAccount" size="small" />
+            </div>
+        </div>
 
         <!-- Modal de Cuenta -->
         <AccountModal 
@@ -132,7 +148,7 @@
             @cancel="handleModalCancel"
             @close="handleModalCancel"
         />
-    </div>
+    </PageLayout>
 </template>
 
 <script setup>
@@ -141,6 +157,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import { useAccountsStore } from '@/stores/accounts.js';
+import PageLayout from '@/components/PageLayout.vue';
 import AccountModal from './components/AccountModal.vue';
 
 // STORES & COMPOSABLES
@@ -158,7 +175,24 @@ const showAccountModal = ref(false);
 const modalEditMode = ref(false);
 const editingAccountId = ref(null);
 
-// FUNCTIONS
+// FUNCTIONS - Helper para convertir hex a rgba con opacidad
+const hexToRgba = (hex, opacity = 1) => {
+    // Remover el # si existe
+    hex = hex.replace('#', '');
+    
+    // Convertir hex de 3 dígitos a 6 dígitos
+    if (hex.length === 3) {
+        hex = hex.split('').map(char => char + char).join('');
+    }
+    
+    // Extraer RGB
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
 const getAccountTypeLabel = (type) => {
     const types = {
         'cash': 'Efectivo',
@@ -387,16 +421,6 @@ onMounted(() => {
 });
 </script>
 
-<style scoped>
-.account-card {
-    transition: transform 0.2s ease-in-out;
-}
-
-.account-card:hover {
-    transform: translateY(-2px);
-}
-
-.material-symbols-outlined {
-    font-size: 20px;
-}
+<style lang="scss" scoped>
+// Estilos adicionales si son necesarios
 </style>

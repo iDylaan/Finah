@@ -1,18 +1,18 @@
 <template>
-    <div class="p-2">
+    <div class="p-2 md:p-4">
         <div v-if="isLoading" class="flex justify-center py-6">
             <ProgressSpinner />
         </div>
         <div v-else>
-            <form @submit.prevent="submitForm" class="space-y-6">
+            <form @submit.prevent="submitForm" class="space-y-4 md:space-y-6">
                 <!-- Tipo de cuenta -->
                 <div class="field">
-                    <label class="block mb-3 font-medium text-lg">Tipo de Cuenta *</label>
+                    <label class="block mb-2 md:mb-3 font-medium text-base md:text-lg">Tipo de Cuenta *</label>
                     <div class="flex justify-center">
                         <SelectButton v-model="accountForm.tipo" :options="accountTypes" optionLabel="label"
-                            optionValue="value" :disabled="isEdit && !canChangeType">
+                            optionValue="value" :disabled="isEdit && !canChangeType" class="w-full">
                             <template #option="slotProps">
-                                <div class="flex flex-col items-center gap-1 p-0 min-w-0">
+                                <div class="flex flex-col items-center gap-0.5 md:gap-1 p-0 min-w-0">
                                     <i :class="slotProps.option.icon" class="text-lg"></i>
                                     <span class="text-xs text-center leading-tight">{{ slotProps.option.label }}</span>
                                 </div>
@@ -59,7 +59,7 @@
                 <!-- Campos específicos según el tipo de cuenta -->
                 <div class="space-y-6">
                     <!-- Tarjeta de Crédito -->
-                    <div v-if="accountForm.tipo === 'credit_card'" class="space-y-4">
+                    <div v-if="accountForm.tipo === 'credit_card'" class="space-y-3 md:space-y-4">
                         <!-- Últimos 4 dígitos -->
                         <div class="field">
                             <label for="lastFourDigits" class="block mb-2 font-medium">Últimos 4 dígitos</label>
@@ -95,54 +95,60 @@
                             </small>
                         </div>
 
-                        <!-- Día de corte -->
-                        <div class="field">
-                            <label for="cutoffDay" class="block mb-2 font-medium">Día de corte *</label>
-                            <InputNumber id="cutoffDay" v-model="accountForm.tarjeta_credito.dia_corte" :min="1"
-                                :max="31" class="w-full"
-                                :class="{ 'p-invalid': v$.tarjeta_credito?.dia_corte?.$invalid && v$.tarjeta_credito?.dia_corte?.$dirty }"
-                                @blur="v$.tarjeta_credito?.dia_corte?.$touch()" />
-                            <small
-                                v-if="v$.tarjeta_credito?.dia_corte?.$invalid && v$.tarjeta_credito?.dia_corte?.$dirty"
-                                class="p-error block mt-1">
-                                {{ v$.tarjeta_credito?.dia_corte?.$errors[0].$message }}
-                            </small>
+                        <!-- Días de corte y pago -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                            <!-- Día de corte -->
+                            <div class="field">
+                                <label for="cutoffDay" class="block mb-2 font-medium">Día de corte *</label>
+                                <InputNumber id="cutoffDay" v-model="accountForm.tarjeta_credito.dia_corte" :min="1"
+                                    :max="31" class="w-full"
+                                    :class="{ 'p-invalid': v$.tarjeta_credito?.dia_corte?.$invalid && v$.tarjeta_credito?.dia_corte?.$dirty }"
+                                    @blur="v$.tarjeta_credito?.dia_corte?.$touch()" />
+                                <small
+                                    v-if="v$.tarjeta_credito?.dia_corte?.$invalid && v$.tarjeta_credito?.dia_corte?.$dirty"
+                                    class="p-error block mt-1">
+                                    {{ v$.tarjeta_credito?.dia_corte?.$errors[0].$message }}
+                                </small>
+                            </div>
+
+                            <!-- Día de pago -->
+                            <div class="field">
+                                <label for="paymentDay" class="block mb-2 font-medium">Día de pago *</label>
+                                <InputNumber id="paymentDay" v-model="accountForm.tarjeta_credito.dia_pago" :min="1"
+                                    :max="31" class="w-full"
+                                    :class="{ 'p-invalid': v$.tarjeta_credito?.dia_pago?.$invalid && v$.tarjeta_credito?.dia_pago?.$dirty }"
+                                    @blur="v$.tarjeta_credito?.dia_pago?.$touch()" />
+                                <small v-if="v$.tarjeta_credito?.dia_pago?.$invalid && v$.tarjeta_credito?.dia_pago?.$dirty"
+                                    class="p-error block mt-1">
+                                    {{ v$.tarjeta_credito?.dia_pago?.$errors[0].$message }}
+                                </small>
+                            </div>
                         </div>
 
-                        <!-- Día de pago -->
-                        <div class="field">
-                            <label for="paymentDay" class="block mb-2 font-medium">Día de pago *</label>
-                            <InputNumber id="paymentDay" v-model="accountForm.tarjeta_credito.dia_pago" :min="1"
-                                :max="31" class="w-full"
-                                :class="{ 'p-invalid': v$.tarjeta_credito?.dia_pago?.$invalid && v$.tarjeta_credito?.dia_pago?.$dirty }"
-                                @blur="v$.tarjeta_credito?.dia_pago?.$touch()" />
-                            <small v-if="v$.tarjeta_credito?.dia_pago?.$invalid && v$.tarjeta_credito?.dia_pago?.$dirty"
-                                class="p-error block mt-1">
-                                {{ v$.tarjeta_credito?.dia_pago?.$errors[0].$message }}
-                            </small>
-                        </div>
+                        <!-- CAT % y Anualidad -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                            <!-- CAT % -->
+                            <div class="field">
+                                <label for="catRate" class="block mb-2 font-medium">CAT %</label>
+                                <InputNumber id="catRate" v-model="accountForm.tarjeta_credito.porcentaje_cat" :min="0"
+                                    :max="100" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
+                                    class="w-full" />
+                            </div>
 
-                        <!-- CAT % -->
-                        <div class="field">
-                            <label for="catRate" class="block mb-2 font-medium">CAT %</label>
-                            <InputNumber id="catRate" v-model="accountForm.tarjeta_credito.porcentaje_cat" :min="0"
-                                :max="100" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
-                                class="w-full" />
-                        </div>
-
-                        <!-- Anualidad -->
-                        <div class="field">
-                            <label for="annualFee" class="block mb-2 font-medium">Anualidad</label>
-                            <div class="p-inputgroup">
-                                <BalanceInput v-model="accountForm.tarjeta_credito.anualidad" :maxDigits="10"
-                                    :showExpression="false" />
+                            <!-- Anualidad -->
+                            <div class="field">
+                                <label for="annualFee" class="block mb-2 font-medium">Anualidad</label>
+                                <div class="p-inputgroup">
+                                    <BalanceInput v-model="accountForm.tarjeta_credito.anualidad" :maxDigits="10"
+                                        :showExpression="false" />
+                                </div>
                             </div>
                         </div>
 
                         <!-- Beneficios adicionales -->
                         <div class="field">
-                            <label class="block mb-3 font-medium">Beneficios adicionales</label>
-                            <div class="space-y-3">
+                            <label class="block mb-2 md:mb-3 font-medium">Beneficios adicionales</label>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
                                 <div class="field-checkbox flex items-center">
                                     <Checkbox id="hasRewards" v-model="accountForm.metadatos.hasRewards"
                                         :binary="true" />
@@ -174,7 +180,7 @@
                     </div>
 
                     <!-- Tarjeta de débito -->
-                    <div v-if="accountForm.tipo === 'debit_card'" class="space-y-4">
+                    <div v-if="accountForm.tipo === 'debit_card'" class="space-y-3 md:space-y-4">
                         <!-- Últimos 4 dígitos -->
                         <div class="field">
                             <label for="lastFourDigits" class="block mb-2 font-medium">Últimos 4 dígitos</label>
@@ -195,7 +201,7 @@
                     </div>
 
                     <!-- Cuenta bancaria -->
-                    <div v-if="accountForm.tipo === 'bank'" class="space-y-4">
+                    <div v-if="accountForm.tipo === 'bank'" class="space-y-3 md:space-y-4">
                         <!-- Número de cuenta (últimos 4 dígitos) -->
                         <div class="field">
                             <label for="accountNumber" class="block mb-2 font-medium">Últimos 4 dígitos</label>
@@ -216,7 +222,7 @@
                     </div>
 
                     <!-- Efectivo -->
-                    <div v-if="accountForm.tipo === 'cash'" class="space-y-4">
+                    <div v-if="accountForm.tipo === 'cash'" class="space-y-3 md:space-y-4">
                         <!-- Ubicación -->
                         <div class="field">
                             <label for="location" class="block mb-2 font-medium">Ubicación</label>
@@ -239,11 +245,11 @@
                 </div>
 
                 <!-- Botones de acción -->
-                <div class="flex justify-end gap-2">
-                    <Button type="submit" :label="isEdit ? 'Actualizar Cuenta' : 'Crear Cuenta'" :loading="isSubmitting"
-                        :disabled="isLoading" />
+                <div class="flex flex-col-reverse md:flex-row justify-end gap-2 md:gap-2 sticky md:static bottom-0 left-0 right-0 bg-surface-0 dark:bg-surface-900 p-3 md:p-0 -mx-2 md:mx-0 -mb-2 md:mb-0 border-t md:border-t-0 border-surface-200 dark:border-surface-700 md:border-none z-10">
                     <Button type="button" label="Cancelar" severity="secondary" outlined @click="cancelForm"
-                        :disabled="isLoading || isSubmitting" />
+                        :disabled="isLoading || isSubmitting" class="w-full md:w-auto" />
+                    <Button type="submit" :label="isEdit ? 'Actualizar' : 'Crear Cuenta'" :loading="isSubmitting"
+                        :disabled="isLoading" class="w-full md:w-auto" />
                 </div>
             </form>
         </div>
@@ -532,6 +538,8 @@ onMounted(() => {
 /* Estilos para el SelectButton personalizado */
 :deep(.p-selectbutton) {
     width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
 }
 
 :deep(.p-selectbutton .p-button) {
@@ -558,10 +566,41 @@ onMounted(() => {
 }
 
 /* Responsive para dispositivos móviles */
-@media (max-width: 640px) {
+@media (max-width: 767px) {
+    :deep(.p-selectbutton) {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+    }
+
     :deep(.p-selectbutton .p-button) {
-        padding: 0.5rem 0.25rem;
-        font-size: 0.75rem;
+        padding: 0.625rem 0.5rem;
+        font-size: 0.8125rem;
+        border-radius: 0.5rem;
+    }
+
+    :deep(.p-selectbutton .p-button .p-button-icon) {
+        font-size: 1.25rem;
+    }
+
+    /* Ajustar spacing del formulario en móvil */
+    .field {
+        margin-bottom: 0;
+    }
+
+    /* Labels más compactos */
+    label {
+        font-size: 0.875rem;
+    }
+
+    /* InputGroups más compactos */
+    :deep(.p-inputgroup) {
+        font-size: 0.875rem;
+    }
+
+    /* Badges más pequeños */
+    :deep(.p-badge) {
+        font-size: 0.6875rem;
+        padding: 0.125rem 0.375rem;
     }
 }
 </style>

@@ -1,6 +1,10 @@
 <template>
     <Dialog v-model:visible="isVisible" :header="isEdit ? 'Editar Cuenta' : 'Nueva Cuenta'" modal :closable="true"
-        :draggable="false" :resizable="false" class="w-auto max-w-2xl mx-4" @hide="handleClose">
+        :draggable="false" :resizable="false" 
+        :class="isMobile ? 'account-modal-mobile' : 'w-auto max-w-2xl mx-4'" 
+        :position="isMobile ? 'bottom' : 'center'"
+        :style="isMobile ? { width: '100vw', height: '100%', maxHeight: '100vh', margin: 0 } : {}"
+        @hide="handleClose">
         <div class="p-0">
             <AccountForm :is-edit="isEdit" :edit-account-id="editAccountId" :accounts="accounts" :banks="banks"
                 :is-loading="isLoading" @submit="handleSubmit" @cancel="handleCancel" />
@@ -9,8 +13,23 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import AccountForm from './AccountForm.vue';
+
+// Detección de móvil
+const isMobile = ref(window.innerWidth < 768);
+
+const handleResize = () => {
+    isMobile.value = window.innerWidth < 768;
+};
+
+onMounted(() => {
+    window.addEventListener('resize', handleResize);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('resize', handleResize);
+});
 
 // Props
 const props = defineProps({
@@ -66,6 +85,7 @@ const handleClose = () => {
 </script>
 
 <style scoped>
+/* Escritorio */
 :deep(.p-dialog) {
     max-height: 90vh;
 }
@@ -78,6 +98,32 @@ const handleClose = () => {
 
 :deep(.p-dialog-header) {
     padding: 1.5rem 1.5rem 1rem 1.5rem;
+    border-bottom: 1px solid var(--surface-border);
+}
+
+/* Móvil */
+:deep(.account-modal-mobile.p-dialog) {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    left: 0 !important;
+    top: 0 !important;
+}
+
+:deep(.account-modal-mobile .p-dialog-content) {
+    max-height: calc(100vh - 4rem);
+    padding-bottom: 1rem;
+}
+
+:deep(.account-modal-mobile .p-dialog-header) {
+    padding: 1rem;
+    position: sticky;
+    top: 0;
+    background: var(--surface-0);
+    z-index: 1;
     border-bottom: 1px solid var(--surface-border);
 }
 </style>
