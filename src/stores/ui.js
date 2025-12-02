@@ -12,6 +12,9 @@ export const useUIStore = defineStore('ui', () => {
     const pageLoadingProgress = ref(0);
     const pageLoadingColor = ref('var(--p-primary-color)');
 
+    // Estado para detectar viewport móvil
+    const isMobile = ref(false);
+
     // Variable para controlar si ya se cargó la configuración inicial
     let isLoaded = false;
 
@@ -87,7 +90,7 @@ export const useUIStore = defineStore('ui', () => {
 
     // Estados del layout migrados desde layout.js
     const layoutConfig = ref({
-        preset: 'Aura',
+        preset: 'Aura', // Tema fijo - no modificable
         primary: 'emerald',
         surface: null,
         darkTheme: false,
@@ -117,6 +120,12 @@ export const useUIStore = defineStore('ui', () => {
             }
         };
         localStorage.setItem('finheal_ui', JSON.stringify(uiConfig));
+        console.log('💾 Configuración guardada:', {
+            darkMode: uiConfig.darkMode,
+            primary: uiConfig.layoutConfig.primary,
+            surface: uiConfig.layoutConfig.surface,
+            menuMode: uiConfig.layoutConfig.menuMode
+        });
     };
 
     // Watch para guardar automáticamente cambios en layoutConfig (solo después de cargar)
@@ -180,12 +189,18 @@ export const useUIStore = defineStore('ui', () => {
         const tryApply = (delay = 500) => {
             setTimeout(() => {
                 if (typeof window !== 'undefined') {
+                    console.log(`🎨 Intentando aplicar tema (delay: ${delay}ms):`, {
+                        primary: layoutConfig.value.primary,
+                        surface: layoutConfig.value.surface,
+                        darkTheme: layoutConfig.value.darkTheme
+                    });
+                    
                     // Disparar evento personalizado para que AppConfigurator aplique el tema
                     window.dispatchEvent(new CustomEvent('applyStoredTheme', {
                         detail: {
                             primary: layoutConfig.value.primary,
                             surface: layoutConfig.value.surface,
-                            preset: layoutConfig.value.preset,
+                            preset: 'Aura', // Siempre Aura
                             darkTheme: layoutConfig.value.darkTheme
                         }
                     }));
@@ -265,8 +280,30 @@ export const useUIStore = defineStore('ui', () => {
     };
 
     const setPreset = (preset) => {
-        layoutConfig.value.preset = preset;
-        // El watch se encargará de guardar
+        // Preset fijo en Aura - función mantenida por compatibilidad pero sin efecto
+        console.warn('El tema está fijo en Aura y no puede ser modificado');
+    };
+
+    // Función para detectar si es móvil
+    const checkMobile = () => {
+        if (typeof window !== 'undefined') {
+            isMobile.value = window.innerWidth < 768;
+        }
+    };
+
+    // Función para inicializar el listener de resize
+    const initMobileDetection = () => {
+        if (typeof window !== 'undefined') {
+            checkMobile();
+            window.addEventListener('resize', checkMobile);
+        }
+    };
+
+    // Función para limpiar el listener
+    const cleanupMobileDetection = () => {
+        if (typeof window !== 'undefined') {
+            window.removeEventListener('resize', checkMobile);
+        }
     };
 
     // Función para cargar la configuración UI
@@ -276,6 +313,7 @@ export const useUIStore = defineStore('ui', () => {
         if (savedConfig) {
             try {
                 const config = JSON.parse(savedConfig);
+                console.log('📦 Cargando configuración UI guardada:', config);
 
                 // Cargar configuración básica
                 if (config.darkMode !== undefined) {
@@ -285,8 +323,15 @@ export const useUIStore = defineStore('ui', () => {
 
                 // Cargar configuración del layout
                 if (config.layoutConfig) {
-                    Object.assign(layoutConfig.value, config.layoutConfig);
-                    darkMode.value = config.layoutConfig.darkTheme;
+                    // Forzar preset a Aura (siempre)
+                    const loadedConfig = {
+                        ...config.layoutConfig,
+                        preset: 'Aura'
+                    };
+                    Object.assign(layoutConfig.value, loadedConfig);
+                    darkMode.value = loadedConfig.darkTheme;
+                    
+                    console.log('✅ Colores cargados - Primario:', loadedConfig.primary, 'Superficie:', loadedConfig.surface || 'auto');
                 }
 
                 // Cargar estado del layout (solo estados persistentes)
@@ -304,9 +349,10 @@ export const useUIStore = defineStore('ui', () => {
                 document.documentElement.classList.toggle('app-dark', layoutConfig.value.darkTheme);
 
             } catch (error) {
-                console.error('Error loading UI config:', error);
+                console.error('❌ Error cargando configuración UI:', error);
             }
         } else {
+            console.log('ℹ️ No hay configuración guardada, usando valores por defecto');
         }
 
         // Marcar como cargado para habilitar los watchers
@@ -376,6 +422,23 @@ export const useUIStore = defineStore('ui', () => {
     const deactivateFirstLoading = () => firstLoad.value = false;
     const activateFirstLoading = () => firstLoad.value = true;
 
+    // Función helper para debug - Ver configuración guardada
+    const getStoredConfig = () => {
+        const stored = localStorage.getItem('finheal_ui');
+        if (stored) {
+            console.log('📋 Configuración en localStorage:', JSON.parse(stored));
+            return JSON.parse(stored);
+        }
+        console.log('⚠️ No hay configuración guardada en localStorage');
+        return null;
+    };
+
+    // Función helper para limpiar configuración
+    const clearStoredConfig = () => {
+        localStorage.removeItem('finheal_ui');
+        console.log('🗑️ Configuración eliminada de localStorage');
+    };
+
     return {
         // Estados básicos
         pageTitle,
@@ -394,6 +457,9 @@ export const useUIStore = defineStore('ui', () => {
         isDarkTheme,
         getPrimary,
         getSurface,
+
+        // Estado de viewport móvil
+        isMobile,
 
         // Sidebar
         sidebarModel,
@@ -423,6 +489,15 @@ export const useUIStore = defineStore('ui', () => {
         setMenuMode,
         setPrimaryColor,
         setSurface,
-        setPreset
+        setPreset,
+
+        // Funciones de detección móvil
+        checkMobile,
+        initMobileDetection,
+        cleanupMobileDetection,
+
+        // Funciones helper para debug
+        getStoredConfig,
+        clearStoredConfig
     };
 });

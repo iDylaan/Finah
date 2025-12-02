@@ -58,6 +58,10 @@ async function initializeApp() {
         
         // Cargar configuración UI
         uiStore.loadUISetup()
+        
+        // Inicializar detección de viewport móvil
+        uiStore.initMobileDetection()
+        
         sessionStore.setupAuthListener()
         
         const initPromise = sessionStore.initializeAuth()

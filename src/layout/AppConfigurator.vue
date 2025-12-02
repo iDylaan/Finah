@@ -1,21 +1,15 @@
 <script setup>
 import { $t, updatePreset, updateSurfacePalette } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
-import Lara from '@primeuix/themes/lara';
-import Nora from '@primeuix/themes/nora';
 import { ref, onMounted, watch, nextTick } from 'vue';
 
 // STORES
 import { useUIStore } from '@/stores/ui.js';
 const UI = useUIStore();
 
-const presets = {
-    Aura,
-    Lara,
-    Nora
-};
-const preset = ref(UI.layoutConfig.preset);
-const presetOptions = ref(Object.keys(presets));
+// Tema fijo en Aura
+const preset = ref('Aura');
+const presets = { Aura };
 
 const menuMode = ref(UI.layoutConfig.menuMode);
 const menuModeOptions = ref([
@@ -81,11 +75,7 @@ const surfaces = ref([
 // Variable para controlar si el componente está listo
 let isComponentReady = false;
 
-// Watchers para sincronizar con la store
-watch(() => UI.layoutConfig.preset, (newPreset) => {
-    preset.value = newPreset;
-});
-
+// Watcher para sincronizar menu mode con la store
 watch(() => UI.layoutConfig.menuMode, (newMenuMode) => {
     menuMode.value = newMenuMode;
 });
@@ -182,29 +172,43 @@ function getPresetExt() {
 }
 
 function updateColors(type, color) {
+    console.log(`🎨 Actualizando ${type}:`, color.name);
+    
+    // Guardar en la store
     if (type === 'primary') {
         UI.setPrimaryColor(color.name);
     } else if (type === 'surface') {
         UI.setSurface(color.name);
     }
 
+    // Aplicar el cambio visual inmediatamente
     applyTheme(type, color);
+    
+    console.log('✅ Color aplicado y guardado');
 }
 
 function applyTheme(type, color) {
+    // Aplicar el tema completo con la nueva configuración
+    const presetValue = Aura;
+    
     if (type === 'primary') {
+        // Actualizar el preset con el nuevo color primario
         updatePreset(getPresetExt());
+        
+        // Obtener superficie actual
+        const currentSurface = surfaces.value.find(s => s.name === UI.layoutConfig.surface);
+        const surfacePalette = currentSurface?.palette || null;
+        
+        // Aplicar todo el tema de nuevo
+        $t().preset(presetValue).preset(getPresetExt()).surfacePalette(surfacePalette).use({ useDefaultOptions: true });
+        
     } else if (type === 'surface') {
+        // Actualizar la paleta de superficie
         updateSurfacePalette(color.palette);
+        
+        // Aplicar todo el tema de nuevo
+        $t().preset(presetValue).preset(getPresetExt()).surfacePalette(color.palette).use({ useDefaultOptions: true });
     }
-}
-
-function onPresetChange() {
-    UI.setPreset(preset.value);
-    const presetValue = presets[preset.value];
-    const surfacePalette = surfaces.value.find((s) => s.name === UI.layoutConfig.surface)?.palette;
-
-    $t().preset(presetValue).preset(getPresetExt()).surfacePalette(surfacePalette).use({ useDefaultOptions: true });
 }
 
 function onMenuModeChange() {
@@ -219,34 +223,51 @@ function applyStoredTheme(config) {
     }
 
     try {
+        console.log('🎨 Aplicando tema guardado:', config);
         
-        // Aplicar preset
-        if (config.preset && presets[config.preset]) {
-            preset.value = config.preset;
-            const presetValue = presets[config.preset];
-            
-            // Aplicar color primario
-            const primaryColor = primaryColors.value.find(c => c.name === config.primary);
-            if (primaryColor) {
-                updatePreset(getPresetExt());
+        // Tema siempre Aura
+        const presetValue = Aura;
+        
+        // Obtener color primario guardado
+        const primaryColor = primaryColors.value.find(c => c.name === config.primary);
+        let surfacePalette = null;
+        
+        // Obtener superficie guardada o usar por defecto según modo oscuro
+        if (config.surface) {
+            const surface = surfaces.value.find(s => s.name === config.surface);
+            if (surface) {
+                surfacePalette = surface.palette;
             }
-            
-            // Aplicar surface
-            let surfacePalette = null;
-            if (config.surface) {
-                const surface = surfaces.value.find(s => s.name === config.surface);
-                if (surface) {
-                    surfacePalette = surface.palette;
-                    updateSurfacePalette(surface.palette);
-                }
+        } else {
+            // Si no hay surface guardado, usar el predeterminado según tema
+            const defaultSurface = config.darkTheme ? 'zinc' : 'slate';
+            const surface = surfaces.value.find(s => s.name === defaultSurface);
+            if (surface) {
+                surfacePalette = surface.palette;
             }
-            
-            // Aplicar todo junto usando $t()
-            $t().preset(presetValue).preset(getPresetExt()).surfacePalette(surfacePalette).use({ useDefaultOptions: true });
-            
         }
+        
+        // Aplicar color primario usando el preset extension
+        if (primaryColor) {
+            updatePreset(getPresetExt());
+        }
+        
+        // Aplicar superficie
+        if (surfacePalette) {
+            updateSurfacePalette(surfacePalette);
+        }
+        
+        // Aplicar todo junto usando $t() con la configuración completa
+        const themeConfig = $t()
+            .preset(presetValue)
+            .preset(getPresetExt())
+            .surfacePalette(surfacePalette)
+            .use({ useDefaultOptions: true });
+        
+        console.log('✅ Tema aplicado correctamente');
+        
     } catch (error) {
-        console.error('Error applying stored theme:', error);
+        console.error('❌ Error aplicando tema guardado:', error);
     }
 }
 
@@ -255,18 +276,23 @@ onMounted(async () => {
     await nextTick();
     isComponentReady = true;
     
+    console.log('⚙️ AppConfigurator montado, aplicando tema inicial');
+    
     // Escuchar el evento de aplicar tema guardado
     window.addEventListener('applyStoredTheme', (event) => {
+        console.log('📢 Evento applyStoredTheme recibido:', event.detail);
         applyStoredTheme(event.detail);
     });
     
-    // También intentar aplicar el tema actual de la store
-    applyStoredTheme({
+    // Aplicar el tema actual de la store inmediatamente
+    const currentTheme = {
         primary: UI.layoutConfig.primary,
         surface: UI.layoutConfig.surface,
-        preset: UI.layoutConfig.preset,
         darkTheme: UI.layoutConfig.darkTheme
-    });
+    };
+    
+    console.log('🎨 Aplicando tema inicial desde store:', currentTheme);
+    applyStoredTheme(currentTheme);
 });
 </script>
 
@@ -305,10 +331,6 @@ onMounted(async () => {
                         :style="{ backgroundColor: `${surface.palette['500']}` }"
                     ></button>
                 </div>
-            </div>
-            <div class="flex flex-col gap-2">
-                <span class="text-sm text-muted-color font-semibold">Temas</span>
-                <SelectButton v-model="preset" @change="onPresetChange" :options="presetOptions" :allowEmpty="false" />
             </div>
             <div class="flex flex-col gap-2">
                 <span class="text-sm text-muted-color font-semibold">Modo del menú</span>
