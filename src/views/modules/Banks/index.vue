@@ -1,83 +1,106 @@
 <template>
-    <div class="banks-page">
-        <div class="flex justify-between items-center">
-            <h1 class="text-2xl font-bold">Bancos y entidades financieras</h1>
+    <PageLayout 
+        title="Entidades Financieras" 
+        description="Gestiona tus bancos y entidades financieras para organizar tus cuentas"
+    >
+        <!-- Acciones del header -->
+        <template #actions>
+            <Button 
+                icon="pi pi-refresh" 
+                @click="refreshBanks" 
+                :loading="bankStore.loading"
+                severity="secondary" 
+                outlined 
+                size="small"
+                v-tooltip.bottom="'Actualizar'"
+            />
+            <Button 
+                icon="pi pi-plus" 
+                @click="openNewBankForm" 
+                size="small"
+                label="Nuevo Banco"
+                class="mobile-icon-only"
+            />
+        </template>
 
-            <div class="flex gap-2">
-                <Button icon="pi pi-refresh" outlined @click="refreshBanks" :loading="bankStore.loading"
-                    class="p-button-sm" severity="secondary" />
-                <Button label="Nuevo banco" icon="pi pi-plus" @click="openNewBankForm" severity="primary"
-                    class="p-button-sm" />
-            </div>
-        </div>
-
-        <!-- Loading Skeleton -->
-        <div v-if="bankStore.loading && !bankStore.loaded" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div v-for="i in 6" :key="i"
-                class="border border-surface-200 dark:border-surface-700 rounded-lg p-4 bg-surface-0 dark:bg-surface-800">
-                <Skeleton height="3rem" class="mb-2" />
-                <Skeleton height="1.5rem" class="mb-2" width="70%" />
-                <Skeleton height="1.5rem" width="40%" />
-            </div>
+        <!-- Contenido principal -->
+        <div v-if="bankStore.loading && !bankStore.loaded" class="flex justify-center items-center py-12">
+            <ProgressSpinner />
         </div>
 
         <!-- Error state -->
-        <div v-else-if="bankStore.error" class="p-4 bg-red-50 dark:bg-red-900 rounded-lg mb-4">
-            <div class="flex items-start gap-2">
-                <i class="pi pi-exclamation-triangle text-red-500 dark:text-red-300 mt-0.5"></i>
-                <div>
-                    <p class="text-sm text-red-800 dark:text-red-200">
+        <div v-else-if="bankStore.error" class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800 mb-4">
+            <div class="flex items-start gap-3">
+                <i class="pi pi-exclamation-triangle text-red-600 dark:text-red-400 text-xl mt-0.5"></i>
+                <div class="flex-1">
+                    <p class="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
                         {{ bankStore.error }}
                     </p>
-                    <Button label="Reintentar" icon="pi pi-refresh" @click="refreshBanks" severity="danger" text
-                        size="small" class="mt-2" />
+                    <Button label="Reintentar" icon="pi pi-refresh" @click="refreshBanks" severity="danger" outlined
+                        size="small" />
                 </div>
             </div>
         </div>
 
         <div v-else>
             <!-- Mis bancos -->
-            <div class="mb-6">
-                <h2 class="text-lg font-medium mb-3">Mis bancos</h2>
+            <div class="mb-8">
+                <h2 class="text-lg font-semibold text-surface-900 dark:text-surface-0 mb-4">Mis bancos</h2>
 
                 <!-- Empty state -->
-                <div v-if="bankStore.userBanks.length === 0" class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <p class="text-sm text-gray-600 dark:text-gray-300">
-                        No has creado ningún banco personalizado todavía.
-                    </p>
-                    <Button label="Crear mi primer banco" icon="pi pi-plus" @click="openNewBankForm" text size="small"
-                        class="mt-2" />
+                <div v-if="bankStore.userBanks.length === 0" class="flex items-center justify-center min-h-[200px] py-8 px-4">
+                    <div class="text-center max-w-md">
+                        <i class="pi pi-building text-5xl text-surface-300 dark:text-surface-600 mb-4"></i>
+                        <h3 class="text-base font-medium text-surface-700 dark:text-surface-300 mb-2">No tienes bancos personalizados</h3>
+                        <p class="text-sm text-surface-500 dark:text-surface-400 mb-4">
+                            Crea tu primer banco personalizado para gestionar tus cuentas.
+                        </p>
+                        <Button label="Crear mi primer banco" icon="pi pi-plus" @click="openNewBankForm" size="small" />
+                    </div>
                 </div>
 
                 <!-- Banks grid -->
-                <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div v-for="bank in bankStore.userBanks" :key="bank.id"
-                        class="cursor-pointer border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden bg-surface-0 dark:bg-surface-800 relative hover:shadow-md transition-shadow duration-200"
+                        class="group cursor-pointer rounded-xl overflow-hidden relative hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-surface-300 dark:hover:border-surface-600"
+                        :style="{ backgroundColor: hexToRgba(bank.color, 0.1) }"
                         @click="handleViewBank(bank)">
 
-                        <!-- Header with background color -->
-                        <div class="w-full h-16 flex items-center justify-center"
-                            :style="{ backgroundColor: bank.color }">
-                            <i v-if="bank.biblioteca_iconos === 'primevue'"
-                                :class="[bank.nombre_icono, 'text-4xl text-white']"></i>
-                            <span v-else-if="bank.biblioteca_iconos === 'material'"
-                                class="material-symbols-rounded text-white text-2xl">
-                                {{ bank.nombre_icono }}
-                            </span>
+                        <!-- Fondo con gradiente sutil -->
+                        <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                            :style="{ background: `linear-gradient(135deg, ${hexToRgba(bank.color, 0.15)} 0%, ${hexToRgba(bank.color, 0.05)} 100%)` }">
                         </div>
 
-                        <!-- Content -->
-                        <div class="p-4">
-                            <h3 class="text-lg font-medium text-surface-900 dark:text-surface-100 mb-2">
-                                {{ bank.nombre }}
-                            </h3>
-                        </div>
+                        <!-- Contenido -->
+                        <div class="relative">
+                            <!-- Icon section -->
+                            <div class="flex items-center gap-4 p-0">
+                                <div class="flex-shrink-0 w-14 h-14 rounded-l-lg flex items-center justify-center"
+                                    :style="{ backgroundColor: hexToRgba(bank.color, 0.9) }">
+                                    <i v-if="bank.biblioteca_iconos === 'primevue'"
+                                        :class="[bank.nombre_icono, 'text-2xl text-white']"></i>
+                                    <span v-else-if="bank.biblioteca_iconos === 'material'"
+                                        class="material-symbols-rounded text-white text-2xl">
+                                        {{ bank.nombre_icono }}
+                                    </span>
+                                </div>
 
-                        <!-- Menú contextual -->
-                        <button class="absolute right-2 top-2 p-2 rounded-full"
-                            @click.stop="toggleBankMenu($event, bank.id)">
-                            <i class="pi pi-ellipsis-v text-surface-600 dark:text-surface-400"></i>
-                        </button>
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="text-base font-semibold text-surface-900 dark:text-surface-100 truncate mb-0.5">
+                                        {{ bank.nombre }}
+                                    </h3>
+                                    <p class="text-xs text-surface-500 dark:text-surface-400">
+                                        Banco personalizado
+                                    </p>
+                                </div>
+
+                                <!-- Menú contextual -->
+                                <button class="flex-shrink-0 p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors opacity-0 group-hover:opacity-100 mr-3"
+                                    @click.stop="toggleBankMenu($event, bank.id)">
+                                    <i class="pi pi-ellipsis-v text-surface-600 dark:text-surface-400 text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
 
                         <!-- Menú popup -->
                         <Menu :id="`bank-menu-${bank.id}`" :ref="el => setMenuRef(el, bank.id)"
@@ -88,38 +111,51 @@
 
             <!-- Bancos del sistema -->
             <div>
-                <h2 class="text-lg font-medium mb-3">Bancos del sistema</h2>
+                <h2 class="text-lg font-semibold text-surface-900 dark:text-surface-0 mb-4">Bancos del sistema</h2>
 
                 <!-- Empty state -->
-                <div v-if="bankStore.publicBanks.length === 0" class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <p class="text-sm text-gray-600 dark:text-gray-300">
-                        No hay bancos del sistema disponibles.
-                    </p>
+                <div v-if="bankStore.publicBanks.length === 0" class="flex items-center justify-center min-h-[200px] py-8 px-4">
+                    <div class="text-center max-w-md">
+                        <i class="pi pi-info-circle text-5xl text-surface-300 dark:text-surface-600 mb-4"></i>
+                        <p class="text-sm text-surface-600 dark:text-surface-400">
+                            No hay bancos del sistema disponibles.
+                        </p>
+                    </div>
                 </div>
 
                 <!-- Public banks grid -->
-                <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div v-for="bank in bankStore.publicBanks" :key="bank.id"
-                        class="cursor-pointer border border-surface-200 dark:border-surface-700 rounded-lg overflow-hidden bg-surface-0 dark:bg-surface-800 relative hover:shadow-md transition-shadow duration-200"
+                        class="group cursor-pointer rounded-xl overflow-hidden relative hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-surface-300 dark:hover:border-surface-600"
+                        :style="{ backgroundColor: hexToRgba(bank.color, 0.1) }"
                         @click="handleViewBank(bank)">
 
-                        <!-- Header with background color -->
-                        <div class="w-full h-16 flex items-center justify-center"
-                            :style="{ backgroundColor: bank.color }">
-                            <i v-if="bank.biblioteca_iconos === 'primevue'"
-                                :class="[bank.nombre_icono, 'text-4xl text-white']"></i>
-                            <span v-else-if="bank.biblioteca_iconos === 'material'"
-                                class="material-symbols-rounded text-white text-2xl">
-                                {{ bank.nombre_icono }}
-                            </span>
+                        <!-- Fondo con gradiente sutil -->
+                        <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                            :style="{ background: `linear-gradient(135deg, ${hexToRgba(bank.color, 0.15)} 0%, ${hexToRgba(bank.color, 0.05)} 100%)` }">
                         </div>
 
-                        <!-- Content -->
-                        <div class="p-4">
-                            <div class="flex items-center gap-2">
-                                <h3 class="text-lg font-medium text-surface-900 dark:text-surface-100">
-                                    {{ bank.nombre }}
-                                </h3>
+                        <!-- Contenido -->
+                        <div class="relative">
+                            <!-- Icon section -->
+                            <div class="flex items-center gap-4 p-0">
+                                <div class="flex-shrink-0 w-14 h-14 rounded-l-lg flex items-center justify-center"
+                                    :style="{ backgroundColor: hexToRgba(bank.color, 0.9) }">
+                                    <i v-if="bank.biblioteca_iconos === 'primevue'"
+                                        :class="[bank.nombre_icono, 'text-2xl text-white']"></i>
+                                    <span v-else-if="bank.biblioteca_iconos === 'material'"
+                                        class="material-symbols-rounded text-white text-2xl">
+                                        {{ bank.nombre_icono }}
+                                    </span>
+                                </div>
+
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 mb-0.5">
+                                        <h3 class="text-base font-semibold text-surface-900 dark:text-surface-100 truncate">
+                                            {{ bank.nombre }}
+                                        </h3>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -130,7 +166,7 @@
         <!-- Formulario modal para crear/editar bancos -->
         <BankForm v-model:visible="formVisible" :is-new="isNewBank" :bank-id="selectedBankId" :bank="selectedBank"
             @close="handleFormClose" @success="handleFormSuccess" />
-    </div>
+    </PageLayout>
 </template>
 
 <script setup>
@@ -139,6 +175,7 @@ import { ref, onMounted, computed } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import { useBankStore } from '@/stores/banks.js';
+import PageLayout from '@/components/PageLayout.vue';
 import BankForm from './components/BankForm.vue';
 
 // HOOKS
@@ -152,6 +189,24 @@ const isNewBank = ref(true);
 const selectedBankId = ref(null);
 const selectedBank = ref(null);
 const menuRefs = ref({});
+
+// FUNCTIONS - Helper para convertir hex a rgba con opacidad
+const hexToRgba = (hex, opacity = 1) => {
+    // Remover el # si existe
+    hex = hex.replace('#', '');
+    
+    // Convertir hex de 3 dígitos a 6 dígitos
+    if (hex.length === 3) {
+        hex = hex.split('').map(char => char + char).join('');
+    }
+    
+    // Extraer RGB
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
 
 // MOUNTED
 onMounted(async () => {
@@ -292,17 +347,5 @@ const toggleBankMenu = (event, bankId) => {
 </script>
 
 <style lang="scss" scoped>
-.banks-page {
-    padding: 1rem;
-}
-
-// Transición suave para hover
-.bank-card {
-    transition: transform 0.2s, box-shadow 0.2s;
-
-    &:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-}
+// Estilos adicionales si son necesarios
 </style>

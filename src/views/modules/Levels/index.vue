@@ -1,74 +1,80 @@
 <template>
-    <div class="levels-page">
-        <div class="mb-4 flex justify-between items-center">
-            <h1 class="text-2xl font-bold">Niveles de Gasto</h1>
+    <PageLayout 
+        title="Niveles de Gasto" 
+        description="Organiza y clasifica tus gastos e ingresos por orden de prioridad"
+    >
+        <!-- Acciones del header -->
+        <template #actions>
+            <Button 
+                v-if="hasUserLevels && !isReorderMode" 
+                icon="pi pi-undo" 
+                @click="restoreHierarchy"
+                severity="secondary" 
+                outlined 
+                size="small"
+                v-tooltip.bottom="'Restaurar Original'"
+            />
+            <Button 
+                v-if="hasUserLevels && !isReorderMode" 
+                icon="pi pi-sort" 
+                @click="toggleReorderMode" 
+                severity="secondary"
+                size="small"
+                label="Reordenar"
+            />
+            <Button 
+                v-if="isReorderMode" 
+                icon="pi pi-check" 
+                @click="saveOrder" 
+                severity="success"
+                size="small"
+                label="Guardar"
+                class="mobile-icon-only"
+            />
+            <Button 
+                v-if="isReorderMode" 
+                icon="pi pi-times" 
+                @click="cancelReorder" 
+                severity="secondary"
+                outlined
+                size="small"
+                label="Cancelar"
+                class="mobile-icon-only"
+            />
+            <Button 
+                v-if="!isReorderMode"
+                icon="pi pi-plus" 
+                @click="handleNewLevel" 
+                size="small"
+                label="Nuevo Nivel"
+                class="mobile-icon-only"
+            />
+        </template>
 
-            <div class="flex gap-2">
-                <Button 
-                    v-if="hasUserLevels && !isReorderMode" 
-                    label="Restaurar Original" 
-                    icon="pi pi-refresh" 
-                    @click="restoreHierarchy"
-                    class="p-button-sm p-button-text" 
-                    severity="secondary"
-                />
-                <Button 
-                    v-if="hasUserLevels && !isReorderMode" 
-                    label="Reordenar" 
-                    icon="pi pi-sort" 
-                    @click="toggleReorderMode" 
-                    class="p-button-sm p-button-secondary" 
-                />
-                <Button 
-                    v-if="isReorderMode" 
-                    label="Guardar Orden" 
-                    icon="pi pi-check" 
-                    @click="saveOrder" 
-                    class="p-button-sm p-button-success" 
-                />
-                <Button 
-                    v-if="isReorderMode" 
-                    label="Cancelar" 
-                    icon="pi pi-times" 
-                    @click="cancelReorder" 
-                    class="p-button-sm p-button-secondary" 
-                />
-                <Button 
-                    label="Nuevo Nivel" 
-                    icon="pi pi-plus" 
-                    @click="handleNewLevel" 
-                    class="p-button-sm" 
-                />
-            </div>
-        </div>
-
-        <!-- Loading Skeleton -->
-        <div v-if="isInitialLoad || levelStore.loading" class="space-y-3">
-            <div v-for="i in 6" :key="i"
-                class="border border-surface-200 dark:border-surface-700 rounded-lg p-4 bg-surface-0 dark:bg-surface-800">
-                <Skeleton height="3rem" class="mb-2" />
-                <Skeleton height="1.5rem" class="mb-2" width="70%" />
-                <Skeleton height="1.5rem" width="40%" />
-            </div>
+        <!-- Contenido principal -->
+        <div v-if="isInitialLoad || levelStore.loading" class="flex justify-center items-center py-12">
+            <ProgressSpinner />
         </div>
 
         <!-- Sin resultados -->
-        <div v-else-if="!levelStore.levels.length" class="text-center py-8">
-            <i class="pi pi-exclamation-circle text-4xl text-surface-400 mb-4"></i>
-            <h3 class="text-xl font-medium mb-2">No hay niveles disponibles</h3>
-            <p class="text-surface-600 dark:text-surface-400 mb-4">
-                Los niveles te permiten clasificar gastos e ingresos según su importancia.
-            </p>
-            <Button label="Crear Nivel" icon="pi pi-plus" @click="handleNewLevel" />
+        <div v-else-if="!levelStore.levels.length" class="flex items-center justify-center min-h-[400px] py-8 px-4">
+            <div class="text-center max-w-md">
+                <i class="pi pi-exclamation-circle text-6xl text-surface-300 dark:text-surface-600 mb-6"></i>
+                <h3 class="text-xl font-semibold text-surface-700 dark:text-surface-300 m-0 mb-2">No hay niveles disponibles</h3>
+                <p class="text-sm text-surface-500 dark:text-surface-400 m-0 mb-6">
+                    Los niveles te permiten clasificar gastos e ingresos según su importancia.
+                </p>
+                <Button label="Crear Nivel" icon="pi pi-plus" @click="handleNewLevel" />
+            </div>
         </div>
 
         <!-- Lista de Niveles -->
-        <div v-else>
+        <div v-else class="max-w-3xl mx-auto">
             <!-- Modo de reordenamiento -->
-            <div v-if="isReorderMode" class="mb-4 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
+            <div v-if="isReorderMode" class="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div class="flex items-center gap-2 mb-2">
-                    <i class="pi pi-info-circle text-blue-500"></i>
-                    <span class="text-sm text-blue-800 dark:text-blue-200">
+                    <i class="pi pi-info-circle text-blue-600 dark:text-blue-400"></i>
+                    <span class="text-sm font-medium text-blue-800 dark:text-blue-200">
                         Arrastra y suelta los niveles para cambiar su orden de prioridad
                     </span>
                 </div>
@@ -155,7 +161,7 @@
                    :is-loading="levelStore.loading" 
                    @close="handleLevelModalClose"
                    @success="handleLevelSuccess" />
-    </div>
+    </PageLayout>
 </template>
 
 <script setup>
@@ -164,6 +170,7 @@ import { ref, onMounted, computed, watch, nextTick, onUnmounted } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import Sortable from 'sortablejs';
+import PageLayout from '@/components/PageLayout.vue';
 import LevelForm from './components/LevelForm.vue';
 import { findLevelColor, getLevelTagStyle as getTagStyleFromUtils } from '@/assets/constants/levels-colors.js';
 
@@ -482,16 +489,10 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-.levels-page {
-    padding: 1rem;
-    max-width: 800px; // Reducir ancho máximo para una sola columna
-    margin: 0 auto;
-}
-
 .sortable-list {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem; // Espacio entre elementos
+    gap: 0.75rem;
     
     &.reorder-mode {
         .level-card {
@@ -504,13 +505,13 @@ onUnmounted(() => {
     position: relative;
     padding: 1rem;
     border: 1px solid var(--surface-border);
-    border-radius: 8px;
+    border-radius: 12px;
     background: var(--surface-card);
     transition: all 0.2s ease;
     
     &:hover:not(.cursor-not-allowed) {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transform: translateY(-1px);
     }
     
     &.draggable {
@@ -628,12 +629,8 @@ onUnmounted(() => {
 
 // Responsive
 @media (max-width: 768px) {
-    .levels-page {
-        padding: 0.75rem;
-    }
-    
     .level-card {
-        padding: 0.75rem;
+        padding: 0.875rem;
     }
     
     .level-content {
