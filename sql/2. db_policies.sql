@@ -1108,3 +1108,95 @@ CREATE POLICY delete_jerarquias_usuario ON jerarquias_usuario
   FOR DELETE USING (
     usuario_id = id_usuario_sesion()
   );
+
+
+-- ===================================================
+-- POLÍTICAS RLS PARA INVITACIONES A GRUPOS
+-- ===================================================
+
+-- Habilitar RLS
+ALTER TABLE invitaciones_grupo ENABLE ROW LEVEL SECURITY;
+
+-- SELECT - Ver invitaciones donde eres el invitador o admin del grupo
+DROP POLICY IF EXISTS select_invitaciones_grupo ON invitaciones_grupo;
+CREATE POLICY select_invitaciones_grupo ON invitaciones_grupo
+  FOR SELECT USING (
+    usuario_invitador = id_usuario_sesion()
+    OR EXISTS (
+      SELECT 1 FROM grupos_usuario g
+      WHERE g.id = invitaciones_grupo.grupo_id
+        AND g.propietario_id = id_usuario_sesion()
+    )
+    OR EXISTS (
+      SELECT 1 FROM miembros_grupo mg
+      WHERE mg.grupo_id = invitaciones_grupo.grupo_id
+        AND mg.usuario_id = id_usuario_sesion()
+        AND mg.rol = 'administrador'
+    )
+  );
+
+-- INSERT - Crear invitaciones si eres admin del grupo
+DROP POLICY IF EXISTS insert_invitaciones_grupo ON invitaciones_grupo;
+CREATE POLICY insert_invitaciones_grupo ON invitaciones_grupo
+  FOR INSERT WITH CHECK (
+    usuario_invitador = id_usuario_sesion()
+    AND (
+      EXISTS (
+        SELECT 1 FROM grupos_usuario g
+        WHERE g.id = grupo_id
+          AND g.propietario_id = id_usuario_sesion()
+      )
+      OR EXISTS (
+        SELECT 1 FROM miembros_grupo mg
+        WHERE mg.grupo_id = invitaciones_grupo.grupo_id
+          AND mg.usuario_id = id_usuario_sesion()
+          AND mg.rol = 'administrador'
+      )
+    )
+  );
+
+-- UPDATE - Actualizar invitaciones propias o del grupo que administras
+DROP POLICY IF EXISTS update_invitaciones_grupo ON invitaciones_grupo;
+CREATE POLICY update_invitaciones_grupo ON invitaciones_grupo
+  FOR UPDATE USING (
+    usuario_invitador = id_usuario_sesion()
+    OR EXISTS (
+      SELECT 1 FROM grupos_usuario g
+      WHERE g.id = invitaciones_grupo.grupo_id
+        AND g.propietario_id = id_usuario_sesion()
+    )
+  );
+
+-- DELETE - Cancelar invitaciones propias
+DROP POLICY IF EXISTS delete_invitaciones_grupo ON invitaciones_grupo;
+CREATE POLICY delete_invitaciones_grupo ON invitaciones_grupo
+  FOR DELETE USING (
+    usuario_invitador = id_usuario_sesion()
+  );
+
+
+-- ===================================================
+-- POLÍTICAS RLS PARA HISTORIAL DE SALDOS
+-- ===================================================
+
+-- Habilitar RLS
+ALTER TABLE historial_saldos ENABLE ROW LEVEL SECURITY;
+
+-- SELECT - Ver historial de tus propias cuentas o cuentas del grupo
+DROP POLICY IF EXISTS select_historial_saldos ON historial_saldos;
+CREATE POLICY select_historial_saldos ON historial_saldos
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM cuentas c
+      WHERE c.id = historial_saldos.cuenta_id
+        AND (
+          c.creada_por = id_usuario_sesion()
+          OR c.grupo_usuario_id IN (
+            SELECT grupo_id FROM miembros_grupo
+            WHERE usuario_id = id_usuario_sesion()
+          )
+        )
+    )
+  );
+
+-- El historial se inserta automáticamente por triggers, no necesita política INSERT

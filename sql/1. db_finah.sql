@@ -553,10 +553,176 @@ COMMENT ON COLUMN jerarquias_usuario.fecha_actualizacion IS 'Timestamp de la úl
 
 
 -- ==================================================================
--- 7) Funciones para gestión de jerarquías personalizadas
+-- 7) Triggers y funciones auxiliares
 -- ==================================================================
 
--- 7.1) Función para inicializar jerarquías de usuario
+-- 7.1) Función para guardar historial de saldos automáticamente
+CREATE OR REPLACE FUNCTION guardar_historial_saldo()
+RETURNS TRIGGER 
+LANGUAGE plpgsql 
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Solo guardar si el saldo cambió
+  IF (TG_OP = 'UPDATE' AND OLD.saldo IS DISTINCT FROM NEW.saldo) OR TG_OP = 'INSERT' THEN
+    INSERT INTO historial_saldos (
+      cuenta_id,
+      saldo_anterior,
+      saldo_nuevo,
+      diferencia,
+      tipo_cambio
+    ) VALUES (
+      NEW.id,
+      CASE WHEN TG_OP = 'UPDATE' THEN OLD.saldo ELSE NULL END,
+      NEW.saldo,
+      CASE WHEN TG_OP = 'UPDATE' THEN (NEW.saldo - OLD.saldo) ELSE NEW.saldo END,
+      CASE WHEN TG_OP = 'INSERT' THEN 'creacion_cuenta' ELSE 'actualizacion_saldo' END
+    );
+  END IF;
+  
+  RETURN NEW;
+END;
+$$;
+
+-- Trigger para historial de saldos
+DROP TRIGGER IF EXISTS trigger_historial_saldo ON cuentas;
+CREATE TRIGGER trigger_historial_saldo
+  AFTER INSERT OR UPDATE OF saldo ON cuentas
+  FOR EACH ROW
+  EXECUTE FUNCTION guardar_historial_saldo();
+
+
+-- 7.2) Función para expirar invitaciones vencidas
+CREATE OR REPLACE FUNCTION expirar_invitaciones_vencidas()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE invitaciones_grupo
+  SET estado = 'expirada',
+      fecha_respuesta = now()
+  WHERE estado = 'pendiente'
+    AND fecha_expiracion < now();
+END;
+$$;
+
+
+-- 7.3) Función para dividir gastos grupales automáticamente
+CREATE OR REPLACE FUNCTION dividir_gasto_grupal(
+  p_transaccion_id UUID,
+  p_grupo_id UUID
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_monto_total NUMERIC(14,2);
+  v_miembro RECORD;
+BEGIN
+  -- Obtener el monto total de la transacción
+  SELECT monto INTO v_monto_total
+  FROM transacciones
+  WHERE id = p_transaccion_id;
+  
+  -- Dividir entre todos los miembros activos del grupo
+  FOR v_miembro IN 
+    SELECT usuario_id, porcentaje_participacion
+    FROM miembros_grupo
+    WHERE grupo_id = p_grupo_id
+  LOOP
+    INSERT INTO divisiones_transaccion (
+      transaccion_id,
+      usuario_id,
+      porcentaje_participacion,
+      monto
+    ) VALUES (
+      p_transaccion_id,
+      v_miembro.usuario_id,
+      v_miembro.porcentaje_participacion,
+      ROUND((v_monto_total * v_miembro.porcentaje_participacion / 100), 2)
+    );
+  END LOOP;
+END;
+$$;
+
+
+-- 7.4) Función para aceptar invitación a grupo
+CREATE OR REPLACE FUNCTION aceptar_invitacion_grupo(
+  p_token UUID,
+  p_usuario_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_invitacion RECORD;
+BEGIN
+  -- Buscar la invitación
+  SELECT * INTO v_invitacion
+  FROM invitaciones_grupo
+  WHERE token = p_token
+    AND estado = 'pendiente'
+    AND fecha_expiracion > now();
+  
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'Invitación no encontrada, expirada o ya procesada'
+    );
+  END IF;
+  
+  -- Agregar al usuario como miembro del grupo
+  INSERT INTO miembros_grupo (
+    grupo_id,
+    usuario_id,
+    porcentaje_participacion,
+    rol
+  ) VALUES (
+    v_invitacion.grupo_id,
+    p_usuario_id,
+    v_invitacion.porcentaje_propuesto,
+    v_invitacion.rol_propuesto
+  );
+  
+  -- Marcar invitación como aceptada
+  UPDATE invitaciones_grupo
+  SET estado = 'aceptada',
+      fecha_respuesta = now()
+  WHERE id = v_invitacion.id;
+  
+  RETURN jsonb_build_object(
+    'success', true,
+    'grupo_id', v_invitacion.grupo_id,
+    'rol', v_invitacion.rol_propuesto
+  );
+  
+EXCEPTION
+  WHEN unique_violation THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'Ya eres miembro de este grupo'
+    );
+  WHEN OTHERS THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', SQLERRM
+    );
+END;
+$$;
+
+
+-- ==================================================================
+-- 8) Funciones para gestión de jerarquías personalizadas
+-- ==================================================================
+
+-- 8.1) Función para inicializar jerarquías de usuario
 DROP FUNCTION IF EXISTS inicializar_jerarquias_usuario(UUID);
 
 CREATE OR REPLACE FUNCTION inicializar_jerarquias_usuario(p_usuario_id UUID)
@@ -788,3 +954,47 @@ COMMENT ON COLUMN tarjetas_credito.dia_pago IS 'Día del mes en que vence el pag
 COMMENT ON COLUMN tarjetas_credito.dia_corte IS 'Día de corte del estado de cuenta (1-31)';
 COMMENT ON COLUMN tarjetas_credito.tasa_interes IS 'Tasa de interés anual por financiamiento';
 COMMENT ON COLUMN tarjetas_credito.porcentaje_pago_minimo IS 'Porcentaje mínimo a pagar del saldo total';
+
+
+-- 4.18) Tabla de invitaciones a grupos
+CREATE TABLE invitaciones_grupo (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  grupo_id UUID NOT NULL REFERENCES grupos_usuario(id) ON DELETE CASCADE,
+  email_invitado TEXT NOT NULL,
+  usuario_invitador UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  rol_propuesto rol_grupo NOT NULL DEFAULT 'miembro',
+  porcentaje_propuesto NUMERIC(5,2) DEFAULT 0,
+  token UUID DEFAULT gen_random_uuid() UNIQUE,
+  estado TEXT NOT NULL DEFAULT 'pendiente',
+  mensaje_invitacion TEXT,
+  fecha_expiracion TIMESTAMPTZ NOT NULL DEFAULT (now() + interval '7 days'),
+  fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now(),
+  fecha_respuesta TIMESTAMPTZ,
+  
+  -- Validaciones
+  CONSTRAINT chk_estado_invitacion CHECK (estado IN ('pendiente', 'aceptada', 'rechazada', 'expirada', 'cancelada')),
+  CONSTRAINT chk_porcentaje_invitacion CHECK (porcentaje_propuesto >= 0 AND porcentaje_propuesto <= 100),
+  CONSTRAINT chk_email_formato CHECK (email_invitado ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$')
+);
+-- Índices
+CREATE INDEX ON invitaciones_grupo(grupo_id);
+CREATE INDEX ON invitaciones_grupo(email_invitado);
+CREATE INDEX ON invitaciones_grupo(token);
+CREATE INDEX ON invitaciones_grupo(estado);
+
+
+-- 4.19) Historial de saldos para análisis temporal
+CREATE TABLE historial_saldos (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  cuenta_id UUID NOT NULL REFERENCES cuentas(id) ON DELETE CASCADE,
+  saldo_anterior NUMERIC(14,2),
+  saldo_nuevo NUMERIC(14,2) NOT NULL,
+  diferencia NUMERIC(14,2),
+  transaccion_id UUID REFERENCES transacciones(id) ON DELETE SET NULL,
+  fecha TIMESTAMPTZ NOT NULL DEFAULT now(),
+  tipo_cambio TEXT,
+  notas TEXT
+);
+-- Índices
+CREATE INDEX ON historial_saldos(cuenta_id, fecha DESC);
+CREATE INDEX ON historial_saldos(fecha DESC);
