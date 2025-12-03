@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue';
 import AppFooter from './AppFooter.vue';
 import AppSidebar from './AppSidebar.vue';
 import AppTopbar from './AppTopbar.vue';
+import AppSpeedDial from './AppSpeedDial.vue';
 
 const uiStore = useUIStore();
 
@@ -77,6 +78,7 @@ function onMaskClick() {
             </div>
             <app-footer></app-footer>
         </div>
+        <app-speed-dial></app-speed-dial>
         <div 
             v-if="uiStore.layoutState.overlayMenuActive || uiStore.layoutState.staticMenuMobileActive" 
             class="layout-mask animate-fadein"
