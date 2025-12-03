@@ -44,36 +44,36 @@ export const useUIStore = defineStore('ui', () => {
                 { label: 'Bancos', icon: 'account_balance', to: '/banks' }
             ]
         },
-        {
-            label: 'Páginas',
-            items: [
-                {
-                    label: 'Landing',
-                    icon: 'language',
-                    to: '/landing'
-                },
-                {
-                    label: 'Error',
-                    icon: 'cancel',
-                    to: '/error'
-                },
-                {
-                    label: 'Access Denied',
-                    icon: 'lock',
-                    to: '/access-denied'
-                },
-                {
-                    label: 'Not Found',
-                    icon: 'error',
-                    to: 'notfound'
-                },
-                {
-                    label: 'Empty',
-                    icon: 'circle',
-                    to: '/empty'
-                }
-            ]
-        },
+        // {
+        //     label: 'Páginas',
+        //     items: [
+        //         {
+        //             label: 'Landing',
+        //             icon: 'language',
+        //             to: '/landing'
+        //         },
+        //         {
+        //             label: 'Error',
+        //             icon: 'cancel',
+        //             to: '/error'
+        //         },
+        //         {
+        //             label: 'Access Denied',
+        //             icon: 'lock',
+        //             to: '/access-denied'
+        //         },
+        //         {
+        //             label: 'Not Found',
+        //             icon: 'error',
+        //             to: 'notfound'
+        //         },
+        //         {
+        //             label: 'Empty',
+        //             icon: 'circle',
+        //             to: '/empty'
+        //         }
+        //     ]
+        // },
         {
             label: 'Extras',
             items: [

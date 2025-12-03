@@ -30,7 +30,7 @@
         </div>
 
         <!-- Content -->
-        <div v-else-if="accounts.length > 0" class="grid grid-cols-1 gap-4">
+        <div v-else-if="accounts.length > 0" class="grid grid-cols-1 gap-3 md:gap-4">
             <div v-for="account in accounts" :key="account.id"
                 class="group cursor-pointer rounded-xl overflow-hidden relative hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-surface-300 dark:hover:border-surface-600"
                 :style="{ backgroundColor: hexToRgba(getAccountColor(account), 0.1) }"
@@ -43,38 +43,39 @@
 
                 <!-- Contenido -->
                 <div class="relative">
-                    <div class="flex items-center gap-3 md:gap-4 p-3 md:p-4">
+                    <!-- Layout Desktop -->
+                    <div class="hidden md:flex items-center gap-4 p-4">
                         <!-- Icono de la cuenta/banco -->
-                        <div class="flex-shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-lg flex items-center justify-center"
+                        <div class="flex-shrink-0 w-14 h-14 rounded-lg flex items-center justify-center"
                             :style="{ backgroundColor: hexToRgba(getAccountColor(account), 0.9) }">
                             <i v-if="account.banco?.libreria_icono === 'primevue'"
-                                :class="[account.banco.nombre_icono, 'text-xl md:text-2xl text-white']"></i>
+                                :class="[account.banco.nombre_icono, 'text-2xl text-white']"></i>
                             <span v-else-if="account.banco?.libreria_icono === 'material'"
-                                class="material-symbols-rounded text-white text-xl md:text-2xl">
+                                class="material-symbols-rounded text-white text-2xl">
                                 {{ account.banco.nombre_icono }}
                             </span>
-                            <i v-else :class="getAccountIcon(account)" class="text-white text-xl md:text-2xl"></i>
+                            <i v-else :class="getAccountIcon(account)" class="text-white text-2xl"></i>
                         </div>
 
                         <!-- Info de la cuenta -->
                         <div class="flex-1 min-w-0">
-                            <h3 class="text-sm md:text-base font-semibold text-surface-900 dark:text-surface-100 truncate mb-0.5">
+                            <h3 class="text-base font-semibold text-surface-900 dark:text-surface-100 truncate mb-0.5">
                                 {{ account.nombre }}
                             </h3>
-                            <div class="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 text-xs text-surface-500 dark:text-surface-400">
+                            <div class="flex items-center gap-2 text-xs text-surface-500 dark:text-surface-400">
                                 <div class="flex items-center gap-2">
                                     <span>{{ getAccountTypeLabel(account.tipo) }}</span>
                                     <span v-if="account.banco">• {{ account.banco.nombre }}</span>
-                                    <span v-if="account.metadatos?.last4" class="hidden md:inline">• ••{{ account.metadatos.last4 }}</span>
+                                    <span v-if="account.metadatos?.last4">• ••{{ account.metadatos.last4 }}</span>
                                 </div>
                                 <!-- Fechas para tarjeta de crédito -->
-                                <div v-if="account.tipo === 'credit_card'" class="flex items-center gap-2 md:gap-3 text-[11px] md:text-xs text-surface-600 dark:text-surface-400">
+                                <div v-if="account.tipo === 'credit_card'" class="flex items-center gap-3 text-xs text-surface-600 dark:text-surface-400">
                                     <div v-if="account.proxima_fecha_corte" class="flex items-center gap-1">
-                                        <i class="pi pi-calendar text-[9px] md:text-[10px]"></i>
+                                        <i class="pi pi-calendar text-[10px]"></i>
                                         <span class="whitespace-nowrap">Corte: {{ formatDate(account.proxima_fecha_corte) }}</span>
                                     </div>
                                     <div v-if="account.proxima_fecha_pago" class="flex items-center gap-1">
-                                        <i class="pi pi-calendar-plus text-[9px] md:text-[10px]"></i>
+                                        <i class="pi pi-calendar-plus text-[10px]"></i>
                                         <span class="whitespace-nowrap">Pago: {{ formatDate(account.proxima_fecha_pago) }}</span>
                                     </div>
                                 </div>
@@ -84,18 +85,18 @@
                         <!-- Información de saldo/crédito (solo números) -->
                         <div class="text-right flex-shrink-0">
                             <div v-if="account.tipo === 'credit_card'">
-                                <p class="text-base md:text-lg font-bold text-surface-900 dark:text-surface-0">
+                                <p class="text-lg font-bold text-surface-900 dark:text-surface-0">
                                     {{ formatCurrency(account.credito_disponible) }}
                                 </p>
-                                <p class="text-[10px] md:text-xs text-surface-500">
+                                <p class="text-xs text-surface-500">
                                     de {{ formatCurrency(account.limite_credito) }}
                                 </p>
                             </div>
                             <div v-else>
-                                <p class="text-base md:text-lg font-bold text-surface-900 dark:text-surface-0">
+                                <p class="text-lg font-bold text-surface-900 dark:text-surface-0">
                                     {{ formatCurrency(account.saldo) }}
                                 </p>
-                                <p class="text-[10px] md:text-xs text-surface-500">saldo actual</p>
+                                <p class="text-xs text-surface-500">saldo actual</p>
                             </div>
                         </div>
 
@@ -108,6 +109,74 @@
 
                             <Menu :ref="(el) => setAccountMenuRef(el, account.id)" :id="`account_menu_${account.id}`"
                                 :model="getAccountMenuItems(account)" popup />
+                        </div>
+                    </div>
+
+                    <!-- Layout Mobile -->
+                    <div class="md:hidden p-3">
+                        <div class="flex items-start gap-3 mb-2">
+                            <!-- Icono -->
+                            <div class="flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center"
+                                :style="{ backgroundColor: hexToRgba(getAccountColor(account), 0.9) }">
+                                <i v-if="account.banco?.libreria_icono === 'primevue'"
+                                    :class="[account.banco.nombre_icono, 'text-lg text-white']"></i>
+                                <span v-else-if="account.banco?.libreria_icono === 'material'"
+                                    class="material-symbols-rounded text-white text-lg">
+                                    {{ account.banco.nombre_icono }}
+                                </span>
+                                <i v-else :class="getAccountIcon(account)" class="text-white text-lg"></i>
+                            </div>
+
+                            <!-- Nombre y tipo -->
+                            <div class="flex-1 min-w-0">
+                                <h3 class="text-sm font-semibold text-surface-900 dark:text-surface-100 truncate mb-0.5">
+                                    {{ account.nombre }}
+                                </h3>
+                                <div class="flex items-center gap-1.5 text-[11px] text-surface-500 dark:text-surface-400">
+                                    <span>{{ getAccountTypeLabel(account.tipo) }}</span>
+                                    <span v-if="account.banco">• {{ account.banco.nombre }}</span>
+                                </div>
+                            </div>
+
+                            <!-- Menú móvil -->
+                            <button class="p-1.5 rounded-lg active:bg-surface-200 dark:active:bg-surface-700"
+                                @click.stop="toggleAccountMenu($event, account.id)">
+                                <i class="pi pi-ellipsis-v text-surface-600 dark:text-surface-400 text-sm"></i>
+                            </button>
+                        </div>
+
+                        <!-- Saldo/Crédito -->
+                        <div class="mb-2 pl-14">
+                            <div v-if="account.tipo === 'credit_card'">
+                                <div class="flex items-baseline gap-1.5">
+                                    <p class="text-xl font-bold text-surface-900 dark:text-surface-0">
+                                        {{ formatCurrency(account.credito_disponible) }}
+                                    </p>
+                                    <p class="text-[10px] text-surface-500">
+                                        / {{ formatCurrency(account.limite_credito) }}
+                                    </p>
+                                </div>
+                                <p class="text-[10px] text-surface-500 -mt-0.5">crédito disponible</p>
+                            </div>
+                            <div v-else>
+                                <p class="text-xl font-bold text-surface-900 dark:text-surface-0">
+                                    {{ formatCurrency(account.saldo) }}
+                                </p>
+                                <p class="text-[10px] text-surface-500 -mt-0.5">saldo actual</p>
+                            </div>
+                        </div>
+
+                        <!-- Fechas para tarjeta de crédito -->
+                        <div v-if="account.tipo === 'credit_card' && (account.proxima_fecha_corte || account.proxima_fecha_pago)" 
+                            class="flex items-center gap-3 pl-14 text-[10px] text-surface-600 dark:text-surface-400">
+                            <div v-if="account.proxima_fecha_corte" class="flex items-center gap-1">
+                                <i class="pi pi-calendar text-[8px]"></i>
+                                <span>Corte: {{ formatDate(account.proxima_fecha_corte) }}</span>
+                            </div>
+                            <div v-if="account.proxima_fecha_pago" class="flex items-center gap-1">
+                                <i class="pi pi-calendar-plus text-[8px]"></i>
+                                <span>Pago: {{ formatDate(account.proxima_fecha_pago) }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
