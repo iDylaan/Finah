@@ -32,19 +32,18 @@
         <!-- Content -->
         <div v-else-if="accounts.length > 0" class="grid grid-cols-1 gap-3 md:gap-4">
             <div v-for="account in accounts" :key="account.id"
-                class="group cursor-pointer rounded-xl overflow-hidden relative hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-surface-300 dark:hover:border-surface-600"
-                :style="{ backgroundColor: hexToRgba(getAccountColor(account), 0.1) }"
-                @click="handleEditAccount(account)">
+                class="group rounded-xl overflow-hidden relative hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-surface-300 dark:hover:border-surface-600"
+                :style="{ backgroundColor: hexToRgba(getAccountColor(account), 0.1) }">
 
                 <!-- Fondo con gradiente sutil -->
-                <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
                     :style="{ background: `linear-gradient(135deg, ${hexToRgba(getAccountColor(account), 0.15)} 0%, ${hexToRgba(getAccountColor(account), 0.05)} 100%)` }">
                 </div>
 
                 <!-- Contenido -->
                 <div class="relative">
                     <!-- Layout Desktop -->
-                    <div class="hidden md:flex items-center gap-4 p-4">
+                    <div class="hidden md:flex items-center gap-4 p-4 cursor-pointer" @click="handleEditAccount(account)">
                         <!-- Icono de la cuenta/banco -->
                         <div class="flex-shrink-0 w-14 h-14 rounded-lg flex items-center justify-center"
                             :style="{ backgroundColor: hexToRgba(getAccountColor(account), 0.9) }">
@@ -113,7 +112,7 @@
                     </div>
 
                     <!-- Layout Mobile -->
-                    <div class="md:hidden p-3">
+                    <div class="md:hidden p-3 cursor-pointer" @click="handleEditAccount(account)">
                         <div class="flex items-start gap-3 mb-2">
                             <!-- Icono -->
                             <div class="flex-shrink-0 w-11 h-11 rounded-lg flex items-center justify-center"
@@ -179,6 +178,33 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Encabezado colapsable para detalles de tarjeta de crédito -->
+                    <div 
+                        v-if="account.tipo === 'credit_card'"
+                        @click.stop="toggleCardExpansion(account.id)"
+                        class=" bg-surface-100 dark:bg-surface-900 px-3 md:px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-800 transition-colors"
+                    >
+                        <span class="text-sm font-medium text-surface-700 dark:text-surface-300">Detalles</span>
+                        <i :class="isCardExpanded(account.id) ? 'pi pi-chevron-up' : 'pi pi-chevron-down'" 
+                           class="text-surface-600 dark:text-surface-400 text-xs transition-transform duration-200"></i>
+                    </div>
+
+                    <!-- Información detallada de tarjeta de crédito (colapsable) -->
+                    <Transition
+                        enter-active-class="transition-all duration-100 ease-out"
+                        enter-from-class=" max-h-0"
+                        enter-to-class=" max-h-[1000px]"
+                        leave-active-class="transition-all duration-100 ease-in"
+                        leave-from-class=" max-h-[1000px]"
+                        leave-to-class=" max-h-0"
+                    >
+                        <div v-if="account.tipo === 'credit_card' && isCardExpanded(account.id)" 
+                            class="bg-surface-100 dark:bg-surface-900 px-3 md:px-4 pb-3 md:pb-4 pt-3 overflow-hidden"
+                            @click.stop>
+                            <CreditCardInfo :card="account" />
+                        </div>
+                    </Transition>
                 </div>
             </div>
         </div>
@@ -220,6 +246,8 @@ import { useConfirm } from 'primevue/useconfirm';
 import { useAccountsStore } from '@/stores/accounts.js';
 import PageLayout from '@/components/PageLayout.vue';
 import AccountModal from './components/AccountModal.vue';
+import CreditCardInfo from './components/CreditCardInfo.vue';
+import { formatDate } from '@/lib/utils.js';
 
 // STORES & COMPOSABLES
 const toast = useToast();
@@ -230,6 +258,9 @@ const accountsStore = useAccountsStore();
 const isInitialLoad = ref(true);
 const accounts = computed(() => accountsStore.accounts);
 const accountMenuRefs = ref({});
+
+// Estado de expansión de tarjetas de crédito
+const expandedCards = ref({});
 
 // MODAL STATE
 const showAccountModal = ref(false);
@@ -302,25 +333,6 @@ const formatCurrency = (amount) => {
     }).format(amount || 0);
 };
 
-const formatDate = (dateString) => {
-    if (!dateString) return '';
-    
-    let dateObj;
-    if (typeof dateString === 'string') {
-        // Si es un string YYYY-MM-DD, parsearlo correctamente en zona local
-        const [year, month, day] = dateString.split('-').map(Number);
-        dateObj = new Date(year, month - 1, day);
-    } else {
-        dateObj = new Date(dateString);
-    }
-    
-    return dateObj.toLocaleDateString('es-MX', { 
-        day: '2-digit', 
-        month: 'short',
-        timeZone: 'America/Mexico_City'
-    });
-};
-
 const getAccountMenuItems = (account) => {
     return [
         {
@@ -356,6 +368,15 @@ const toggleAccountMenu = (event, accountId) => {
     if (menu) {
         menu.toggle(event);
     }
+};
+
+// TOGGLE EXPANSION
+const toggleCardExpansion = (accountId) => {
+    expandedCards.value[accountId] = !expandedCards.value[accountId];
+};
+
+const isCardExpanded = (accountId) => {
+    return expandedCards.value[accountId] || false;
 };
 
 // MODAL HANDLERS

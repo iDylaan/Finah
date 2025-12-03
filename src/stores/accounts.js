@@ -1,7 +1,14 @@
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { supabase } from '@/lib/supabase.js'
 import { handleError } from '@/lib/utils.js'
+import { diasHasta } from '@/utils/misc.js'
+import { 
+    calcularPeriodoActual, 
+    porcentajeUsoCredito, 
+    montoUsado,
+    calcularPagoMinimo 
+} from '@/lib/creditCardUtils.js'
 
 export const useAccountsStore = defineStore('accounts', () => {
     // Estados
@@ -455,6 +462,130 @@ export const useAccountsStore = defineStore('accounts', () => {
         console.log('🧹 Caché de cuentas limpiado');
     };
 
+    // ===== FUNCIONES PARA TARJETAS DE CRÉDITO =====
+
+    /**
+     * Obtiene transacciones de una cuenta en un periodo específico
+     * @param {string} cuentaId - ID de la cuenta
+     * @param {Date} fechaInicio - Fecha de inicio del periodo
+     * @param {Date} fechaFin - Fecha de fin del periodo
+     * @returns {Array} - Array de transacciones del periodo
+     */
+    const obtenerTransaccionesPeriodo = async (cuentaId, fechaInicio, fechaFin) => {
+        try {
+            const { data, error } = await supabase
+                .from('transacciones')
+                .select('*')
+                .eq('cuenta_id', cuentaId)
+                .gte('fecha_ocurrencia', fechaInicio.toISOString().split('T')[0])
+                .lte('fecha_ocurrencia', fechaFin.toISOString().split('T')[0])
+                .order('fecha_ocurrencia', { ascending: false });
+
+            if (error) throw error;
+
+            return data || [];
+        } catch (error) {
+            console.error('Error obteniendo transacciones del periodo:', error);
+            return [];
+        }
+    };
+
+    /**
+     * Calcula el total de gastos en el periodo actual de una tarjeta de crédito
+     * @param {string} cuentaId - ID de la tarjeta de crédito
+     * @param {number} diaCorte - Día del mes de corte
+     * @returns {number} - Total de gastos del periodo
+     */
+    const calcularGastosPeriodoActual = async (cuentaId, diaCorte, diaPago) => {
+        try {
+            const { inicioCorte, finCorte } = calcularPeriodoActual(diaCorte, diaPago);
+            
+            const transacciones = await obtenerTransaccionesPeriodo(cuentaId, inicioCorte, finCorte);
+            
+            // Sumar solo gastos (tipo='gasto') del periodo
+            const totalGastos = transacciones
+                .filter(t => t.tipo === 'gasto')
+                .reduce((sum, t) => sum + parseFloat(t.monto || 0), 0);
+            
+            return totalGastos;
+        } catch (error) {
+            console.error('Error calculando gastos del periodo:', error);
+            return 0;
+        }
+    };
+
+    /**
+     * Obtiene información enriquecida de una tarjeta de crédito
+     * @param {Object} tarjeta - Objeto de cuenta tipo credit_card
+     * @returns {Object} - Información calculada de la tarjeta
+     */
+    const obtenerInfoTarjetaCredito = async (tarjeta) => {
+        if (!tarjeta || tarjeta.tipo !== 'credit_card') return null;
+
+        const { dia_corte, dia_pago, limite_credito, credito_disponible } = tarjeta;
+
+        // Calcular periodo actual
+        const periodo = calcularPeriodoActual(dia_corte, dia_pago);
+        
+        // Calcular días restantes
+        const diasHastaCorte = diasHasta(periodo.finCorte);
+        const diasHastaPago = diasHasta(periodo.proximoPago);
+        
+        // Calcular uso de crédito
+        const porcentajeUso = porcentajeUsoCredito(limite_credito, credito_disponible);
+        const montoUtilizado = montoUsado(limite_credito, credito_disponible);
+        
+        // Obtener gastos del periodo actual
+        const gastosPeriodo = await calcularGastosPeriodoActual(
+            tarjeta.id, 
+            dia_corte, 
+            dia_pago
+        );
+        
+        // Calcular pago mínimo
+        const pagoMinimo = calcularPagoMinimo(
+            montoUtilizado, 
+            tarjeta.porcentaje_pago_minimo || 5
+        );
+
+        return {
+            // Información del periodo
+            periodoInicio: periodo.inicioCorte,
+            periodoFin: periodo.finCorte,
+            proximoPago: periodo.proximoPago,
+            
+            // Días restantes
+            diasHastaCorte,
+            diasHastaPago,
+            
+            // Uso del crédito
+            porcentajeUso,
+            montoUtilizado,
+            gastosPeriodo,
+            
+            // Información de pago
+            pagoMinimo,
+            pagoTotal: montoUtilizado,
+            
+            // Estado
+            enPeligro: diasHastaPago <= 3 || porcentajeUso >= 90,
+            requiereAtencion: diasHastaPago <= 7 || porcentajeUso >= 70
+        };
+    };
+
+    /**
+     * Computed: Tarjetas de crédito con información calculada
+     */
+    const tarjetasConInfo = computed(() => {
+        return accounts.value
+            .filter(acc => acc.tipo === 'credit_card')
+            .map(tarjeta => ({
+                ...tarjeta,
+                // Se calculará de forma asíncrona cuando se necesite
+                _needsInfoUpdate: true
+            }));
+    });
+
     return {
         // Estados
         accounts,
@@ -473,6 +604,12 @@ export const useAccountsStore = defineStore('accounts', () => {
         createAccount,
         updateAccount,
         deleteAccount,
-        clearCache
+        clearCache,
+
+        // Funciones de tarjetas de crédito
+        obtenerTransaccionesPeriodo,
+        calcularGastosPeriodoActual,
+        obtenerInfoTarjetaCredito,
+        tarjetasConInfo
     }
 })

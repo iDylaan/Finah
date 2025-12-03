@@ -74,7 +74,13 @@ function onMaskClick() {
         <app-sidebar></app-sidebar>
         <div class="layout-main-container">
             <div class="layout-main">
-                <router-view></router-view>
+                <router-view v-slot="{ Component, route }">
+                    <transition name="fade" mode="out-in">
+                        <div :key="route.path">
+                            <component :is="Component" />
+                        </div>
+                    </transition>
+                </router-view>
             </div>
             <app-footer></app-footer>
         </div>
@@ -86,3 +92,15 @@ function onMaskClick() {
         ></div>
     </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+</style>

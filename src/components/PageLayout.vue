@@ -6,9 +6,9 @@
                 top-[62px] 
                 z-10 
                 backdrop-blur-md 
+                supports-[backdrop-filter]:bg-surface-0/60 supports-[backdrop-filter]:dark:bg-surface-900/60 
                 bg-surface-0/70 dark:bg-surface-900/70 
                 border-b border-surface-200/30 dark:border-surface-700/30
-                supports-[backdrop-filter]:bg-surface-0/60 supports-[backdrop-filter]:dark:bg-surface-900/60 
                 md:px-8
                 rounded-xl
                 w-[100%]
@@ -77,43 +77,36 @@ const props = defineProps({
 // Estado para detectar si está sticky
 const isSticky = ref(false);
 const headerRef = ref(null);
-const scrollThreshold = ref(150); // Umbral mínimo de scroll en píxeles
-const debounceTimeout = ref(null);
+const activationThreshold = ref(200); // Píxeles para activar sticky (contraer)
+const deactivationThreshold = ref(100); // Píxeles para desactivar sticky (expandir)
 
-// Función para detectar scroll con hysteresis mejorado (evitar bouncing)
+// Función para detectar scroll con umbrales fijos
 const handleScroll = () => {
     if (headerRef.value) {
-        // Cancelar timeout anterior si existe
-        if (debounceTimeout.value) {
-            clearTimeout(debounceTimeout.value);
+        const scrollY = window.scrollY || window.pageYOffset;
+        
+        // Si no está sticky y pasamos el umbral de activación -> contraer
+        if (!isSticky.value && scrollY > activationThreshold.value) {
+            isSticky.value = true;
         }
-
-        debounceTimeout.value = setTimeout(() => {
-            const scrollY = window.scrollY || window.pageYOffset;
-            
-            // Usar hysteresis amplio: diferentes umbrales para abrir/cerrar
-            if (!isSticky.value && scrollY > scrollThreshold.value) {
-                // Activar sticky solo si scrolleamos hacia abajo más del umbral
-                isSticky.value = true;
-            } else if (isSticky.value && scrollY < scrollThreshold.value - 50) {
-                // Desactivar sticky solo si scrolleamos hacia arriba con un margen amplio de 50px
-                isSticky.value = false;
-            }
-        }, 10); // Debounce de 10ms
+        // Si está sticky y bajamos del umbral de desactivación -> expandir
+        else if (isSticky.value && scrollY < deactivationThreshold.value) {
+            isSticky.value = false;
+        }
+        // Entre 100px y 200px: mantener el estado actual (zona muerta)
     }
 };
 
 // Lifecycle hooks
 onMounted(() => {
+    // Reset del estado al montar
+    isSticky.value = false;
     window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll(); // Check inicial
 });
 
 onUnmounted(() => {
     window.removeEventListener('scroll', handleScroll);
-    if (debounceTimeout.value) {
-        clearTimeout(debounceTimeout.value);
-    }
 });
 </script>
 

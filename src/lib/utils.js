@@ -92,3 +92,222 @@ export function getContrastTextWithOpacity(backgroundColor) {
     ? { color: '#000000', opacity: 0.5 } 
     : { color: '#ffffff', opacity: 0.8 };
 }
+
+/**
+ * Formatea una fecha en diferentes formatos para visualización
+ * Soporta tanto objetos Date como strings de fecha
+ * Todos los formatos están en español (es-MX)
+ * 
+ * @param {Date|string} fecha - Fecha a formatear
+ * @param {string} formato - Tipo de formato deseado
+ *   - 'corto': "09 dic" (día + mes abreviado)
+ *   - 'medio': "09 dic 2025" (día + mes abreviado + año) [DEFAULT]
+ *   - 'largo': "9 de diciembre de 2025" (día + mes completo + año)
+ *   - 'completo': "sábado, 9 de diciembre de 2025" (día semana + día + mes completo + año)
+ *   - 'numerico': "09/12/2025" (dd/mm/yyyy)
+ *   - 'iso': "2025-12-09" (yyyy-mm-dd)
+ * @returns {string} Fecha formateada según el formato especificado
+ */
+export const formatDate = (fecha, formato = 'medio') => {
+    if (!fecha) return '';
+
+    // Convertir a objeto Date si es string
+    let dateObj;
+    if (fecha instanceof Date) {
+        dateObj = fecha;
+    } else if (typeof fecha === 'string') {
+        // Si es formato YYYY-MM-DD, parsearlo en zona local
+        if (/^\d{4}-\d{2}-\d{2}/.test(fecha)) {
+            const [year, month, day] = fecha.split('T')[0].split('-').map(Number);
+            dateObj = new Date(year, month - 1, day);
+        } else {
+            dateObj = new Date(fecha);
+        }
+    } else {
+        return '';
+    }
+
+    // Verificar que la fecha sea válida
+    if (isNaN(dateObj.getTime())) {
+        return '';
+    }
+
+    const opciones = {
+        timeZone: 'America/Mexico_City'
+    };
+
+    switch (formato) {
+        case 'corto':
+            // "09 dic"
+            return dateObj.toLocaleDateString('es-MX', {
+                ...opciones,
+                day: '2-digit',
+                month: 'short'
+            });
+
+        case 'medio':
+            // "09 dic 2025"
+            return dateObj.toLocaleDateString('es-MX', {
+                ...opciones,
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            });
+
+        case 'largo':
+            // "9 de diciembre de 2025"
+            return dateObj.toLocaleDateString('es-MX', {
+                ...opciones,
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+
+        case 'completo':
+            // "sábado, 9 de diciembre de 2025"
+            return dateObj.toLocaleDateString('es-MX', {
+                ...opciones,
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+
+        case 'numerico':
+            // "09/12/2025"
+            return dateObj.toLocaleDateString('es-MX', {
+                ...opciones,
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+
+        case 'iso':
+            // "2025-12-09"
+            const year = dateObj.getFullYear();
+            const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const day = String(dateObj.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+
+        default:
+            // Por defecto: formato medio
+            return dateObj.toLocaleDateString('es-MX', {
+                ...opciones,
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            });
+    }
+};
+
+/**
+ * Formatea una fecha con hora en diferentes formatos
+ * 
+ * @param {Date|string} fecha - Fecha a formatear
+ * @param {string} formato - Tipo de formato deseado
+ *   - 'corto': "09 dic, 14:30"
+ *   - 'medio': "09 dic 2025, 14:30" [DEFAULT]
+ *   - 'largo': "9 de diciembre de 2025, 14:30"
+ *   - 'completo': "sábado, 9 de diciembre de 2025, 14:30:45"
+ * @returns {string} Fecha y hora formateadas
+ */
+export const formatDateTime = (fecha, formato = 'medio') => {
+    if (!fecha) return '';
+
+    let dateObj;
+    if (fecha instanceof Date) {
+        dateObj = fecha;
+    } else {
+        dateObj = new Date(fecha);
+    }
+
+    if (isNaN(dateObj.getTime())) {
+        return '';
+    }
+
+    const opciones = {
+        timeZone: 'America/Mexico_City'
+    };
+
+    switch (formato) {
+        case 'corto':
+            return dateObj.toLocaleString('es-MX', {
+                ...opciones,
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+        case 'medio':
+            return dateObj.toLocaleString('es-MX', {
+                ...opciones,
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+        case 'largo':
+            return dateObj.toLocaleString('es-MX', {
+                ...opciones,
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+        case 'completo':
+            return dateObj.toLocaleString('es-MX', {
+                ...opciones,
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+
+        default:
+            return dateObj.toLocaleString('es-MX', {
+                ...opciones,
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+    }
+};
+
+/**
+ * Formatea solo la hora
+ * 
+ * @param {Date|string} fecha - Fecha/hora a formatear
+ * @param {boolean} conSegundos - Si debe incluir segundos
+ * @returns {string} Hora formateada
+ */
+export const formatTime = (fecha, conSegundos = false) => {
+    if (!fecha) return '';
+
+    let dateObj;
+    if (fecha instanceof Date) {
+        dateObj = fecha;
+    } else {
+        dateObj = new Date(fecha);
+    }
+
+    if (isNaN(dateObj.getTime())) {
+        return '';
+    }
+
+    return dateObj.toLocaleTimeString('es-MX', {
+        timeZone: 'America/Mexico_City',
+        hour: '2-digit',
+        minute: '2-digit',
+        ...(conSegundos && { second: '2-digit' })
+    });
+};

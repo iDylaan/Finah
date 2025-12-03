@@ -28,10 +28,11 @@
                     p-1 
                     border 
                     rounded-lg
+                    hover:bg-surface-50 dark:hover:bg-surface-700 
                     cursor-pointer 
                     border-surface-200 dark:border-surface-700/60
-                    bg-surface-0/80 dark:bg-surface-800/70
-                    hover:bg-surface-50 dark:hover:bg-surface-700 
+                    bg-surface-0
+                    dark:bg-surface-800
                     transition-colors 
                     shadow-md" @click="toggleCallback">
                     <div class="flex flex-col justify-center items-center">
@@ -39,11 +40,12 @@
                     </div>
                 </div>
                 <Transition enter-active-class="animate__animated animate__fadeInLeft animate__faster"
-                    leave-active-class="animate__animated animate__fadeOutDown"
+                    leave-active-class="animate__animated animate__fadeOutRight"
                     :style="{ '--animate-delay': `${index * 0.05}s` }">
                     <div v-if="isOpen" class="speed-dial-tooltip">
                         <span class="
-                            bg-surface-0/60 dark:bg-surface-700/40 
+                            bg-[#c8c9c9]
+                            dark:bg-[#2a2e33]
                             text-surface-800 dark:text-surface-0/70
                             px-3
                             py-2 
