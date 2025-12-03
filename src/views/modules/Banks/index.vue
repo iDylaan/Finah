@@ -1,26 +1,12 @@
 <template>
-    <PageLayout 
-        title="Entidades Financieras" 
-        description="Gestiona tus bancos y entidades financieras para organizar tus cuentas"
-    >
+    <PageLayout title="Entidades Financieras"
+        description="Gestiona tus bancos y entidades financieras para organizar tus cuentas">
         <!-- Acciones del header -->
         <template #actions>
-            <Button 
-                icon="pi pi-refresh" 
-                @click="refreshBanks" 
-                :loading="bankStore.loading"
-                severity="secondary" 
-                outlined 
-                size="small"
-                v-tooltip.bottom="'Actualizar'"
-            />
-            <Button 
-                icon="pi pi-plus" 
-                @click="openNewBankForm" 
-                size="small"
-                label="Nuevo Banco"
-                class="mobile-icon-only"
-            />
+            <Button icon="pi pi-refresh" @click="refreshBanks" :loading="bankStore.loading" severity="secondary"
+                outlined size="small" v-tooltip.bottom="'Actualizar'" />
+            <Button icon="pi pi-plus" @click="openNewBankForm" size="small" label="Nuevo Banco"
+                class="mobile-icon-only" />
         </template>
 
         <!-- Contenido principal -->
@@ -29,7 +15,8 @@
         </div>
 
         <!-- Error state -->
-        <div v-else-if="bankStore.error" class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800 mb-4">
+        <div v-else-if="bankStore.error"
+            class="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800 mb-4">
             <div class="flex items-start gap-3">
                 <i class="pi pi-exclamation-triangle text-red-600 dark:text-red-400 text-xl mt-0.5"></i>
                 <div class="flex-1">
@@ -48,10 +35,12 @@
                 <h2 class="text-lg font-semibold text-surface-900 dark:text-surface-0 mb-4">Mis bancos</h2>
 
                 <!-- Empty state -->
-                <div v-if="bankStore.userBanks.length === 0" class="flex items-center justify-center min-h-[200px] py-8 px-4">
+                <div v-if="bankStore.userBanks.length === 0"
+                    class="flex items-center justify-center min-h-[200px] py-8 px-4">
                     <div class="text-center max-w-md">
                         <i class="pi pi-building text-5xl text-surface-300 dark:text-surface-600 mb-4"></i>
-                        <h3 class="text-base font-medium text-surface-700 dark:text-surface-300 mb-2">No tienes bancos personalizados</h3>
+                        <h3 class="text-base font-medium text-surface-700 dark:text-surface-300 mb-2">No tienes bancos
+                            personalizados</h3>
                         <p class="text-sm text-surface-500 dark:text-surface-400 mb-4">
                             Crea tu primer banco personalizado para gestionar tus cuentas.
                         </p>
@@ -63,8 +52,7 @@
                 <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div v-for="bank in bankStore.userBanks" :key="bank.id"
                         class="group cursor-pointer rounded-xl overflow-hidden relative hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-surface-300 dark:hover:border-surface-600"
-                        :style="{ backgroundColor: hexToRgba(bank.color, 0.1) }"
-                        @click="handleViewBank(bank)">
+                        :style="{ backgroundColor: hexToRgba(bank.color, 0.1) }" @click="handleViewBank(bank)">
 
                         <!-- Fondo con gradiente sutil -->
                         <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
@@ -86,16 +74,15 @@
                                 </div>
 
                                 <div class="flex-1 min-w-0">
-                                    <h3 class="text-base font-semibold text-surface-900 dark:text-surface-100 truncate mb-0.5">
+                                    <h3
+                                        class="text-base font-semibold text-surface-900 dark:text-surface-100 truncate mb-0.5">
                                         {{ bank.nombre }}
                                     </h3>
-                                    <p class="text-xs text-surface-500 dark:text-surface-400">
-                                        Banco personalizado
-                                    </p>
                                 </div>
 
                                 <!-- Menú contextual -->
-                                <button class="flex-shrink-0 p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors opacity-0 group-hover:opacity-100 mr-3"
+                                <button
+                                    class="flex-shrink-0 p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors opacity-0 group-hover:opacity-100 mr-3"
                                     @click.stop="toggleBankMenu($event, bank.id)">
                                     <i class="pi pi-ellipsis-v text-surface-600 dark:text-surface-400 text-sm"></i>
                                 </button>
@@ -114,7 +101,8 @@
                 <h2 class="text-lg font-semibold text-surface-900 dark:text-surface-0 mb-4">Bancos del sistema</h2>
 
                 <!-- Empty state -->
-                <div v-if="bankStore.publicBanks.length === 0" class="flex items-center justify-center min-h-[200px] py-8 px-4">
+                <div v-if="bankStore.publicBanks.length === 0"
+                    class="flex items-center justify-center min-h-[200px] py-8 px-4">
                     <div class="text-center max-w-md">
                         <i class="pi pi-info-circle text-5xl text-surface-300 dark:text-surface-600 mb-4"></i>
                         <p class="text-sm text-surface-600 dark:text-surface-400">
@@ -127,8 +115,7 @@
                 <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div v-for="bank in bankStore.publicBanks" :key="bank.id"
                         class="group cursor-pointer rounded-xl overflow-hidden relative hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-surface-300 dark:hover:border-surface-600"
-                        :style="{ backgroundColor: hexToRgba(bank.color, 0.1) }"
-                        @click="handleViewBank(bank)">
+                        :style="{ backgroundColor: hexToRgba(bank.color, 0.1) }" @click="handleViewBank(bank)">
 
                         <!-- Fondo con gradiente sutil -->
                         <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
@@ -149,12 +136,11 @@
                                     </span>
                                 </div>
 
-                                <div class="flex-1 min-w-0">
-                                    <div class="flex items-center gap-2 mb-0.5">
-                                        <h3 class="text-base font-semibold text-surface-900 dark:text-surface-100 truncate">
-                                            {{ bank.nombre }}
-                                        </h3>
-                                    </div>
+                                <div class="flex min-w-0">
+                                    <h3
+                                        class="text-base font-semibold text-surface-900 dark:text-surface-100 truncate mb-0.5">
+                                        {{ bank.nombre }}
+                                    </h3>
                                 </div>
                             </div>
                         </div>
@@ -194,17 +180,17 @@ const menuRefs = ref({});
 const hexToRgba = (hex, opacity = 1) => {
     // Remover el # si existe
     hex = hex.replace('#', '');
-    
+
     // Convertir hex de 3 dígitos a 6 dígitos
     if (hex.length === 3) {
         hex = hex.split('').map(char => char + char).join('');
     }
-    
+
     // Extraer RGB
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
     const b = parseInt(hex.substring(4, 6), 16);
-    
+
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 };
 
@@ -347,5 +333,4 @@ const toggleBankMenu = (event, bankId) => {
 </script>
 
 <style lang="scss" scoped>
-// Estilos adicionales si son necesarios
-</style>
+// Estilos adicionales si son necesarios</style>
