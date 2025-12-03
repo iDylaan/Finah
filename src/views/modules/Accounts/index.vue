@@ -204,7 +204,7 @@
             :edit-account-id="editingAccountId" 
             :accounts="accounts"
             :banks="accountsStore.banks" 
-            :is-loading="accountsStore.loading" 
+            :is-loading="modalLoading" 
             @submit="handleAccountSubmit"
             @cancel="handleModalCancel"
             @close="handleModalCancel"
@@ -235,6 +235,7 @@ const accountMenuRefs = ref({});
 const showAccountModal = ref(false);
 const modalEditMode = ref(false);
 const editingAccountId = ref(null);
+const modalLoading = ref(false);
 
 // FUNCTIONS - Helper para convertir hex a rgba con opacidad
 const hexToRgba = (hex, opacity = 1) => {
@@ -381,6 +382,7 @@ const handleModalCancel = () => {
 const handleAccountSubmit = async ({ data, isEdit, accountId }) => {
     console.log('📤 Procesando envío de cuenta:', { data, isEdit, accountId });
 
+    modalLoading.value = true;
     try {
         let result;
 
@@ -411,6 +413,8 @@ const handleAccountSubmit = async ({ data, isEdit, accountId }) => {
             detail: error.message || 'Error procesando la cuenta',
             life: 5000
         });
+    } finally {
+        modalLoading.value = false;
     }
 };
 
