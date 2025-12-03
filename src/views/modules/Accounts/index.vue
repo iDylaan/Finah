@@ -62,14 +62,14 @@
                             <h3 class="text-base font-semibold text-surface-900 dark:text-surface-100 truncate mb-0.5">
                                 {{ account.nombre }}
                             </h3>
-                            <div class="flex items-center gap-2 text-xs text-surface-500 dark:text-surface-400">
+                            <div class="flex items-center gap-2 text-xs text-surface-700 dark:text-surface-400">
                                 <div class="flex items-center gap-2">
                                     <span>{{ getAccountTypeLabel(account.tipo) }}</span>
                                     <span v-if="account.banco">• {{ account.banco.nombre }}</span>
                                     <span v-if="account.metadatos?.last4">• ••{{ account.metadatos.last4 }}</span>
                                 </div>
                                 <!-- Fechas para tarjeta de crédito -->
-                                <div v-if="account.tipo === 'credit_card'" class="flex items-center gap-3 text-xs text-surface-600 dark:text-surface-400">
+                                <div v-if="account.tipo === 'credit_card'" class="flex items-center gap-3 text-xs text-surface-900 dark:text-surface-300">
                                     <div v-if="account.proxima_fecha_corte" class="flex items-center gap-1">
                                         <i class="pi pi-calendar text-[10px]"></i>
                                         <span class="whitespace-nowrap">Corte: {{ formatDate(account.proxima_fecha_corte) }}</span>
@@ -88,7 +88,7 @@
                                 <p class="text-lg font-bold text-surface-900 dark:text-surface-0">
                                     {{ formatCurrency(account.credito_disponible) }}
                                 </p>
-                                <p class="text-xs text-surface-500">
+                                <p class="text-xs text-surface-700 dark:text-surface-400">
                                     de {{ formatCurrency(account.limite_credito) }}
                                 </p>
                             </div>
@@ -96,7 +96,7 @@
                                 <p class="text-lg font-bold text-surface-900 dark:text-surface-0">
                                     {{ formatCurrency(account.saldo) }}
                                 </p>
-                                <p class="text-xs text-surface-500">saldo actual</p>
+                                <p class="text-xs text-surface-700 dark:text-surface-400">saldo actual</p>
                             </div>
                         </div>
 
