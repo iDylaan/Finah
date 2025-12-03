@@ -131,8 +131,9 @@
                             <div class="field">
                                 <label for="catRate" class="block mb-2 font-medium">CAT %</label>
                                 <InputNumber id="catRate" v-model="accountForm.tarjeta_credito.porcentaje_cat" :min="0"
-                                    :max="100" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
-                                    class="w-full" />
+                                    :max="500" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
+                                    suffix="%" placeholder="0.0%" class="w-full" />
+                                <small class="text-xs text-surface-500">Costo Anual Total</small>
                             </div>
 
                             <!-- Anualidad -->
@@ -143,6 +144,83 @@
                                         :showExpression="false" />
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- Gasto para exención de anualidad -->
+                        <div v-if="accountForm.tarjeta_credito.anualidad > 0" class="field">
+                            <label for="annualFeeWaiver" class="block mb-2 font-medium">Gasto anual para exentar anualidad</label>
+                            <div class="p-inputgroup">
+                                <BalanceInput v-model="accountForm.tarjeta_credito.gasto_exencion_anualidad" :maxDigits="12"
+                                    :showExpression="false" />
+                            </div>
+                            <small class="text-xs text-surface-500">Monto que debes gastar al año para no pagar anualidad</small>
+                        </div>
+
+                        <!-- Tasa de interés y Pago mínimo -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                            <!-- Tasa de interés -->
+                            <div class="field">
+                                <label for="interestRate" class="block mb-2 font-medium">Tasa de interés anual</label>
+                                <InputNumber id="interestRate" v-model="accountForm.tarjeta_credito.tasa_interes" :min="0"
+                                    :max="99.99" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
+                                    suffix="%" placeholder="0.0%" class="w-full" />
+                            </div>
+
+                            <!-- Pago mínimo -->
+                            <div class="field">
+                                <label for="minPayment" class="block mb-2 font-medium">Pago mínimo %</label>
+                                <InputNumber id="minPayment" v-model="accountForm.tarjeta_credito.porcentaje_pago_minimo" :min="0"
+                                    :max="100" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
+                                    suffix="%" placeholder="5.0%" class="w-full" />
+                                <small class="text-xs text-surface-500">Porcentaje del saldo a pagar mensualmente</small>
+                            </div>
+                        </div>
+
+                        <!-- Días de gracia -->
+                        <div class="field">
+                            <label for="gracePeriod" class="block mb-2 font-medium">Días de gracia</label>
+                            <InputNumber id="gracePeriod" v-model="accountForm.tarjeta_credito.dias_gracia" :min="0"
+                                :max="60" class="w-full" />
+                            <small class="text-xs text-surface-500">Días sin intereses después del corte si pagas el total</small>
+                        </div>
+
+                        <!-- Fechas calculadas automáticamente (solo lectura) -->
+                        <div v-if="accountForm.tarjeta_credito.proxima_fecha_corte || accountForm.tarjeta_credito.proxima_fecha_pago" 
+                            class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 p-4 bg-surface-50 dark:bg-surface-800 rounded-lg border border-surface-200 dark:border-surface-700">
+                            <!-- Próxima fecha de corte calculada -->
+                            <div class="field mb-0">
+                                <label class="block mb-2 font-medium text-sm">📅 Próxima fecha de corte</label>
+                                <p class="text-base font-semibold text-primary">
+                                    {{ accountForm.tarjeta_credito.proxima_fecha_corte ? 
+                                        formatearFechaLocal(accountForm.tarjeta_credito.proxima_fecha_corte) : 'No calculada' }}
+                                </p>
+                            </div>
+
+                            <!-- Próxima fecha de pago calculada -->
+                            <div class="field mb-0">
+                                <label class="block mb-2 font-medium text-sm">💳 Próxima fecha de pago</label>
+                                <p class="text-base font-semibold text-primary">
+                                    {{ accountForm.tarjeta_credito.proxima_fecha_pago ? 
+                                        formatearFechaLocal(accountForm.tarjeta_credito.proxima_fecha_pago) : 'No calculada' }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Puntos por peso -->
+                        <div class="field">
+                            <label for="rewardsPoints" class="block mb-2 font-medium">Puntos por peso gastado</label>
+                            <InputNumber id="rewardsPoints" v-model="accountForm.tarjeta_credito.puntos_por_peso" :min="0"
+                                :max="100" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
+                                placeholder="0.0" class="w-full" />
+                            <small class="text-xs text-surface-500">Puntos de recompensa que acumulas por cada peso</small>
+                        </div>
+
+                        <!-- Notas adicionales -->
+                        <div class="field">
+                            <label for="notes" class="block mb-2 font-medium">Notas adicionales</label>
+                            <Textarea id="notes" v-model="accountForm.tarjeta_credito.notas" rows="3"
+                                placeholder="Promociones, beneficios especiales, MSI disponibles, etc." class="w-full" />
+                            <small class="text-xs text-surface-500">Información sobre promociones, beneficios especiales, etc.</small>
                         </div>
 
                         <!-- Beneficios adicionales -->
@@ -338,9 +416,17 @@ const defaultForm = {
         credito_disponible: 0,
         dia_corte: 1,
         dia_pago: 15,
-        porcentaje_cat: 0,
-        porcentaje_cashback: 0,
-        anualidad: 0
+        tasa_interes: null,
+        porcentaje_pago_minimo: 5,
+        proxima_fecha_pago: null,
+        proxima_fecha_corte: null,
+        porcentaje_cat: null,
+        anualidad: 0,
+        gasto_exencion_anualidad: null,
+        porcentaje_cashback: null,
+        puntos_por_peso: null,
+        dias_gracia: null,
+        notas: null
     }
 };
 
@@ -392,32 +478,41 @@ const loadAccountData = async () => {
         const accountToEdit = props.accounts.find(acc => acc.id === props.editAccountId);
 
         if (accountToEdit) {
-            // Determinar si podemos cambiar el tipo
-            canChangeType.value = !accountToEdit.tarjeta_credito;
+            console.log('📝 Cargando cuenta para editar:', accountToEdit);
 
             // Actualizar el formulario con los datos existentes
             accountForm.value = {
                 nombre: accountToEdit.nombre,
                 tipo: accountToEdit.tipo,
                 banco_id: accountToEdit.banco_id,
-                saldo: accountToEdit.saldo || 0,
+                saldo: accountToEdit.saldo ?? 0,
                 metadatos: {
                     ...defaultForm.metadatos,
                     ...accountToEdit.metadatos
                 },
-                tarjeta_credito: accountToEdit.tarjeta_credito ? {
-                    limite_credito: accountToEdit.tarjeta_credito.limite_credito || 0,
-                    credito_disponible: accountToEdit.tarjeta_credito.credito_disponible || 0,
-                    dia_corte: accountToEdit.tarjeta_credito.dia_corte || 1,
-                    dia_pago: accountToEdit.tarjeta_credito.dia_pago || 15,
-                    porcentaje_cat: accountToEdit.tarjeta_credito.porcentaje_cat || 0,
-                    porcentaje_cashback: accountToEdit.tarjeta_credito.porcentaje_cashback || 0,
-                    anualidad: accountToEdit.tarjeta_credito.anualidad || 0
+                tarjeta_credito: accountToEdit.tipo === 'credit_card' ? {
+                    limite_credito: accountToEdit.limite_credito ?? 0,
+                    credito_disponible: accountToEdit.credito_disponible ?? 0,
+                    dia_corte: accountToEdit.dia_corte ?? 1,
+                    dia_pago: accountToEdit.dia_pago ?? 15,
+                    tasa_interes: accountToEdit.tasa_interes ?? null,
+                    porcentaje_pago_minimo: accountToEdit.porcentaje_pago_minimo ?? 5,
+                    proxima_fecha_pago: accountToEdit.proxima_fecha_pago ?? null,
+                    proxima_fecha_corte: accountToEdit.proxima_fecha_corte ?? null,
+                    porcentaje_cat: accountToEdit.porcentaje_cat ?? null,
+                    anualidad: accountToEdit.anualidad ?? 0,
+                    gasto_exencion_anualidad: accountToEdit.gasto_exencion_anualidad ?? null,
+                    porcentaje_cashback: accountToEdit.porcentaje_cashback ?? null,
+                    puntos_por_peso: accountToEdit.puntos_por_peso ?? null,
+                    dias_gracia: accountToEdit.dias_gracia ?? null,
+                    notas: accountToEdit.notas ?? null
                 } : { ...defaultForm.tarjeta_credito }
             };
 
+            console.log('📋 Datos cargados en formulario:', accountForm.value);
+
             // Si tiene información de cashback, actualizar el flag
-            if (accountToEdit.tarjeta_credito?.porcentaje_cashback > 0) {
+            if (accountToEdit.porcentaje_cashback != null && accountToEdit.porcentaje_cashback > 0) {
                 accountForm.value.metadatos.hasCashback = true;
             }
         }
@@ -429,10 +524,14 @@ const loadAccountData = async () => {
 
 // Método para manejar la validación y envío del formulario
 const submitForm = async () => {
+    // Limpiar validaciones anteriores
+    v$.value.$reset();
+    
     // Validar formulario
     const isValid = await v$.value.$validate();
 
     if (!isValid) {
+        console.log('🚨 Errores de validación:', v$.value.$errors);
         toast.add({
             severity: 'error',
             summary: 'Error',
@@ -456,20 +555,40 @@ const submitForm = async () => {
 
         // Si es tarjeta de crédito, incluir datos adicionales
         if (accountForm.value.tipo === 'credit_card') {
-            formData.tarjeta_credito = {
-                limite_credito: parseFloat(accountForm.value.tarjeta_credito.limite_credito),
-                credito_disponible: parseFloat(accountForm.value.tarjeta_credito.credito_disponible),
-                dia_corte: accountForm.value.tarjeta_credito.dia_corte,
-                dia_pago: accountForm.value.tarjeta_credito.dia_pago,
-                porcentaje_cat: accountForm.value.tarjeta_credito.porcentaje_cat || 0,
-                anualidad: parseFloat(accountForm.value.tarjeta_credito.anualidad) || 0
+            // Convertir fechas a formato ISO (YYYY-MM-DD) para PostgreSQL usando fecha local
+            const formatearFecha = (fecha) => {
+                if (!fecha) return null;
+                if (fecha instanceof Date) {
+                    const year = fecha.getFullYear();
+                    const month = String(fecha.getMonth() + 1).padStart(2, '0');
+                    const day = String(fecha.getDate()).padStart(2, '0');
+                    return `${year}-${month}-${day}`;
+                }
+                return fecha;
             };
 
-            // Solo incluir porcentaje de cashback si está habilitado
-            if (accountForm.value.metadatos.hasCashback) {
-                formData.tarjeta_credito.porcentaje_cashback = accountForm.value.tarjeta_credito.porcentaje_cashback || 0;
-            }
+            formData.tarjeta_credito = {
+                limite_credito: parseFloat(accountForm.value.tarjeta_credito.limite_credito) || 0,
+                credito_disponible: parseFloat(accountForm.value.tarjeta_credito.credito_disponible) || 0,
+                dia_corte: parseInt(accountForm.value.tarjeta_credito.dia_corte) || 1,
+                dia_pago: parseInt(accountForm.value.tarjeta_credito.dia_pago) || 15,
+                tasa_interes: accountForm.value.tarjeta_credito.tasa_interes != null ? parseFloat(accountForm.value.tarjeta_credito.tasa_interes) : null,
+                porcentaje_pago_minimo: accountForm.value.tarjeta_credito.porcentaje_pago_minimo != null ? parseFloat(accountForm.value.tarjeta_credito.porcentaje_pago_minimo) : null,
+                proxima_fecha_pago: formatearFecha(accountForm.value.tarjeta_credito.proxima_fecha_pago),
+                proxima_fecha_corte: formatearFecha(accountForm.value.tarjeta_credito.proxima_fecha_corte),
+                porcentaje_cat: accountForm.value.tarjeta_credito.porcentaje_cat != null ? parseFloat(accountForm.value.tarjeta_credito.porcentaje_cat) : null,
+                anualidad: parseFloat(accountForm.value.tarjeta_credito.anualidad) || 0,
+                gasto_exencion_anualidad: accountForm.value.tarjeta_credito.gasto_exencion_anualidad != null ? parseFloat(accountForm.value.tarjeta_credito.gasto_exencion_anualidad) : null,
+                porcentaje_cashback: accountForm.value.tarjeta_credito.porcentaje_cashback != null ? parseFloat(accountForm.value.tarjeta_credito.porcentaje_cashback) : null,
+                puntos_por_peso: accountForm.value.tarjeta_credito.puntos_por_peso != null ? parseFloat(accountForm.value.tarjeta_credito.puntos_por_peso) : null,
+                dias_gracia: accountForm.value.tarjeta_credito.dias_gracia != null ? parseInt(accountForm.value.tarjeta_credito.dias_gracia) : null,
+                notas: accountForm.value.tarjeta_credito.notas?.trim() || null
+            };
+
+            console.log('📋 Datos de tarjeta de crédito a enviar:', formData.tarjeta_credito);
         }
+
+        console.log('📤 Form data completo:', formData);
 
         // Enviar datos al componente padre
         emit('submit', {
@@ -515,11 +634,98 @@ const formatLastFourDigits = () => {
     }
 };
 
+// Función para calcular la próxima fecha basada en un día del mes
+const calcularProximaFecha = (diaDelMes) => {
+    if (!diaDelMes || diaDelMes < 1 || diaDelMes > 31) return null;
+    
+    const hoy = new Date();
+    const mesActual = hoy.getMonth();
+    const añoActual = hoy.getFullYear();
+    const diaActual = hoy.getDate();
+    
+    // Crear fecha con el día especificado en el mes actual a las 12:00 para evitar problemas de zona horaria
+    let proximaFecha = new Date(añoActual, mesActual, diaDelMes, 12, 0, 0, 0);
+    
+    // Si la fecha ya pasó este mes, usar el siguiente mes
+    if (proximaFecha <= hoy) {
+        proximaFecha = new Date(añoActual, mesActual + 1, diaDelMes, 12, 0, 0, 0);
+    }
+    
+    return proximaFecha;
+};
+
+// Función para calcular ambas fechas automáticamente
+const calcularFechasAutomaticas = () => {
+    if (accountForm.value.tipo === 'credit_card') {
+        // Calcular próxima fecha de corte
+        if (accountForm.value.tarjeta_credito.dia_corte) {
+            accountForm.value.tarjeta_credito.proxima_fecha_corte = 
+                calcularProximaFecha(accountForm.value.tarjeta_credito.dia_corte);
+        }
+        
+        // Calcular próxima fecha de pago
+        if (accountForm.value.tarjeta_credito.dia_pago) {
+            accountForm.value.tarjeta_credito.proxima_fecha_pago = 
+                calcularProximaFecha(accountForm.value.tarjeta_credito.dia_pago);
+        }
+    }
+};
+
+// Función para formatear fecha local para visualización
+const formatearFechaLocal = (fecha) => {
+    if (!fecha) return '';
+    
+    let dateObj;
+    if (fecha instanceof Date) {
+        dateObj = fecha;
+    } else if (typeof fecha === 'string') {
+        // Si es un string YYYY-MM-DD, parsearlo correctamente en zona local
+        const [year, month, day] = fecha.split('-').map(Number);
+        dateObj = new Date(year, month - 1, day);
+    } else {
+        return '';
+    }
+    
+    return dateObj.toLocaleDateString('es-MX', { 
+        day: '2-digit', 
+        month: 'long', 
+        year: 'numeric',
+        timeZone: 'America/Mexico_City'
+    });
+};
+
 // Watch para ajustar el crédito disponible si excede el límite de crédito
 watch(() => accountForm.value.tarjeta_credito.limite_credito, (newLimit) => {
     if (accountForm.value.tipo === 'credit_card' &&
         accountForm.value.tarjeta_credito.credito_disponible > newLimit) {
         accountForm.value.tarjeta_credito.credito_disponible = newLimit;
+    }
+});
+
+// Watch para calcular próxima fecha de corte automáticamente
+watch(() => accountForm.value.tarjeta_credito.dia_corte, (nuevoDia) => {
+    if (accountForm.value.tipo === 'credit_card' && nuevoDia) {
+        accountForm.value.tarjeta_credito.proxima_fecha_corte = calcularProximaFecha(nuevoDia);
+    }
+});
+
+// Watch para calcular próxima fecha de pago automáticamente
+watch(() => accountForm.value.tarjeta_credito.dia_pago, (nuevoDia) => {
+    if (accountForm.value.tipo === 'credit_card' && nuevoDia) {
+        accountForm.value.tarjeta_credito.proxima_fecha_pago = calcularProximaFecha(nuevoDia);
+    }
+});
+
+// Watch para resetear validaciones cuando cambia el tipo de cuenta
+watch(() => accountForm.value.tipo, (newType, oldType) => {
+    if (newType !== oldType) {
+        // Resetear las validaciones
+        v$.value.$reset();
+        
+        // Si cambia de credit_card a otro tipo, resetear datos de tarjeta
+        if (oldType === 'credit_card' && newType !== 'credit_card') {
+            accountForm.value.tarjeta_credito = { ...defaultForm.tarjeta_credito };
+        }
     }
 });
 

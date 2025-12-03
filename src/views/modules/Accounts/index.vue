@@ -43,67 +43,59 @@
 
                 <!-- Contenido -->
                 <div class="relative">
-                    <div class="flex items-center gap-4 p-4">
+                    <div class="flex items-center gap-3 md:gap-4 p-3 md:p-4">
                         <!-- Icono de la cuenta/banco -->
-                        <div class="flex-shrink-0 w-14 h-14 rounded-lg flex items-center justify-center"
+                        <div class="flex-shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-lg flex items-center justify-center"
                             :style="{ backgroundColor: hexToRgba(getAccountColor(account), 0.9) }">
                             <i v-if="account.banco?.libreria_icono === 'primevue'"
-                                :class="[account.banco.nombre_icono, 'text-2xl text-white']"></i>
+                                :class="[account.banco.nombre_icono, 'text-xl md:text-2xl text-white']"></i>
                             <span v-else-if="account.banco?.libreria_icono === 'material'"
-                                class="material-symbols-rounded text-white text-2xl">
+                                class="material-symbols-rounded text-white text-xl md:text-2xl">
                                 {{ account.banco.nombre_icono }}
                             </span>
-                            <i v-else :class="getAccountIcon(account)" class="text-white text-2xl"></i>
+                            <i v-else :class="getAccountIcon(account)" class="text-white text-xl md:text-2xl"></i>
                         </div>
 
                         <!-- Info de la cuenta -->
                         <div class="flex-1 min-w-0">
-                            <h3 class="text-base font-semibold text-surface-900 dark:text-surface-100 truncate mb-0.5">
+                            <h3 class="text-sm md:text-base font-semibold text-surface-900 dark:text-surface-100 truncate mb-0.5">
                                 {{ account.nombre }}
                             </h3>
-                            <div class="flex items-center gap-2 text-xs text-surface-500 dark:text-surface-400">
-                                <span>{{ getAccountTypeLabel(account.tipo) }}</span>
-                                <span v-if="account.banco">• {{ account.banco.nombre }}</span>
-                                <span v-if="account.metadatos?.last4">• ••{{ account.metadatos.last4 }}</span>
+                            <div class="flex flex-col md:flex-row md:items-center gap-1 md:gap-2 text-xs text-surface-500 dark:text-surface-400">
+                                <div class="flex items-center gap-2">
+                                    <span>{{ getAccountTypeLabel(account.tipo) }}</span>
+                                    <span v-if="account.banco">• {{ account.banco.nombre }}</span>
+                                    <span v-if="account.metadatos?.last4" class="hidden md:inline">• ••{{ account.metadatos.last4 }}</span>
+                                </div>
+                                <!-- Fechas para tarjeta de crédito -->
+                                <div v-if="account.tipo === 'credit_card'" class="flex items-center gap-2 md:gap-3 text-[11px] md:text-xs text-surface-600 dark:text-surface-400">
+                                    <div v-if="account.proxima_fecha_corte" class="flex items-center gap-1">
+                                        <i class="pi pi-calendar text-[9px] md:text-[10px]"></i>
+                                        <span class="whitespace-nowrap">Corte: {{ formatDate(account.proxima_fecha_corte) }}</span>
+                                    </div>
+                                    <div v-if="account.proxima_fecha_pago" class="flex items-center gap-1">
+                                        <i class="pi pi-calendar-plus text-[9px] md:text-[10px]"></i>
+                                        <span class="whitespace-nowrap">Pago: {{ formatDate(account.proxima_fecha_pago) }}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Información de saldo/crédito -->
+                        <!-- Información de saldo/crédito (solo números) -->
                         <div class="text-right flex-shrink-0">
-                            <div v-if="account.tipo === 'credit_card' && account.tarjeta_credito">
-                                <p class="text-lg font-bold text-surface-900 dark:text-surface-0">
-                                    {{ formatCurrency(account.tarjeta_credito.credito_disponible) }}
+                            <div v-if="account.tipo === 'credit_card'">
+                                <p class="text-base md:text-lg font-bold text-surface-900 dark:text-surface-0">
+                                    {{ formatCurrency(account.credito_disponible) }}
                                 </p>
-                                <p class="text-xs text-surface-500">
-                                    de {{ formatCurrency(account.tarjeta_credito.limite_credito) }}
+                                <p class="text-[10px] md:text-xs text-surface-500">
+                                    de {{ formatCurrency(account.limite_credito) }}
                                 </p>
-                                <div class="mt-2 flex flex-wrap gap-1 justify-end">
-                                    <!-- Badges para información básica -->
-                                    <Badge :value="`Pago: ${account.tarjeta_credito.dia_pago}`" severity="info"
-                                        size="small" />
-
-                                    <!-- Badges opcionales solo si tienen datos -->
-                                    <Badge v-if="account.tarjeta_credito.porcentaje_cat"
-                                        :value="`CAT: ${account.tarjeta_credito.porcentaje_cat}%`" severity="warning"
-                                        size="small" />
-
-                                    <Badge v-if="account.tarjeta_credito.anualidad === 0" value="Sin anualidad"
-                                        severity="success" size="small" />
-
-                                    <Badge v-if="account.tarjeta_credito.anualidad > 0"
-                                        :value="`Anualidad: ${formatCurrency(account.tarjeta_credito.anualidad)}`"
-                                        severity="warning" size="small" />
-
-                                    <Badge v-if="account.tarjeta_credito.porcentaje_cashback"
-                                        :value="`Cashback: ${account.tarjeta_credito.porcentaje_cashback}%`"
-                                        severity="success" size="small" />
-                                </div>
                             </div>
                             <div v-else>
-                                <p class="text-lg font-bold text-surface-900 dark:text-surface-0">
+                                <p class="text-base md:text-lg font-bold text-surface-900 dark:text-surface-0">
                                     {{ formatCurrency(account.saldo) }}
                                 </p>
-                                <p class="text-xs text-surface-500">saldo actual</p>
+                                <p class="text-[10px] md:text-xs text-surface-500">saldo actual</p>
                             </div>
                         </div>
 
@@ -238,6 +230,25 @@ const formatCurrency = (amount) => {
         style: 'currency',
         currency: 'MXN'
     }).format(amount || 0);
+};
+
+const formatDate = (dateString) => {
+    if (!dateString) return '';
+    
+    let dateObj;
+    if (typeof dateString === 'string') {
+        // Si es un string YYYY-MM-DD, parsearlo correctamente en zona local
+        const [year, month, day] = dateString.split('-').map(Number);
+        dateObj = new Date(year, month - 1, day);
+    } else {
+        dateObj = new Date(dateString);
+    }
+    
+    return dateObj.toLocaleDateString('es-MX', { 
+        day: '2-digit', 
+        month: 'short',
+        timeZone: 'America/Mexico_City'
+    });
 };
 
 const getAccountMenuItems = (account) => {

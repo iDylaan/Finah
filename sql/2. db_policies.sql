@@ -24,8 +24,9 @@ ALTER TABLE reglas_recurrentes     ENABLE ROW LEVEL SECURITY;  -- Reglas de tran
 ALTER TABLE metas                  ENABLE ROW LEVEL SECURITY;  -- Metas financieras
 ALTER TABLE notificaciones         ENABLE ROW LEVEL SECURITY;  -- Notificaciones del sistema
 ALTER TABLE bancos                 ENABLE ROW LEVEL SECURITY;  -- Catálogo de bancos
-ALTER TABLE tarjetas_credito       ENABLE ROW LEVEL SECURITY;  -- Información de tarjetas de crédito
 ALTER TABLE compras_msi            ENABLE ROW LEVEL SECURITY;  -- Compras en meses sin intereses
+ALTER TABLE invitaciones_grupo     ENABLE ROW LEVEL SECURITY;  -- Invitaciones a grupos
+ALTER TABLE historial_saldos       ENABLE ROW LEVEL SECURITY;  -- Historial de saldos
 ALTER TABLE jerarquias_usuario     ENABLE ROW LEVEL SECURITY;  -- Jerarquías de usuario
 
 -- ===================================================
@@ -333,87 +334,7 @@ CREATE POLICY delete_cuentas ON cuentas
   );
 
 -- ===================================================
--- 10) POLÍTICAS PARA TARJETAS DE CRÉDITO
--- ===================================================
-
--- SELECT - Para ver tarjetas de crédito propias o de grupos a los que pertenece
-DROP POLICY IF EXISTS select_tarjetas_credito ON tarjetas_credito;
-CREATE POLICY select_tarjetas_credito ON tarjetas_credito
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM cuentas c
-      WHERE c.id = tarjetas_credito.cuenta_id
-      AND (
-        c.creada_por = id_usuario_sesion()
-        OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_miembro_grupo(c.grupo_usuario_id)
-        )
-      )
-    )
-  );
-
--- INSERT - Para crear nuevas tarjetas de crédito
-DROP POLICY IF EXISTS insert_tarjetas_credito ON tarjetas_credito;
-CREATE POLICY insert_tarjetas_credito ON tarjetas_credito
-  FOR INSERT WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM cuentas c
-      WHERE c.id = tarjetas_credito.cuenta_id
-      AND c.creada_por = id_usuario_sesion()
-    )
-  );
-
--- UPDATE - Para actualizar tarjetas de crédito
-DROP POLICY IF EXISTS update_tarjetas_credito ON tarjetas_credito;
-CREATE POLICY update_tarjetas_credito ON tarjetas_credito
-  FOR UPDATE 
-  USING (
-    EXISTS (
-      SELECT 1 FROM cuentas c
-      WHERE c.id = tarjetas_credito.cuenta_id
-      AND (
-        c.creada_por = id_usuario_sesion()
-        OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
-        )
-      )
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM cuentas c
-      WHERE c.id = tarjetas_credito.cuenta_id
-      AND (
-        c.creada_por = id_usuario_sesion()
-        OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
-        )
-      )
-    )
-  );
-
--- DELETE - Para eliminar tarjetas de crédito
-DROP POLICY IF EXISTS delete_tarjetas_credito ON tarjetas_credito;
-CREATE POLICY delete_tarjetas_credito ON tarjetas_credito
-  FOR DELETE USING (
-    EXISTS (
-      SELECT 1 FROM cuentas c
-      WHERE c.id = tarjetas_credito.cuenta_id
-      AND (
-        c.creada_por = id_usuario_sesion()
-        OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
-        )
-      )
-    )
-  );
-
--- ===================================================
--- 11) POLÍTICAS PARA COMPRAS MSI
+-- 10) POLÍTICAS PARA COMPRAS MSI
 -- ===================================================
 
 -- SELECT - Para ver compras MSI propias o de grupos a los que pertenece
@@ -422,8 +343,7 @@ CREATE POLICY select_compras_msi ON compras_msi
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM cuentas c
-      JOIN tarjetas_credito tc ON c.id = tc.cuenta_id
-      WHERE tc.cuenta_id = compras_msi.cuenta_tarjeta_id
+      WHERE c.id = compras_msi.cuenta_id
       AND (
         c.creada_por = id_usuario_sesion()
         OR (
@@ -440,8 +360,7 @@ CREATE POLICY insert_compras_msi ON compras_msi
   FOR INSERT WITH CHECK (
     EXISTS (
       SELECT 1 FROM cuentas c
-      JOIN tarjetas_credito tc ON c.id = tc.cuenta_id
-      WHERE tc.cuenta_id = compras_msi.cuenta_tarjeta_id
+      WHERE c.id = compras_msi.cuenta_id
       AND c.creada_por = id_usuario_sesion()
     )
   );
@@ -453,8 +372,7 @@ CREATE POLICY update_compras_msi ON compras_msi
   USING (
     EXISTS (
       SELECT 1 FROM cuentas c
-      JOIN tarjetas_credito tc ON c.id = tc.cuenta_id
-      WHERE tc.cuenta_id = compras_msi.cuenta_tarjeta_id
+      WHERE c.id = compras_msi.cuenta_id
       AND (
         c.creada_por = id_usuario_sesion()
         OR (
@@ -467,8 +385,7 @@ CREATE POLICY update_compras_msi ON compras_msi
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM cuentas c
-      JOIN tarjetas_credito tc ON c.id = tc.cuenta_id
-      WHERE tc.cuenta_id = compras_msi.cuenta_tarjeta_id
+      WHERE c.id = compras_msi.cuenta_id
       AND (
         c.creada_por = id_usuario_sesion()
         OR (
@@ -485,8 +402,7 @@ CREATE POLICY delete_compras_msi ON compras_msi
   FOR DELETE USING (
     EXISTS (
       SELECT 1 FROM cuentas c
-      JOIN tarjetas_credito tc ON c.id = tc.cuenta_id
-      WHERE tc.cuenta_id = compras_msi.cuenta_tarjeta_id
+      WHERE c.id = compras_msi.cuenta_id
       AND (
         c.creada_por = id_usuario_sesion()
         OR (
@@ -498,7 +414,7 @@ CREATE POLICY delete_compras_msi ON compras_msi
   );
 
 -- ===================================================
--- 12) POLÍTICAS PARA COMPRAS A DEUDA
+-- 11) POLÍTICAS PARA COMPRAS A DEUDA
 -- ===================================================
 
 -- SELECT - Para ver compras a plazos propias o de grupos
@@ -569,7 +485,7 @@ CREATE POLICY delete_compras_deuda ON compras_deuda
   );
 
 -- ===================================================
--- 13) POLÍTICAS PARA CUOTAS DE DEUDA
+-- 12) POLÍTICAS PARA CUOTAS DE DEUDA
 -- ===================================================
 
 -- SELECT - Para ver cuotas de deuda propias o de grupos a los que pertenece
@@ -657,7 +573,7 @@ CREATE POLICY delete_cuotas_deuda ON cuotas_deuda
   );
 
 -- ===================================================
--- 14) POLÍTICAS PARA MIEMBROS DE GRUPO
+-- 13) POLÍTICAS PARA MIEMBROS DE GRUPO
 -- ===================================================
 
 -- SELECT - Para ver miembros de grupos a los que pertenece
@@ -694,7 +610,7 @@ CREATE POLICY delete_miembros_grupo ON miembros_grupo
   );
 
 -- ===================================================
--- 15) POLÍTICAS PARA REGLAS DE REPARTO GRUPAL
+-- 14) POLÍTICAS PARA REGLAS DE REPARTO GRUPAL
 -- ===================================================
 
 -- SELECT - Para ver reglas de reparto de grupos a los que pertenece
@@ -730,7 +646,7 @@ CREATE POLICY delete_reglas_reparto_grupo ON reglas_reparto_grupo
   );
 
 -- ===================================================
--- 16) POLÍTICAS PARA TRANSACCIONES
+-- 15) POLÍTICAS PARA TRANSACCIONES
 -- ===================================================
 
 -- SELECT - Para ver transacciones propias o de cuentas de grupos a los que pertenece
@@ -801,7 +717,7 @@ CREATE POLICY delete_transacciones ON transacciones
   );
 
 -- ===================================================
--- 17) POLÍTICAS PARA DIVISIONES DE TRANSACCIONES
+-- 16) POLÍTICAS PARA DIVISIONES DE TRANSACCIONES
 -- ===================================================
 
 -- SELECT - Para ver divisiones de transacciones
@@ -893,7 +809,7 @@ CREATE POLICY delete_divisiones_transaccion ON divisiones_transaccion
   );
 
 -- ===================================================
--- 18) POLÍTICAS PARA REGLAS RECURRENTES
+-- 17) POLÍTICAS PARA REGLAS RECURRENTES
 -- ===================================================
 
 -- SELECT - Para ver reglas recurrentes propias o de grupos
@@ -964,7 +880,7 @@ CREATE POLICY delete_reglas_recurrentes ON reglas_recurrentes
   );
 
 -- ===================================================
--- 19) POLÍTICAS PARA METAS
+-- 18) POLÍTICAS PARA METAS
 -- ===================================================
 
 -- SELECT - Para ver metas propias o de grupos a los que pertenece
@@ -1020,7 +936,7 @@ CREATE POLICY delete_metas ON metas
   );
 
 -- ===================================================
--- 20) POLÍTICAS PARA NOTIFICACIONES
+-- 19) POLÍTICAS PARA NOTIFICACIONES
 -- ===================================================
 
 -- SELECT - Para ver notificaciones propias o de grupos a los que pertenece
@@ -1076,25 +992,25 @@ CREATE POLICY delete_notificaciones ON notificaciones
   );
 
 -- ===================================================
--- POLÍTICAS RLS PARA JERARQUÍAS DE USUARIO
+-- 20) POLÍTICAS PARA JERARQUÍAS DE USUARIO
 -- ===================================================
 
--- Habilitar RLS
-ALTER TABLE jerarquias_usuario ENABLE ROW LEVEL SECURITY;
-
 -- SELECT - Ver solo sus propias jerarquías
+DROP POLICY IF EXISTS select_jerarquias_usuario ON jerarquias_usuario;
 CREATE POLICY select_jerarquias_usuario ON jerarquias_usuario
   FOR SELECT USING (
     usuario_id = id_usuario_sesion()
   );
 
 -- INSERT - Solo crear sus propias jerarquías
+DROP POLICY IF EXISTS insert_jerarquias_usuario ON jerarquias_usuario;
 CREATE POLICY insert_jerarquias_usuario ON jerarquias_usuario
   FOR INSERT WITH CHECK (
     usuario_id = id_usuario_sesion()
   );
 
 -- UPDATE - Solo actualizar sus propias jerarquías
+DROP POLICY IF EXISTS update_jerarquias_usuario ON jerarquias_usuario;
 CREATE POLICY update_jerarquias_usuario ON jerarquias_usuario
   FOR UPDATE USING (
     usuario_id = id_usuario_sesion()
@@ -1104,6 +1020,7 @@ CREATE POLICY update_jerarquias_usuario ON jerarquias_usuario
   );
 
 -- DELETE - Solo eliminar sus propias jerarquías
+DROP POLICY IF EXISTS delete_jerarquias_usuario ON jerarquias_usuario;
 CREATE POLICY delete_jerarquias_usuario ON jerarquias_usuario
   FOR DELETE USING (
     usuario_id = id_usuario_sesion()
@@ -1111,11 +1028,8 @@ CREATE POLICY delete_jerarquias_usuario ON jerarquias_usuario
 
 
 -- ===================================================
--- POLÍTICAS RLS PARA INVITACIONES A GRUPOS
+-- 21) POLÍTICAS PARA INVITACIONES A GRUPOS
 -- ===================================================
-
--- Habilitar RLS
-ALTER TABLE invitaciones_grupo ENABLE ROW LEVEL SECURITY;
 
 -- SELECT - Ver invitaciones donde eres el invitador o admin del grupo
 DROP POLICY IF EXISTS select_invitaciones_grupo ON invitaciones_grupo;
@@ -1176,11 +1090,8 @@ CREATE POLICY delete_invitaciones_grupo ON invitaciones_grupo
 
 
 -- ===================================================
--- POLÍTICAS RLS PARA HISTORIAL DE SALDOS
+-- 22) POLÍTICAS PARA HISTORIAL DE SALDOS
 -- ===================================================
-
--- Habilitar RLS
-ALTER TABLE historial_saldos ENABLE ROW LEVEL SECURITY;
 
 -- SELECT - Ver historial de tus propias cuentas o cuentas del grupo
 DROP POLICY IF EXISTS select_historial_saldos ON historial_saldos;

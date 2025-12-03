@@ -90,34 +90,10 @@ export const useAccountsStore = defineStore('accounts', () => {
             }
 
 
-            // Obtener cuentas básicas
+            // Obtener cuentas con toda la información
             const { data: accountsData, error: accountsError } = await supabase
                 .from('cuentas')
-                .select(`
-                    *,
-                    tarjetas_credito (
-                        banco_id,
-                        nombre_tarjeta,
-                        ultimos_cuatro_digitos,
-                        limite_credito,
-                        credito_disponible,
-                        dia_pago,
-                        dia_corte,
-                        tasa_interes,
-                        porcentaje_pago_minimo,
-                        proxima_fecha_pago,
-                        proxima_fecha_corte,
-                        porcentaje_cat,
-                        anualidad,
-                        gasto_exencion_anualidad,
-                        porcentaje_cashback,
-                        puntos_por_peso,
-                        dias_gracia,
-                        notas,
-                        fecha_creacion,
-                        fecha_actualizacion
-                    )
-                `)
+                .select('*')
                 .eq('creada_por', user.id)
                 .order('fecha_creacion', { ascending: false })
 
@@ -126,14 +102,13 @@ export const useAccountsStore = defineStore('accounts', () => {
                 throw accountsError
             }
 
+            console.log('📊 Cuentas de Supabase:', accountsData)
+
             // Obtener información de bancos para enriquecer los datos
             const bankIds = new Set()
             accountsData.forEach(account => {
-                if (account.metadatos?.banco_id) {
-                    bankIds.add(account.metadatos.banco_id)
-                }
-                if (account.tarjetas_credito?.[0]?.banco_id) {
-                    bankIds.add(account.tarjetas_credito[0].banco_id)
+                if (account.banco_id) {
+                    bankIds.add(account.banco_id)
                 }
             })
 
@@ -153,22 +128,32 @@ export const useAccountsStore = defineStore('accounts', () => {
 
             // Procesar y enriquecer datos
             const processedAccounts = accountsData.map(account => {
-                const bankId = account.metadatos?.banco_id || account.tarjetas_credito?.[0]?.banco_id
-                const bank = banksData.find(b => b.id === bankId) || null
+                const bank = banksData.find(b => b.id === account.banco_id) || null
 
-                return {
+                const processed = {
                     ...account,
-                    bank: bank,
-                    credit_card: account.tarjetas_credito?.[0] || null,
-                    // Limpiar el array anidado ya que lo movimos a credit_card
-                    tarjetas_credito: undefined
+                    banco: bank  // Agregar información completa del banco
                 }
+
+                // Log para tarjetas de crédito
+                if (account.tipo === 'credit_card') {
+                    console.log(`💳 Procesando tarjeta de crédito: ${account.nombre}`, {
+                        banco: bank?.nombre,
+                        limite: account.limite_credito,
+                        credito_disponible: account.credito_disponible
+                    })
+                }
+
+                return processed
             })
 
             accounts.value = processedAccounts
             accountsLoaded.value = true
             lastAccountsFetchTime.value = Date.now()
             console.log('✅ Cuentas cargadas:', accounts.value.length)
+            console.log('💳 Tarjetas de crédito procesadas:', 
+                accounts.value.filter(acc => acc.tipo === 'credit_card')
+            )
 
             return accounts.value
 
@@ -210,14 +195,36 @@ export const useAccountsStore = defineStore('accounts', () => {
             console.log('💳 Creando cuenta:', accountData)
             console.log('👤 Usuario autenticado:', user.id)
 
-            // 1. Crear cuenta principal
+            // 1. Crear cuenta con todos los datos
             const accountInsert = {
                 creada_por: user.id,
                 grupo_usuario_id: accountData.grupo_usuario_id || null,
+                banco_id: accountData.banco_id || null,
                 nombre: accountData.nombre.trim(),
                 tipo: accountData.tipo,
                 saldo: Number(accountData.saldo) || 0,
-                metadatos: accountData.metadatos || {}
+                metadatos: { ...accountData.metadatos }
+            }
+
+            // Si es tarjeta de crédito, agregar campos específicos
+            if (accountData.tipo === 'credit_card' && accountData.tarjeta_credito) {
+                Object.assign(accountInsert, {
+                    limite_credito: parseFloat(accountData.tarjeta_credito.limite_credito) || 0,
+                    credito_disponible: parseFloat(accountData.tarjeta_credito.credito_disponible) || parseFloat(accountData.tarjeta_credito.limite_credito) || 0,
+                    dia_pago: parseInt(accountData.tarjeta_credito.dia_pago) || 1,
+                    dia_corte: parseInt(accountData.tarjeta_credito.dia_corte) || 1,
+                    tasa_interes: accountData.tarjeta_credito.tasa_interes ? parseFloat(accountData.tarjeta_credito.tasa_interes) : null,
+                    porcentaje_pago_minimo: accountData.tarjeta_credito.porcentaje_pago_minimo ? parseFloat(accountData.tarjeta_credito.porcentaje_pago_minimo) : null,
+                    proxima_fecha_pago: accountData.tarjeta_credito.proxima_fecha_pago || null,
+                    proxima_fecha_corte: accountData.tarjeta_credito.proxima_fecha_corte || null,
+                    porcentaje_cat: accountData.tarjeta_credito.porcentaje_cat ? parseFloat(accountData.tarjeta_credito.porcentaje_cat) : null,
+                    anualidad: parseFloat(accountData.tarjeta_credito.anualidad) || 0,
+                    gasto_exencion_anualidad: accountData.tarjeta_credito.gasto_exencion_anualidad ? parseFloat(accountData.tarjeta_credito.gasto_exencion_anualidad) : null,
+                    porcentaje_cashback: accountData.tarjeta_credito.porcentaje_cashback ? parseFloat(accountData.tarjeta_credito.porcentaje_cashback) : null,
+                    puntos_por_peso: accountData.tarjeta_credito.puntos_por_peso ? parseFloat(accountData.tarjeta_credito.puntos_por_peso) : null,
+                    dias_gracia: accountData.tarjeta_credito.dias_gracia ? parseInt(accountData.tarjeta_credito.dias_gracia) : null,
+                    notas: accountData.tarjeta_credito.notas?.trim() || null
+                })
             }
 
             console.log('🏦 Insertando cuenta:', accountInsert)
@@ -234,47 +241,6 @@ export const useAccountsStore = defineStore('accounts', () => {
             }
 
             console.log('✅ Cuenta creada:', newAccount)
-
-            // 2. Si es tarjeta de crédito, crear registro en tarjetas_credito
-            if (accountData.tipo === 'credit_card' && accountData.tarjeta_credito) {
-                const creditCardInsert = {
-                    cuenta_id: newAccount.id,
-                    banco_id: accountData.banco_id,
-                    nombre_tarjeta: accountData.nombre,
-                    ultimos_cuatro_digitos: accountData.metadatos?.last4 || null,
-                    limite_credito: accountData.tarjeta_credito.limite_credito || 0,
-                    credito_disponible: accountData.tarjeta_credito.credito_disponible || accountData.tarjeta_credito.limite_credito || 0,
-                    dia_pago: accountData.tarjeta_credito.dia_pago || 1,
-                    dia_corte: accountData.tarjeta_credito.dia_corte || 1,
-                    tasa_interes: accountData.tarjeta_credito.tasa_interes || null,
-                    porcentaje_pago_minimo: accountData.tarjeta_credito.porcentaje_pago_minimo || 5,
-                    proxima_fecha_pago: accountData.tarjeta_credito.proxima_fecha_pago || null,
-                    proxima_fecha_corte: accountData.tarjeta_credito.proxima_fecha_corte || null,
-                    porcentaje_cat: accountData.tarjeta_credito.porcentaje_cat || null,
-                    anualidad: accountData.tarjeta_credito.anualidad !== undefined ? Number(accountData.tarjeta_credito.anualidad) : 0,
-                    gasto_exencion_anualidad: accountData.tarjeta_credito.gasto_exencion_anualidad || null,
-                    porcentaje_cashback: accountData.tarjeta_credito.porcentaje_cashback || null,
-                    puntos_por_peso: accountData.tarjeta_credito.puntos_por_peso || null,
-                    dias_gracia: accountData.tarjeta_credito.dias_gracia || null,
-                    notas: accountData.tarjeta_credito.notas?.trim() || null
-                }
-
-                console.log('🃏 Insertando tarjeta_credito:', creditCardInsert);
-
-                const { error: creditError } = await supabase
-                    .from('tarjetas_credito')
-                    .insert([creditCardInsert])
-
-                if (creditError) {
-                    console.error('💥 Error creando tarjeta_credito:', creditError)
-                    console.error('💥 Datos que causaron el error:', creditCardInsert)
-                    // Limpiar account creado
-                    await supabase.from('cuentas').delete().eq('id', newAccount.id)
-                    throw creditError
-                }
-
-                console.log('✅ Tarjeta de crédito creada para cuenta:', newAccount.id)
-            }
 
             // 3. ✅ FORZAR RECARGA DE DATOS EN LUGAR DE SOLO RECARGAR
             await fetchAccountsWithDetails({ toast: null, force: true })
@@ -317,13 +283,54 @@ export const useAccountsStore = defineStore('accounts', () => {
         try {
             console.log('📝 Actualizando cuenta:', accountId, accountData)
 
-            // 1. Actualizar cuenta principal
+            // 1. Actualizar cuenta con todos los datos
             const accountUpdate = {
+                banco_id: accountData.banco_id || null,
                 nombre: accountData.nombre.trim(),
                 tipo: accountData.tipo,
                 saldo: Number(accountData.saldo) || 0,
-                metadatos: accountData.metadatos || {},
+                metadatos: { ...accountData.metadatos },
                 fecha_actualizacion: new Date().toISOString()
+            }
+
+            // Si es tarjeta de crédito, incluir campos específicos
+            if (accountData.tipo === 'credit_card' && accountData.tarjeta_credito) {
+                Object.assign(accountUpdate, {
+                    limite_credito: parseFloat(accountData.tarjeta_credito.limite_credito) || 0,
+                    credito_disponible: parseFloat(accountData.tarjeta_credito.credito_disponible) || parseFloat(accountData.tarjeta_credito.limite_credito) || 0,
+                    dia_pago: parseInt(accountData.tarjeta_credito.dia_pago) || 1,
+                    dia_corte: parseInt(accountData.tarjeta_credito.dia_corte) || 1,
+                    tasa_interes: accountData.tarjeta_credito.tasa_interes ? parseFloat(accountData.tarjeta_credito.tasa_interes) : null,
+                    porcentaje_pago_minimo: accountData.tarjeta_credito.porcentaje_pago_minimo ? parseFloat(accountData.tarjeta_credito.porcentaje_pago_minimo) : null,
+                    proxima_fecha_pago: accountData.tarjeta_credito.proxima_fecha_pago || null,
+                    proxima_fecha_corte: accountData.tarjeta_credito.proxima_fecha_corte || null,
+                    porcentaje_cat: accountData.tarjeta_credito.porcentaje_cat ? parseFloat(accountData.tarjeta_credito.porcentaje_cat) : null,
+                    anualidad: parseFloat(accountData.tarjeta_credito.anualidad) || 0,
+                    gasto_exencion_anualidad: accountData.tarjeta_credito.gasto_exencion_anualidad ? parseFloat(accountData.tarjeta_credito.gasto_exencion_anualidad) : null,
+                    porcentaje_cashback: accountData.tarjeta_credito.porcentaje_cashback ? parseFloat(accountData.tarjeta_credito.porcentaje_cashback) : null,
+                    puntos_por_peso: accountData.tarjeta_credito.puntos_por_peso ? parseFloat(accountData.tarjeta_credito.puntos_por_peso) : null,
+                    dias_gracia: accountData.tarjeta_credito.dias_gracia ? parseInt(accountData.tarjeta_credito.dias_gracia) : null,
+                    notas: accountData.tarjeta_credito.notas?.trim() || null
+                })
+            } else {
+                // Si cambió de credit_card a otro tipo, limpiar campos de tarjeta
+                Object.assign(accountUpdate, {
+                    limite_credito: null,
+                    credito_disponible: null,
+                    dia_pago: null,
+                    dia_corte: null,
+                    tasa_interes: null,
+                    porcentaje_pago_minimo: null,
+                    proxima_fecha_pago: null,
+                    proxima_fecha_corte: null,
+                    porcentaje_cat: null,
+                    anualidad: null,
+                    gasto_exencion_anualidad: null,
+                    porcentaje_cashback: null,
+                    puntos_por_peso: null,
+                    dias_gracia: null,
+                    notas: null
+                })
             }
 
             console.log('🔄 Datos para actualizar cuenta:', accountUpdate)
@@ -342,74 +349,7 @@ export const useAccountsStore = defineStore('accounts', () => {
 
             console.log('✅ Cuenta actualizada:', updatedAccount)
 
-            // 2. Si es tarjeta de crédito, actualizar o crear registro en tarjetas_credito
-            if (accountData.tipo === 'credit_card' && accountData.tarjeta_credito) {
-                const creditCardData = {
-                    banco_id: accountData.banco_id,
-                    nombre_tarjeta: accountData.nombre,
-                    ultimos_cuatro_digitos: accountData.metadatos?.last4 || null,
-                    limite_credito: accountData.tarjeta_credito.limite_credito || 0,
-                    credito_disponible: accountData.tarjeta_credito.credito_disponible || accountData.tarjeta_credito.limite_credito || 0,
-                    dia_pago: accountData.tarjeta_credito.dia_pago || 1,
-                    dia_corte: accountData.tarjeta_credito.dia_corte || 1,
-                    tasa_interes: accountData.tarjeta_credito.tasa_interes || null,
-                    porcentaje_pago_minimo: accountData.tarjeta_credito.porcentaje_pago_minimo || 5,
-                    proxima_fecha_pago: accountData.tarjeta_credito.proxima_fecha_pago || null,
-                    proxima_fecha_corte: accountData.tarjeta_credito.proxima_fecha_corte || null,
-                    porcentaje_cat: accountData.tarjeta_credito.porcentaje_cat || null,
-                    anualidad: accountData.tarjeta_credito.anualidad !== undefined ? accountData.tarjeta_credito.anualidad : 0,
-                    gasto_exencion_anualidad: accountData.tarjeta_credito.gasto_exencion_anualidad || null,
-                    porcentaje_cashback: accountData.tarjeta_credito.porcentaje_cashback || null,
-                    puntos_por_peso: accountData.tarjeta_credito.puntos_por_peso || null,
-                    dias_gracia: accountData.tarjeta_credito.dias_gracia || null,
-                    notas: accountData.tarjeta_credito.notas?.trim() || null,
-                    fecha_actualizacion: new Date().toISOString()
-                }
-
-                console.log('🔄 Datos tarjeta_credito para actualizar:', creditCardData);
-
-                // Verificar si ya existe registro en tarjetas_credito
-                const { data: existingCard } = await supabase
-                    .from('tarjetas_credito')
-                    .select('cuenta_id')
-                    .eq('cuenta_id', accountId)
-                    .single()
-
-                if (existingCard) {
-                    // Actualizar existente
-                    console.log('🔄 Actualizando tarjeta_credito existente');
-                    const { error: creditError } = await supabase
-                        .from('tarjetas_credito')
-                        .update(creditCardData)
-                        .eq('cuenta_id', accountId)
-
-                    if (creditError) {
-                        console.error('💥 Error actualizando tarjeta_credito:', creditError)
-                        throw creditError
-                    }
-                } else {
-                    // Crear nuevo
-                    console.log('🆕 Creando nueva tarjeta_credito');
-                    const { error: creditError } = await supabase
-                        .from('tarjetas_credito')
-                        .insert([{ cuenta_id: accountId, ...creditCardData }])
-
-                    if (creditError) {
-                        console.error('💥 Error creando tarjeta_credito:', creditError)
-                        throw creditError
-                    }
-                }
-
-                console.log('✅ Tarjeta de crédito actualizada para cuenta:', accountId)
-            } else {
-                // Si cambió de tipo y ya no es credit_card, eliminar registro
-                await supabase
-                    .from('tarjetas_credito')
-                    .delete()
-                    .eq('cuenta_id', accountId)
-            }
-
-            // 3. ✅ FORZAR RECARGA DE DATOS
+            // 2. ✅ FORZAR RECARGA DE DATOS
             await fetchAccountsWithDetails({ toast: null, force: true })
 
             // Mostrar mensaje de éxito

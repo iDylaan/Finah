@@ -13,10 +13,13 @@ DROP TABLE IF EXISTS notificaciones       CASCADE;  -- Notificaciones del sistem
 DROP TABLE IF EXISTS metas               CASCADE;   -- Metas de ahorro y gastos
 DROP TABLE IF EXISTS reglas_recurrentes  CASCADE;   -- Reglas para transacciones automáticas
 DROP TABLE IF EXISTS cuotas_deuda        CASCADE;   -- Cuotas individuales de deudas/MSI
+DROP TABLE IF EXISTS compras_msi         CASCADE;   -- Compras en meses sin intereses
 DROP TABLE IF EXISTS compras_deuda       CASCADE;   -- Compras a meses sin intereses o crédito
 DROP TABLE IF EXISTS divisiones_transaccion CASCADE; -- División de gastos grupales
 DROP TABLE IF EXISTS transacciones       CASCADE;   -- Todas las transacciones financieras
 DROP TABLE IF EXISTS reglas_reparto_grupo CASCADE;  -- Reglas de reparto por tipo de gasto
+DROP TABLE IF EXISTS invitaciones_grupo  CASCADE;   -- Invitaciones a grupos
+DROP TABLE IF EXISTS historial_saldos  CASCADE;   -- Historial de saldos
 DROP TABLE IF EXISTS miembros_grupo      CASCADE;   -- Miembros de grupos familiares/compartidos
 DROP TABLE IF EXISTS cuentas             CASCADE;   -- Cuentas bancarias, efectivo, tarjetas
 DROP TABLE IF EXISTS periodicidades      CASCADE;   -- Catálogo de frecuencias (diario, mensual, etc.)
@@ -25,8 +28,6 @@ DROP TABLE IF EXISTS categorias          CASCADE;   -- Categorías específicas 
 DROP TABLE IF EXISTS grupos_categoria    CASCADE;   -- Grupos de categorías (hogar, transporte, etc.)
 DROP TABLE IF EXISTS grupos_usuario      CASCADE;   -- Grupos familiares o compartidos
 DROP TABLE IF EXISTS bancos              CASCADE;   -- Catálogo de instituciones bancarias
-DROP TABLE IF EXISTS tarjetas_credito    CASCADE;   -- Información específica de tarjetas de crédito
-DROP TABLE IF EXISTS compras_msi         CASCADE;   -- Compras en meses sin intereses
 DROP TABLE IF EXISTS jerarquias_usuario  CASCADE;   -- Jerarquías personalizadas de usuario
 
 
@@ -237,24 +238,98 @@ CREATE TABLE periodicidades (
 );
 
 
--- 4.6) Cuentas financieras (efectivo, bancarias, tarjetas, etc.)
+-- 4.6) Catálogo de instituciones bancarias
+CREATE TABLE bancos (
+  id              UUID            DEFAULT gen_random_uuid() PRIMARY KEY,
+  nombre          TEXT            NOT NULL,                              -- Nombre del banco (BBVA, Santander, etc.)
+  es_publico      BOOLEAN         NOT NULL DEFAULT FALSE,               -- Si está disponible para todos los usuarios
+  usuario_id      UUID            REFERENCES profiles(id),              -- Propietario si es privado individual
+  grupo_usuario_id UUID           REFERENCES grupos_usuario(id),        -- Grupo propietario si es compartido
+  color           CHAR(7),                                               -- Color representativo en formato #RRGGBB
+  biblioteca_iconos biblioteca_iconos NOT NULL DEFAULT 'primevue',      -- Librería de iconos
+  nombre_icono    TEXT            NOT NULL,                             -- Nombre del icono específico
+  ruta_logo       TEXT,                                                 -- Ruta del logo en Supabase Storage
+  fecha_creacion  TIMESTAMPTZ     NOT NULL DEFAULT now(),              -- Cuándo se registró
+  
+  -- Restricción: debe tener un propietario válido
+  CONSTRAINT chk_propietario_banco CHECK (
+       (es_publico = TRUE  AND usuario_id IS NULL AND grupo_usuario_id IS NULL)        -- Público sin propietario
+    OR (es_publico = FALSE AND usuario_id IS NOT NULL AND grupo_usuario_id IS NULL)    -- Privado individual
+    OR (es_publico = FALSE AND usuario_id IS NULL AND grupo_usuario_id IS NOT NULL)    -- Privado grupal
+  )
+);
+-- Índices para mejorar consultas
+CREATE INDEX ON bancos(usuario_id);        -- Buscar bancos por usuario
+CREATE INDEX ON bancos(grupo_usuario_id);  -- Buscar bancos por grupo
+CREATE INDEX ON bancos(es_publico);        -- Filtrar bancos públicos
+
+
+-- 4.7) Cuentas financieras (efectivo, bancarias, tarjetas, etc.)
 CREATE TABLE cuentas (
   id               UUID             DEFAULT gen_random_uuid() PRIMARY KEY,
   creada_por       UUID             NOT NULL REFERENCES profiles(id),  -- Usuario que creó la cuenta
   grupo_usuario_id UUID             REFERENCES grupos_usuario(id),     -- Grupo al que pertenece (opcional)
-  nombre           TEXT             NOT NULL,                           -- Nombre descriptivo (ej: "Efectivo cartera", "BBVA Débito")
-  tipo             TEXT             NOT NULL,                           -- Tipo: 'efectivo', 'bancaria', 'tarjeta_credito', 'tarjeta_debito'
-  metadatos        JSONB,                                               -- Datos adicionales en JSON (últimos 4 dígitos, etc.)
-  saldo            NUMERIC(14,2)    NOT NULL DEFAULT 0,                -- Saldo actual de la cuenta
-  fecha_creacion   TIMESTAMPTZ      NOT NULL DEFAULT now(),           -- Cuándo se creó
-  fecha_actualizacion TIMESTAMPTZ   NOT NULL DEFAULT now()            -- Última modificación
+  banco_id         UUID             REFERENCES bancos(id),             -- Banco asociado (para cuentas bancarias y tarjetas)
+  
+  -- INFORMACIÓN BÁSICA
+  nombre           TEXT             NOT NULL,                          -- Nombre descriptivo (ej: "Efectivo cartera", "BBVA Débito")
+  tipo             TEXT             NOT NULL,                          -- Tipo: 'cash', 'bank', 'debit_card', 'credit_card'
+  saldo            NUMERIC(14,2)    NOT NULL DEFAULT 0,               -- Saldo actual de la cuenta
+  metadatos        JSONB,                                             -- Datos adicionales en JSON (últimos 4 dígitos, ubicación efectivo, etc.)
+  
+  -- CAMPOS ESPECÍFICOS PARA TARJETAS DE CRÉDITO (null para otros tipos)
+  limite_credito         NUMERIC(14,2),                              -- Límite máximo de crédito
+  credito_disponible     NUMERIC(14,2),                              -- Crédito actualmente disponible
+  dia_pago               INT,                                        -- Día del mes para realizar el pago (1-31)
+  dia_corte              INT,                                        -- Día de corte del estado de cuenta (1-31)
+  tasa_interes           NUMERIC(5,2),                               -- Tasa de interés anual
+  porcentaje_pago_minimo NUMERIC(5,2),                               -- Porcentaje mínimo a pagar
+  proxima_fecha_pago     DATE,                                       -- Cuándo vence el próximo pago
+  proxima_fecha_corte    DATE,                                       -- Cuándo es el próximo corte
+  porcentaje_cat         NUMERIC(5,2),                               -- Costo Anual Total en porcentaje
+  anualidad              NUMERIC(10,2)    DEFAULT 0,                 -- Costo anual por tener la tarjeta
+  gasto_exencion_anualidad NUMERIC(12,2),                            -- Compras anuales para no pagar anualidad
+  porcentaje_cashback    NUMERIC(4,2),                               -- Porcentaje de cashback que otorga
+  puntos_por_peso        NUMERIC(6,2),                               -- Puntos de recompensa por cada peso gastado
+  dias_gracia            INTEGER,                                    -- Días sin intereses después del corte
+  notas                  TEXT,                                       -- Promociones, beneficios especiales, MSI, etc.
+  
+  -- FECHAS DE CONTROL
+  fecha_creacion         TIMESTAMPTZ      NOT NULL DEFAULT now(),   -- Cuándo se creó
+  fecha_actualizacion    TIMESTAMPTZ      NOT NULL DEFAULT now(),   -- Última modificación
+  
+  -- RESTRICCIONES PARA VALIDAR DATOS
+  CONSTRAINT chk_tipo_cuenta CHECK (tipo IN ('cash', 'bank', 'debit_card', 'credit_card')),
+  CONSTRAINT chk_porcentaje_cat CHECK (porcentaje_cat IS NULL OR (porcentaje_cat >= 0 AND porcentaje_cat <= 500)),
+  CONSTRAINT chk_anualidad CHECK (anualidad IS NULL OR anualidad >= 0),
+  CONSTRAINT chk_porcentaje_cashback CHECK (porcentaje_cashback IS NULL OR (porcentaje_cashback >= 0 AND porcentaje_cashback <= 20)),
+  CONSTRAINT chk_puntos_por_peso CHECK (puntos_por_peso IS NULL OR (puntos_por_peso >= 0 AND puntos_por_peso <= 100)),
+  CONSTRAINT chk_dias_gracia CHECK (dias_gracia IS NULL OR (dias_gracia >= 0 AND dias_gracia <= 60)),
+  CONSTRAINT chk_dia_pago CHECK (dia_pago IS NULL OR (dia_pago >= 1 AND dia_pago <= 31)),
+  CONSTRAINT chk_dia_corte CHECK (dia_corte IS NULL OR (dia_corte >= 1 AND dia_corte <= 31))
 );
+
 -- Índices para mejorar consultas
 CREATE INDEX ON cuentas(creada_por);        -- Buscar cuentas por usuario
 CREATE INDEX ON cuentas(grupo_usuario_id);  -- Buscar cuentas por grupo
+CREATE INDEX ON cuentas(banco_id);          -- Buscar cuentas por banco
+CREATE INDEX ON cuentas(tipo);              -- Buscar cuentas por tipo
+CREATE INDEX ON cuentas(porcentaje_cat) WHERE porcentaje_cat IS NOT NULL;  -- Buscar por CAT
+CREATE INDEX ON cuentas(anualidad) WHERE anualidad > 0;                    -- Buscar tarjetas con anualidad
+
+-- Comentarios explicativos para campos de tarjetas de crédito
+COMMENT ON COLUMN cuentas.limite_credito IS 'Límite máximo de crédito - Solo para credit_card';
+COMMENT ON COLUMN cuentas.credito_disponible IS 'Crédito actualmente disponible - Solo para credit_card';
+COMMENT ON COLUMN cuentas.porcentaje_cat IS 'Costo Anual Total (CAT) en porcentaje - Incluye intereses, comisiones y seguros';
+COMMENT ON COLUMN cuentas.anualidad IS 'Costo anual por tener la tarjeta en pesos';
+COMMENT ON COLUMN cuentas.gasto_exencion_anualidad IS 'Compras anuales para no pagar anualidad';
+COMMENT ON COLUMN cuentas.porcentaje_cashback IS 'Porcentaje de dinero que regresa por compras realizadas';
+COMMENT ON COLUMN cuentas.puntos_por_peso IS 'Cantidad de puntos de recompensa por cada peso gastado';
+COMMENT ON COLUMN cuentas.dias_gracia IS 'Días sin intereses después del corte si se paga el total';
+COMMENT ON COLUMN cuentas.notas IS 'Información adicional: promociones, beneficios especiales, meses sin intereses disponibles, etc.';
 
 
--- 4.7) Miembros de grupos y su participación porcentual
+-- 4.8) Miembros de grupos y su participación porcentual
 CREATE TABLE miembros_grupo (
   id              UUID             DEFAULT gen_random_uuid() PRIMARY KEY,
   grupo_id        UUID             NOT NULL REFERENCES grupos_usuario(id), -- Grupo al que pertenece
@@ -417,89 +492,11 @@ CREATE INDEX ON notificaciones(usuario_id, leida);   -- Buscar notificaciones no
 CREATE INDEX ON notificaciones(grupo_usuario_id);    -- Buscar notificaciones por grupo
 
 
--- 4.16) Catálogo de instituciones bancarias
-CREATE TABLE bancos (
-  id              UUID            DEFAULT gen_random_uuid() PRIMARY KEY,
-  nombre          TEXT            NOT NULL,                              -- Nombre del banco (BBVA, Santander, etc.)
-  es_publico      BOOLEAN         NOT NULL DEFAULT FALSE,               -- Si está disponible para todos los usuarios
-  usuario_id      UUID            REFERENCES profiles(id),              -- Propietario si es privado individual
-  grupo_usuario_id UUID           REFERENCES grupos_usuario(id),        -- Grupo propietario si es compartido
-  color           CHAR(7),                                               -- Color representativo en formato #RRGGBB
-  biblioteca_iconos biblioteca_iconos NOT NULL DEFAULT 'primevue',      -- Librería de iconos
-  nombre_icono    TEXT            NOT NULL,                             -- Nombre del icono específico
-  ruta_logo       TEXT,                                                 -- Ruta del logo en Supabase Storage
-  fecha_creacion  TIMESTAMPTZ     NOT NULL DEFAULT now(),              -- Cuándo se registró
-  
-  -- Restricción: debe tener un propietario válido
-  CONSTRAINT chk_propietario_banco CHECK (
-       (es_publico = TRUE  AND usuario_id IS NULL AND grupo_usuario_id IS NULL)        -- Público sin propietario
-    OR (es_publico = FALSE AND usuario_id IS NOT NULL AND grupo_usuario_id IS NULL)    -- Privado individual
-    OR (es_publico = FALSE AND usuario_id IS NULL AND grupo_usuario_id IS NOT NULL)    -- Privado grupal
-  )
-);
--- Índices para mejorar consultas
-CREATE INDEX ON bancos(usuario_id);        -- Buscar bancos por usuario
-CREATE INDEX ON bancos(grupo_usuario_id);  -- Buscar bancos por grupo
-CREATE INDEX ON bancos(es_publico);        -- Filtrar bancos públicos
-
-
--- 4.17) Información específica de tarjetas de crédito
-CREATE TABLE tarjetas_credito (
-  cuenta_id              UUID             PRIMARY KEY REFERENCES cuentas(id) ON DELETE CASCADE,
-  banco_id               UUID             REFERENCES bancos(id),              -- Banco emisor de la tarjeta
-  nombre_tarjeta         TEXT             NOT NULL,                           -- Nombre comercial (ej: "BBVA Oro", "Santander Zero")
-  ultimos_cuatro_digitos CHAR(4),                                            -- Últimos 4 dígitos para identificación
-  limite_credito         NUMERIC(14,2)    NOT NULL,                          -- Límite máximo de crédito
-  credito_disponible     NUMERIC(14,2)    NOT NULL,                          -- Crédito actualmente disponible
-  dia_pago               INT              NOT NULL,                           -- Día del mes para realizar el pago
-  dia_corte              INT              NOT NULL,                           -- Día de corte del estado de cuenta
-  tasa_interes           NUMERIC(5,2),                                       -- Tasa de interés anual (opcional)
-  porcentaje_pago_minimo NUMERIC(5,2),                                       -- Porcentaje mínimo a pagar (opcional)
-  proxima_fecha_pago     DATE,                                               -- Cuándo vence el próximo pago
-  proxima_fecha_corte    DATE,                                               -- Cuándo es el próximo corte
-  
-  -- CAMPOS OPCIONALES PARA ANÁLISIS FINANCIERO AVANZADO
-  porcentaje_cat         NUMERIC(5,2),                                       -- Costo Anual Total en porcentaje
-  anualidad              NUMERIC(10,2)    DEFAULT 0,                         -- Costo anual por tener la tarjeta
-  gasto_exencion_anualidad NUMERIC(12,2),                                    -- Compras anuales para no pagar anualidad
-  porcentaje_cashback    NUMERIC(4,2),                                       -- Porcentaje de cashback que otorga
-  puntos_por_peso        NUMERIC(6,2),                                       -- Puntos de recompensa por cada peso gastado
-  dias_gracia            INTEGER,                                            -- Días sin intereses después del corte
-  
-  -- CAMPO LIBRE PARA INFORMACIÓN ADICIONAL
-  notas                  TEXT,                                               -- Promociones, beneficios especiales, MSI, etc.
-  
-  fecha_creacion         TIMESTAMPTZ      NOT NULL DEFAULT now(),           -- Cuándo se registró
-  fecha_actualizacion    TIMESTAMPTZ      NOT NULL DEFAULT now(),           -- Última modificación
-  
-  -- RESTRICCIONES PARA VALIDAR DATOS
-  CONSTRAINT chk_porcentaje_cat CHECK (porcentaje_cat IS NULL OR (porcentaje_cat >= 0 AND porcentaje_cat <= 500)),
-  CONSTRAINT chk_anualidad CHECK (anualidad >= 0),
-  CONSTRAINT chk_porcentaje_cashback CHECK (porcentaje_cashback IS NULL OR (porcentaje_cashback >= 0 AND porcentaje_cashback <= 20)),
-  CONSTRAINT chk_puntos_por_peso CHECK (puntos_por_peso IS NULL OR (puntos_por_peso >= 0 AND puntos_por_peso <= 100)),
-  CONSTRAINT chk_dias_gracia CHECK (dias_gracia IS NULL OR (dias_gracia >= 0 AND dias_gracia <= 60))
-);
-
--- Índices para consultas frecuentes
-CREATE INDEX ON tarjetas_credito(banco_id);                                    -- Buscar por banco
-CREATE INDEX ON tarjetas_credito(porcentaje_cat) WHERE porcentaje_cat IS NOT NULL;  -- Buscar por CAT
-CREATE INDEX ON tarjetas_credito(anualidad) WHERE anualidad > 0;               -- Buscar tarjetas con anualidad
-
--- Comentarios explicativos para cada campo opcional
-COMMENT ON COLUMN tarjetas_credito.porcentaje_cat IS 'Costo Anual Total (CAT) en porcentaje - Incluye intereses, comisiones y seguros';
-COMMENT ON COLUMN tarjetas_credito.anualidad IS 'Costo anual por tener la tarjeta en pesos mexicanos';
-COMMENT ON COLUMN tarjetas_credito.gasto_exencion_anualidad IS 'Compras anuales para no pagar anualidad';
-COMMENT ON COLUMN tarjetas_credito.porcentaje_cashback IS 'Porcentaje de dinero que regresa por compras realizadas';
-COMMENT ON COLUMN tarjetas_credito.puntos_por_peso IS 'Cantidad de puntos de recompensa por cada peso gastado';
-COMMENT ON COLUMN tarjetas_credito.dias_gracia IS 'Días sin intereses después del corte si se paga el total';
-COMMENT ON COLUMN tarjetas_credito.notas IS 'Información adicional: promociones, beneficios especiales, meses sin intereses disponibles, etc.';
-
-
--- 4.18) Compras en Meses Sin Intereses (MSI)
+-- 4.17) Compras en Meses Sin Intereses (MSI)
 CREATE TABLE compras_msi (
   id                UUID             DEFAULT gen_random_uuid() PRIMARY KEY,
   compra_deuda_id   UUID             REFERENCES compras_deuda(id) ON DELETE CASCADE,  -- Compra padre a la que pertenece
-  cuenta_tarjeta_id UUID             NOT NULL REFERENCES tarjetas_credito(cuenta_id), -- Tarjeta donde se realizó la compra MSI
+  cuenta_id         UUID             NOT NULL REFERENCES cuentas(id),                 -- Cuenta (tarjeta de crédito) donde se realizó la compra MSI
   cuotas_totales    INT              NOT NULL,                                         -- Número total de MSI (3, 6, 12, 18, 24 meses)
   cuotas_pagadas    INT              NOT NULL DEFAULT 0,                              -- Cuotas ya pagadas
   monto_cuota       NUMERIC(14,2)    NOT NULL,                                        -- Monto fijo a pagar cada mes
@@ -509,13 +506,13 @@ CREATE TABLE compras_msi (
   fecha_creacion    TIMESTAMPTZ      NOT NULL DEFAULT now(),                         -- Cuándo se registró la compra MSI
   fecha_actualizacion TIMESTAMPTZ    NOT NULL DEFAULT now()                          -- Última modificación del registro
 );
--- Índice para buscar compras MSI por tarjeta
-CREATE INDEX ON compras_msi(cuenta_tarjeta_id);
+-- Índice para buscar compras MSI por cuenta
+CREATE INDEX ON compras_msi(cuenta_id);
 
 -- Comentarios explicativos para la tabla de MSI
 COMMENT ON TABLE compras_msi IS 'Registro de compras realizadas con promociones de Meses Sin Intereses (MSI)';
 COMMENT ON COLUMN compras_msi.compra_deuda_id IS 'Referencia a la compra padre en la tabla compras_deuda';
-COMMENT ON COLUMN compras_msi.cuenta_tarjeta_id IS 'Tarjeta de crédito específica donde se realizó la compra MSI';
+COMMENT ON COLUMN compras_msi.cuenta_id IS 'Cuenta (tarjeta de crédito) donde se realizó la compra MSI';
 COMMENT ON COLUMN compras_msi.cuotas_totales IS 'Número total de meses sin intereses (3, 6, 9, 12, 18, 24, etc.)';
 COMMENT ON COLUMN compras_msi.cuotas_pagadas IS 'Cantidad de cuotas que ya han sido pagadas';
 COMMENT ON COLUMN compras_msi.monto_cuota IS 'Monto fijo que se paga cada mes durante la promoción MSI';
@@ -947,15 +944,6 @@ COMMENT ON TABLE bancos IS 'Catálogo de instituciones financieras (bancos, fint
 COMMENT ON COLUMN bancos.ruta_logo IS 'Ruta del archivo de logo almacenado en Supabase Storage';
 
 -- Comentarios adicionales para tarjetas de crédito
-COMMENT ON TABLE tarjetas_credito IS 'Información detallada de tarjetas de crédito incluyendo límites, fechas y beneficios';
-COMMENT ON COLUMN tarjetas_credito.limite_credito IS 'Línea de crédito máxima otorgada por el banco';
-COMMENT ON COLUMN tarjetas_credito.credito_disponible IS 'Crédito que puede usarse actualmente (límite - adeudo)';
-COMMENT ON COLUMN tarjetas_credito.dia_pago IS 'Día del mes en que vence el pago (1-31)';
-COMMENT ON COLUMN tarjetas_credito.dia_corte IS 'Día de corte del estado de cuenta (1-31)';
-COMMENT ON COLUMN tarjetas_credito.tasa_interes IS 'Tasa de interés anual por financiamiento';
-COMMENT ON COLUMN tarjetas_credito.porcentaje_pago_minimo IS 'Porcentaje mínimo a pagar del saldo total';
-
-
 -- 4.18) Tabla de invitaciones a grupos
 CREATE TABLE invitaciones_grupo (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
