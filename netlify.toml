@@ -4,6 +4,11 @@
   # Directorio donde se genera el build
   publish = "dist"
 
+# Configuración de escaneo de secretos
+# La ANON_KEY de Supabase es pública y está diseñada para ser usada en el frontend
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY"
+
 # Redirecciones para SPA - todas las rutas deben ir al index.html
 [[redirects]]
   from = "/*"
