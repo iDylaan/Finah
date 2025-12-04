@@ -137,7 +137,7 @@ const getTransactionColor = (tipo) => {
     const colors = {
         'ingreso': 'text-green-600 dark:text-green-400',
         'gasto': 'text-red-400 dark:text-red-300',
-        'transferencia': 'text-blue-600 dark:text-blue-400'
+        'transferencia': 'text-blue-500 dark:text-blue-400'
     };
     return colors[tipo] || 'text-surface-600';
 };
@@ -548,7 +548,7 @@ watch(() => route.params.id, () => {
                 <!-- Total Transacciones -->
                 <div class="card h-[115px]">
                     <div class="flex items-start justify-between mb-3">
-                        <div>
+                        <div>   
                             <p class="text-sm text-surface-600 dark:text-surface-400 mb-1">Transacciones</p>
                             <p class="text-2xl font-bold text-surface-900 dark:text-surface-0">
                                 {{ stats.totalTransacciones }}
@@ -634,9 +634,15 @@ watch(() => route.params.id, () => {
                                                 </p>
                                             </div>
                                         </div>
-                                        <p class="font-semibold" :class="getTransactionColor(transaction.tipo)">
-                                            {{ transaction.tipo === 'gasto' ? '-' : '+' }}{{ formatCurrency(transaction.monto) }}
-                                        </p>
+                                        <div class="font-semibold flex items-center gap-1" :class="getTransactionColor(transaction.tipo)">
+                                            <span v-if="transaction.tipo === 'transferencia'" class="material-symbols-rounded text-base">
+                                                arrow_forward
+                                            </span>
+                                            <span v-else>
+                                                {{ transaction.tipo === 'gasto' ? '-' : '+' }}
+                                            </span>
+                                            <span>{{ formatCurrency(transaction.monto) }}</span>
+                                        </div>
                                     </div>
                                     <div v-if="transactions.length === 0" class="text-center py-8 text-surface-500">
                                         No hay transacciones registradas
@@ -702,9 +708,15 @@ watch(() => route.params.id, () => {
 
                                 <Column field="monto" header="Monto" sortable style="min-width: 150px">
                                     <template #body="{ data }">
-                                        <span class="font-semibold" :class="getTransactionColor(data.tipo)">
-                                            {{ data.tipo === 'gasto' ? '-' : '+' }}{{ formatCurrency(data.monto) }}
-                                        </span>
+                                        <div class="font-semibold flex items-center gap-1" :class="getTransactionColor(data.tipo)">
+                                            <span v-if="data.tipo === 'transferencia'" class="material-symbols-rounded text-base">
+                                                arrow_forward
+                                            </span>
+                                            <span v-else>
+                                                {{ data.tipo === 'gasto' ? '-' : '+' }}
+                                            </span>
+                                            <span>{{ formatCurrency(data.monto) }}</span>
+                                        </div>
                                     </template>
                                 </Column>
 

@@ -1,5 +1,7 @@
 <template>
-    <Dialog v-model:visible="isVisible" modal :header="dialogTitle" :style="{ width: '500px', maxWidth: '95vw' }">
+    <Dialog v-model:visible="isVisible" modal :header="dialogTitle" :style="{ width: '95vw', maxWidth: '32rem' }" 
+        :breakpoints="{ '768px': '100vw' }" :contentStyle="{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }" 
+        class="mobile-fullscreen-dialog">
         <div v-if="isLoadingData" class="flex justify-center py-8">
             <ProgressSpinner />
         </div>

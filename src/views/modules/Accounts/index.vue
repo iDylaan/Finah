@@ -202,7 +202,7 @@
                         <div v-if="account.tipo === 'credit_card' && isCardExpanded(account.id)" 
                             class="bg-surface-100 dark:bg-surface-900 px-3 md:px-4 pb-3 md:pb-4 pt-3 overflow-hidden"
                             @click.stop>
-                            <CreditCardInfo :card="account" />
+                            <CreditCardInfo :card="account" @open-payment-modal="handleOpenPaymentModal(account.id)" />
                         </div>
                     </Transition>
                 </div>
@@ -235,6 +235,16 @@
             @cancel="handleModalCancel"
             @close="handleModalCancel"
         />
+
+        <!-- Modal de Transacciones -->
+        <TransactionModal />
+
+        <!-- Modal de Pago de Tarjeta -->
+        <CreditCardPaymentModal 
+            v-model:visible="showPaymentModal"
+            :credit-card-id="selectedCardForPayment"
+            @payment-registered="handlePaymentRegistered"
+        />
     </PageLayout>
 </template>
 
@@ -245,9 +255,12 @@ import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import { useAccountsStore } from '@/stores/accounts.js';
+import { useModalsStore } from '@/stores/ui-modals.js';
 import PageLayout from '@/components/PageLayout.vue';
 import AccountModal from './components/AccountModal.vue';
+import TransactionModal from '@/views/modules/Transactions/components/TransactionModal.vue';
 import CreditCardInfo from './components/CreditCardInfo.vue';
+import CreditCardPaymentModal from './components/CreditCardPaymentModal.vue';
 import { formatDate } from '@/lib/utils.js';
 
 // STORES & COMPOSABLES
@@ -255,6 +268,11 @@ const router = useRouter();
 const toast = useToast();
 const confirm = useConfirm();
 const accountsStore = useAccountsStore();
+const modalsStore = useModalsStore();
+
+// Estado del modal de pago de tarjeta
+const showPaymentModal = ref(false);
+const selectedCardForPayment = ref(null);
 
 // VARIABLES
 const isInitialLoad = ref(true);
@@ -341,6 +359,11 @@ const getAccountMenuItems = (account) => {
             label: 'Ver movimientos',
             icon: 'pi pi-list',
             command: () => handleViewTransactions(account)
+        },
+        {
+            label: 'Realizar transferencia',
+            icon: 'pi pi-arrow-right',
+            command: () => handleTransferFromAccount(account)
         },
         {
             separator: true
@@ -445,6 +468,22 @@ const handleAccountSubmit = async ({ data, isEdit, accountId }) => {
 const handleViewTransactions = (account) => {
     console.log('👁️ Ver movimientos de cuenta:', account);
     router.push(`/accounts/${account.id}/dashboard`);
+};
+
+const handleTransferFromAccount = (account) => {
+    console.log('💸 Transferir desde cuenta:', account);
+    modalsStore.openTransferenciaModal(account.id);
+};
+
+const handleOpenPaymentModal = (cardId) => {
+    console.log('💳 Abrir modal de pago para tarjeta:', cardId);
+    selectedCardForPayment.value = cardId;
+    showPaymentModal.value = true;
+};
+
+const handlePaymentRegistered = () => {
+    console.log('✅ Pago registrado exitosamente');
+    // El modal ya refrescará las cuentas automáticamente
 };
 
 const handleDeleteAccount = (account) => {

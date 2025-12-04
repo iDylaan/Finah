@@ -1,7 +1,10 @@
 <template>
     <!-- Modal para Nueva/Editar Categoría -->
     <Dialog v-model:visible="isVisible" modal :header="dialogTitle" 
-        class="w-full max-w-md" :draggable="false" :closable="!isSubmitting && !isLoadingGroupData" 
+        :style="{ width: '95vw', maxWidth: '28rem' }" 
+        :breakpoints="{ '768px': '100vw' }"
+        :contentStyle="{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }"
+        class="mobile-fullscreen-dialog" :draggable="false" :closable="!isSubmitting && !isLoadingGroupData" 
         @hide="handleClose">
         
         <template #header>

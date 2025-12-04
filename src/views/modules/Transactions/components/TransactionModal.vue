@@ -7,7 +7,10 @@
         :closeOnEscape="!isLoading"
         :dismissableMask="!isLoading"
         :draggable="false"
-        class="w-full max-w-2xl mx-4"
+        :style="{ width: '95vw', maxWidth: '42rem' }"
+        :breakpoints="{ '768px': '100vw' }"
+        :contentStyle="{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }"
+        class="mobile-fullscreen-dialog"
         @hide="handleClose"
     >
         <template #header>
@@ -46,6 +49,15 @@
             />
         </div>
 
+        <div v-else-if="modalsStore.transactionModalType === 'transferencia'">
+            <TransferenciaForm 
+                ref="transferenciaFormRef"
+                :cuentas="cuentas"
+                :categoryGroups="categoryGroups"
+                :preselectedAccountId="modalsStore.preselectedAccountId"
+            />
+        </div>
+
         <!-- Placeholder para otros tipos -->
         <div v-else class="text-center py-8 text-surface-500">
             <p>Formulario para {{ modalsStore.transactionModalType }} próximamente</p>
@@ -81,6 +93,7 @@ import { useTransactionsStore } from '@/stores/transactions.js';
 import { useModalsStore } from '@/stores/ui-modals.js';
 import IngresoForm from './IngresoForm.vue';
 import GastoForm from './GastoForm.vue';
+import TransferenciaForm from './TransferenciaForm.vue';
 
 // Composables
 const toast = useToast();
@@ -108,6 +121,7 @@ const categoriasIngreso = computed(() => categoryGroups.value);
 // Refs de formularios
 const ingresoFormRef = ref(null);
 const gastoFormRef = ref(null);
+const transferenciaFormRef = ref(null);
 
 // Computed para header del modal
 const modalTitle = computed(() => {
@@ -189,6 +203,9 @@ const handleClose = () => {
     if (gastoFormRef.value) {
         gastoFormRef.value.reset();
     }
+    if (transferenciaFormRef.value) {
+        transferenciaFormRef.value.reset();
+    }
 };
 
 const handleSubmit = async () => {
@@ -200,6 +217,8 @@ const handleSubmit = async () => {
             formRef = ingresoFormRef.value;
         } else if (modalsStore.transactionModalType === 'gasto') {
             formRef = gastoFormRef.value;
+        } else if (modalsStore.transactionModalType === 'transferencia') {
+            formRef = transferenciaFormRef.value;
         }
         
         if (!formRef) {
@@ -224,17 +243,35 @@ const handleSubmit = async () => {
         const formData = formRef.formData;
 
         // Preparar datos para enviar
-        const transactionData = {
-            cuenta_id: formData.cuenta_id,
-            categoria_id: formData.categoria_id,
-            nivel_id: formData.nivel_id,
-            monto: formData.monto,
-            fecha_ocurrencia: formData.fecha_ocurrencia instanceof Date 
-                ? formData.fecha_ocurrencia.toISOString().split('T')[0]
-                : formData.fecha_ocurrencia,
-            descripcion: formData.descripcion,
-            metadatos: {}
-        };
+        let transactionData;
+        
+        if (modalsStore.transactionModalType === 'transferencia') {
+            // Datos específicos para transferencia
+            transactionData = {
+                cuenta_origen_id: formData.cuenta_origen_id,
+                cuenta_destino_id: formData.cuenta_destino_id,
+                categoria_id: formData.categoria_id,
+                monto: formData.monto,
+                fecha_ocurrencia: formData.fecha_ocurrencia instanceof Date 
+                    ? formData.fecha_ocurrencia.toISOString().split('T')[0]
+                    : formData.fecha_ocurrencia,
+                descripcion: formData.descripcion,
+                metadatos: {}
+            };
+        } else {
+            // Datos para ingreso/gasto
+            transactionData = {
+                cuenta_id: formData.cuenta_id,
+                categoria_id: formData.categoria_id,
+                nivel_id: formData.nivel_id,
+                monto: formData.monto,
+                fecha_ocurrencia: formData.fecha_ocurrencia instanceof Date 
+                    ? formData.fecha_ocurrencia.toISOString().split('T')[0]
+                    : formData.fecha_ocurrencia,
+                descripcion: formData.descripcion,
+                metadatos: {}
+            };
+        }
 
         console.log('📤 Enviando datos de transacción:', transactionData);
 
@@ -243,6 +280,8 @@ const handleSubmit = async () => {
             await transactionsStore.createIngreso(transactionData, { toast });
         } else if (modalsStore.transactionModalType === 'gasto') {
             await transactionsStore.createGasto(transactionData, { toast });
+        } else if (modalsStore.transactionModalType === 'transferencia') {
+            await transactionsStore.createTransferencia(transactionData, { toast });
         }
 
         // Refrescar datos de cuentas

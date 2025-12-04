@@ -9,3 +9,27 @@
 
 /* Animate.css */
 @use 'animate.css';
+
+/* Mobile Dialog Fullscreen */
+@media (max-width: 768px) {
+    .mobile-fullscreen-dialog {
+        width: 100vw !important;
+        height: 100vh !important;
+        max-width: 100vw !important;
+        max-height: 100vh !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        
+        .p-dialog {
+            height: 100vh;
+            max-height: 100vh;
+            border-radius: 0;
+        }
+        
+        .p-dialog-content {
+            flex: 1;
+            overflow-y: auto;
+            max-height: calc(100vh - 60px - 70px) !important; // Resta header y footer
+        }
+    }
+}

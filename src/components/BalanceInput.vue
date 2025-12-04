@@ -13,9 +13,10 @@
 
     <!-- Modal de calculadora -->
     <Dialog v-model:visible="showCalculator" modal :header="modalTitle"
-      :class="isMobile ? 'calculator-modal-mobile' : 'w-auto max-w-md'"
-      :position="isMobile ? 'center' : 'center'"
-      :style="isMobile ? { width: '95vw', maxWidth: '400px' } : { width: '400px' }"
+      :style="{ width: '95vw', maxWidth: '25rem' }" 
+      :breakpoints="{ '768px': '100vw' }"
+      :contentStyle="{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }"
+      class="mobile-fullscreen-dialog"
       :dismissableMask="true" :closeOnEscape="true">
       <div class="flex flex-col gap-4">
         <!-- Display avanzado para mostrar expresión, valor y preview -->

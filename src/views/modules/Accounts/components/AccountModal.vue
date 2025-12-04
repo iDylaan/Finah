@@ -1,9 +1,10 @@
 <template>
     <Dialog v-model:visible="isVisible" :header="isEdit ? 'Editar Cuenta' : 'Nueva Cuenta'" modal :closable="true"
         :draggable="false" :resizable="false" 
-        :class="isMobile ? 'account-modal-mobile' : 'w-auto max-w-2xl mx-4'" 
-        :position="isMobile ? 'bottom' : 'center'"
-        :style="isMobile ? { width: '100vw', height: '100%', maxHeight: '100vh', margin: 0 } : {}"
+        :style="{ width: '95vw', maxWidth: '50rem' }" 
+        :breakpoints="{ '768px': '100vw' }"
+        :contentStyle="{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }"
+        class="mobile-fullscreen-dialog"
         @hide="handleClose">
         <div class="p-0">
             <AccountForm :is-edit="isEdit" :edit-account-id="editAccountId" :accounts="accounts" :banks="banks"

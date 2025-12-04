@@ -330,6 +330,194 @@ export const useTransactionsStore = defineStore('transactions', () => {
         }
     }
 
+    // FUNCIÓN PARA CREAR TRANSFERENCIA
+    const createTransferencia = async (transferenciaData, { toast }) => {
+        loading.value = true
+
+        try {
+            const { data: { user }, error: userError } = await supabase.auth.getUser()
+
+            if (userError || !user) {
+                throw new Error('Usuario no autenticado')
+            }
+
+            console.log('💸 Creando transferencia:', transferenciaData)
+
+            // 1. Obtener ambas cuentas
+            const { data: cuentas, error: cuentasError } = await supabase
+                .from('cuentas')
+                .select('id, tipo, saldo, credito_disponible, limite_credito')
+                .in('id', [transferenciaData.cuenta_origen_id, transferenciaData.cuenta_destino_id])
+
+            if (cuentasError || !cuentas || cuentas.length !== 2) {
+                throw new Error('Error al obtener información de las cuentas')
+            }
+
+            const cuentaOrigen = cuentas.find(c => c.id === transferenciaData.cuenta_origen_id)
+            const cuentaDestino = cuentas.find(c => c.id === transferenciaData.cuenta_destino_id)
+
+            const montoTransferencia = parseFloat(transferenciaData.monto)
+
+            // 2. Validar saldo/crédito disponible en cuenta origen
+            if (cuentaOrigen.tipo === 'credit_card') {
+                if (parseFloat(cuentaOrigen.credito_disponible) < montoTransferencia) {
+                    throw new Error('Crédito disponible insuficiente en cuenta origen')
+                }
+            } else {
+                if (parseFloat(cuentaOrigen.saldo) < montoTransferencia) {
+                    throw new Error('Saldo insuficiente en cuenta origen')
+                }
+            }
+
+            // 3. Crear las transacciones
+            const fechaOcurrencia = transferenciaData.fecha_ocurrencia
+
+            // Transacción de SALIDA en cuenta origen (tipo transferencia)
+            const transaccionSalida = {
+                usuario_id: user.id,
+                cuenta_id: transferenciaData.cuenta_origen_id,
+                categoria_id: transferenciaData.categoria_id,
+                nivel_id: null,
+                tipo: 'transferencia',
+                severidad: 'informacion',
+                monto: montoTransferencia,
+                fecha_ocurrencia: fechaOcurrencia,
+                descripcion: transferenciaData.descripcion?.trim() || 'Transferencia enviada',
+                url_recibo: null,
+                metadatos: {
+                    direccion: 'salida',
+                    cuenta_relacionada_id: transferenciaData.cuenta_destino_id
+                }
+            }
+
+            // Transacción de INGRESO en cuenta destino (tipo ingreso)
+            const transaccionIngreso = {
+                usuario_id: user.id,
+                cuenta_id: transferenciaData.cuenta_destino_id,
+                categoria_id: transferenciaData.categoria_id,
+                nivel_id: null,
+                tipo: 'ingreso',
+                severidad: 'exito',
+                monto: montoTransferencia,
+                fecha_ocurrencia: fechaOcurrencia,
+                descripcion: transferenciaData.descripcion?.trim() || 'Transferencia recibida',
+                url_recibo: null,
+                metadatos: {
+                    origen: 'transferencia',
+                    cuenta_relacionada_id: transferenciaData.cuenta_origen_id
+                }
+            }
+
+            // Insertar ambas transacciones
+            const { data: newTransactions, error: transactionError } = await supabase
+                .from('transacciones')
+                .insert([transaccionSalida, transaccionIngreso])
+                .select('*')
+
+            if (transactionError) {
+                console.error('💥 Error creando transacciones:', transactionError)
+                throw transactionError
+            }
+
+            console.log('✅ Transacciones de transferencia creadas:', newTransactions)
+
+            // 4. Actualizar cuentas según el tipo
+            let updateOrigen = {}
+            let updateDestino = {}
+
+            // CUENTA ORIGEN - Siempre se resta
+            if (cuentaOrigen.tipo === 'credit_card') {
+                // Tarjeta de crédito origen: aumenta crédito utilizado, disminuye crédito disponible
+                const nuevoCredito = parseFloat(cuentaOrigen.credito_disponible) - montoTransferencia
+                updateOrigen = {
+                    credito_disponible: nuevoCredito,
+                    fecha_actualizacion: new Date().toISOString()
+                }
+                console.log('💳 Cuenta origen (crédito) - Nuevo crédito disponible:', nuevoCredito)
+            } else {
+                // Cuenta normal origen: disminuye saldo
+                const nuevoSaldo = parseFloat(cuentaOrigen.saldo) - montoTransferencia
+                updateOrigen = {
+                    saldo: nuevoSaldo,
+                    fecha_actualizacion: new Date().toISOString()
+                }
+                console.log('🏦 Cuenta origen - Nuevo saldo:', nuevoSaldo)
+            }
+
+            // CUENTA DESTINO - Depende del tipo
+            if (cuentaDestino.tipo === 'credit_card') {
+                // Tarjeta de crédito destino: aumenta crédito disponible (pago a tarjeta)
+                const nuevoCredito = parseFloat(cuentaDestino.credito_disponible) + montoTransferencia
+                updateDestino = {
+                    credito_disponible: nuevoCredito,
+                    fecha_actualizacion: new Date().toISOString()
+                }
+                console.log('💳 Cuenta destino (crédito) - Nuevo crédito disponible:', nuevoCredito)
+            } else {
+                // Cuenta normal destino: aumenta saldo
+                const nuevoSaldo = parseFloat(cuentaDestino.saldo) + montoTransferencia
+                updateDestino = {
+                    saldo: nuevoSaldo,
+                    fecha_actualizacion: new Date().toISOString()
+                }
+                console.log('🏦 Cuenta destino - Nuevo saldo:', nuevoSaldo)
+            }
+
+            // Actualizar cuenta origen
+            const { error: updateOrigenError } = await supabase
+                .from('cuentas')
+                .update(updateOrigen)
+                .eq('id', transferenciaData.cuenta_origen_id)
+
+            if (updateOrigenError) {
+                console.error('💥 Error actualizando cuenta origen:', updateOrigenError)
+                throw updateOrigenError
+            }
+
+            // Actualizar cuenta destino
+            const { error: updateDestinoError } = await supabase
+                .from('cuentas')
+                .update(updateDestino)
+                .eq('id', transferenciaData.cuenta_destino_id)
+
+            if (updateDestinoError) {
+                console.error('💥 Error actualizando cuenta destino:', updateDestinoError)
+                throw updateDestinoError
+            }
+
+            console.log('✅ Cuentas actualizadas exitosamente')
+
+            // Mostrar mensaje de éxito
+            if (toast) {
+                toast.add({
+                    severity: 'success',
+                    summary: 'Transferencia Realizada',
+                    detail: `Se transfirieron $${montoTransferencia.toLocaleString('es-MX', { minimumFractionDigits: 2 })} exitosamente`,
+                    life: 3000
+                })
+            }
+
+            return newTransactions
+
+        } catch (error) {
+            console.error('💥 Error creando transferencia:', error)
+
+            if (toast) {
+                toast.add({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail: error.message || 'Error realizando la transferencia',
+                    life: 5000
+                })
+            }
+
+            throw error
+
+        } finally {
+            loading.value = false
+        }
+    }
+
     return {
         // Estados
         transactions,
@@ -339,6 +527,7 @@ export const useTransactionsStore = defineStore('transactions', () => {
         // Funciones
         createIngreso,
         createGasto,
+        createTransferencia,
         fetchTransactionsByAccount
     }
 })

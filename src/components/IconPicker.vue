@@ -29,7 +29,8 @@
 
         <!-- Selector de iconos usando Dialog en lugar de Popover -->
         <Dialog v-model:visible="isPickerVisible" modal header="Seleccionar Icono" 
-            :style="{ width: '450px', maxWidth: '95vw' }" 
+            :style="{ width: '95vw', maxWidth: '56rem' }" :breakpoints="{ '768px': '100vw' }"
+            :contentStyle="{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }" class="mobile-fullscreen-dialog">
             :pt="{
                 root: { class: 'z-[9999]' }, // Asegurarse que tenga un z-index muy alto
                 mask: { class: 'z-[9998]' }  // También para la máscara

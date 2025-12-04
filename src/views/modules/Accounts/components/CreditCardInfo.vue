@@ -59,11 +59,21 @@
 
             <!-- Información de pagos -->
             <div class="p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <div class="text-xs text-green-700 dark:text-green-400 mb-1">Pago total</div>
+                <div class="text-xs text-green-700 dark:text-green-400 mb-1">Saldo por pagar</div>
                 <div class="text-sm font-bold text-green-800 dark:text-green-300">
                     {{ formatCurrency(montoUtilizado || 0) }}
                 </div>
             </div>
+
+            <!-- Botón de realizar pago -->
+            <Button 
+                v-if="montoUtilizado > 0"
+                label="Realizar Pago" 
+                icon="pi pi-credit-card"
+                class="w-full"
+                severity="success"
+                @click="emit('open-payment-modal')"
+            />
 
             <!-- Badge de alerta si está en peligro -->
             <Message v-if="enPeligro" severity="error" :closable="false" class="text-xs p-2 mt-2">
@@ -109,6 +119,8 @@ const props = defineProps({
         required: true
     }
 });
+
+const emit = defineEmits(['open-payment-modal']);
 
 const accountsStore = useAccountsStore();
 const info = ref(null);
