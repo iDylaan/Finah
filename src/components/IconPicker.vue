@@ -28,14 +28,14 @@
         </div>
 
         <!-- Selector de iconos usando Dialog en lugar de Popover -->
-        <Dialog v-model:visible="isPickerVisible" modal header="Seleccionar Icono" 
+        <Dialog v-model:visible="isPickerVisible" modal header="Seleccionar Icono"
             :style="{ width: '95vw', maxWidth: '56rem' }" :breakpoints="{ '768px': '100vw' }"
-            :contentStyle="{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }" class="mobile-fullscreen-dialog">
+            :contentStyle="{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }" class="mobile-fullscreen-dialog"
             :pt="{
-                root: { class: 'z-[9999]' }, // Asegurarse que tenga un z-index muy alto
-                mask: { class: 'z-[9998]' }  // También para la máscara
-            }"
-            :dismissableMask="true">
+            root: { class: 'z-[9999]' }, // Asegurarse que tenga un z-index muy alto
+            mask: { class: 'z-[9998]' }  // También para la máscara
+        }" :dismissableMask="true">
+
             <div class="rounded-lg">
                 <!-- Selector de librería -->
                 <div class="mb-4">
@@ -96,13 +96,13 @@
                     <div class="space-y-2">
                         <div class="flex justify-between items-center">
                             <span class="font-medium">Icono:</span>
-                            <code
-                                class="text-xs bg-surface-200 dark:bg-surface-600 px-2 py-1 rounded">{{ tempFinalIcon }}</code>
+                            <code class="text-xs bg-surface-200 dark:bg-surface-600 px-2 py-1 rounded">{{ tempFinalIcon
+                        }}</code>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <template #footer>
                 <div class="flex justify-end gap-2">
                     <Button label="Cancelar" severity="secondary" outlined @click="closePicker" />
@@ -177,11 +177,11 @@ watch(searchQuery, (newQuery) => {
 // Función para abrir el picker
 const openPicker = () => {
     if (props.disabled) return;
-    
+
     // Al abrir, inicializamos los valores temporales con los actuales
     tempSelectedPrimeIcon.value = selectedPrimeIcon.value;
     tempSelectedMaterialIcon.value = selectedMaterialIcon.value;
-    
+
     isPickerVisible.value = true;
 }
 
@@ -197,7 +197,7 @@ const applyAndClose = () => {
     // Aplicar los cambios temporales
     selectedPrimeIcon.value = tempSelectedPrimeIcon.value;
     selectedMaterialIcon.value = tempSelectedMaterialIcon.value;
-    
+
     // Cerrar el picker
     closePicker();
 }
