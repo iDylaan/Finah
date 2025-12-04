@@ -47,38 +47,30 @@ app.directive('ripple', Ripple)
 app.directive('tooltip', Tooltip)
 app.use(router)
 
-// **VERSIÓN SIMPLIFICADA:** Inicialización más robusta
+// **VERSIÓN OPTIMIZADA:** Montar app inmediatamente y cargar datos en background
 async function initializeApp() {
     console.log('🚀 Iniciando aplicación...');
     
-    try {
-        // Obtener stores
-        const uiStore = useUIStore()
-        const sessionStore = useSessionStore()
-        
-        // Cargar configuración UI
-        uiStore.loadUISetup()
-        
-        // Inicializar detección de viewport móvil
-        uiStore.initMobileDetection()
-        
-        sessionStore.setupAuthListener()
-        
-        const initPromise = sessionStore.initializeAuth()
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout de inicialización')), 5000)
-        )
-        
-        await Promise.race([initPromise, timeoutPromise])
-    } catch (error) {
-        console.error('⚠️ Error/timeout en inicialización:', error.message);
-        // Continuar de todas formas
-    }
+    // Obtener stores
+    const uiStore = useUIStore()
+    const sessionStore = useSessionStore()
     
-    // **PASO 3:** Montar app siempre (con o sin auth)
+    // Cargar configuración UI (síncrono)
+    uiStore.loadUISetup()
+    
+    // Inicializar detección de viewport móvil (síncrono)
+    uiStore.initMobileDetection()
+    
+    // **MONTAR APP INMEDIATAMENTE**
     console.log('🎯 Montando aplicación...');
     app.mount('#app')
-    console.log('✅ Aplicación montada exitosamente');
+    console.log('✅ Aplicación montada');
+    
+    // Inicializar auth en background (no bloqueante)
+    sessionStore.setupAuthListener()
+    sessionStore.initializeAuth().catch(error => {
+        console.error('⚠️ Error en inicialización de auth:', error.message);
+    })
 }
 
 // Inicializar la aplicación
