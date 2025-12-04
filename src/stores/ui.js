@@ -11,6 +11,7 @@ export const useUIStore = defineStore('ui', () => {
     const pageLoading = ref(false);
     const pageLoadingProgress = ref(0);
     const pageLoadingColor = ref('var(--p-primary-color)');
+    const titlePage = ref('');
 
     // Estado para detectar viewport móvil
     const isMobile = ref(false);
@@ -194,7 +195,7 @@ export const useUIStore = defineStore('ui', () => {
                         surface: layoutConfig.value.surface,
                         darkTheme: layoutConfig.value.darkTheme
                     });
-                    
+
                     // Disparar evento personalizado para que AppConfigurator aplique el tema
                     window.dispatchEvent(new CustomEvent('applyStoredTheme', {
                         detail: {
@@ -330,7 +331,7 @@ export const useUIStore = defineStore('ui', () => {
                     };
                     Object.assign(layoutConfig.value, loadedConfig);
                     darkMode.value = loadedConfig.darkTheme;
-                    
+
                     console.log('✅ Colores cargados - Primario:', loadedConfig.primary, 'Superficie:', loadedConfig.surface || 'auto');
                 }
 
@@ -439,6 +440,12 @@ export const useUIStore = defineStore('ui', () => {
         console.log('🗑️ Configuración eliminada de localStorage');
     };
 
+    const setTitlePage = (newTitle) => {
+        const fullTitle = `Finah | ${newTitle}`;
+        document.title = fullTitle;
+        titlePage.value = newTitle;
+    }
+
     return {
         // Estados básicos
         pageTitle,
@@ -447,6 +454,7 @@ export const useUIStore = defineStore('ui', () => {
         pageLoading,
         barStyle,
         firstLoad,
+        titlePage,
 
         // Estados del layout
         layoutConfig,
@@ -465,6 +473,7 @@ export const useUIStore = defineStore('ui', () => {
         sidebarModel,
 
         // Funciones básicas
+        setTitlePage,
         setFirstPageLoading,
         toggleDarkMode,
         executeDarkModeToggle,

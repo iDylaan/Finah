@@ -164,6 +164,10 @@ import { useBankStore } from '@/stores/banks.js';
 import PageLayout from '@/components/PageLayout.vue';
 import BankForm from './components/BankForm.vue';
 
+// STORES
+import { useUIStore } from '@/stores/ui';
+const uiStore = useUIStore();
+
 // HOOKS
 const toast = useToast();
 const confirm = useConfirm();
@@ -196,6 +200,7 @@ const hexToRgba = (hex, opacity = 1) => {
 
 // MOUNTED
 onMounted(async () => {
+    uiStore.setTitlePage('Entidades Financieras');
     if (!bankStore.loaded) {
         await loadBanks();
     }

@@ -478,6 +478,7 @@ watch(() => isReorderMode.value, async (newValue) => {
 
 // HOOKS
 onMounted(async () => {
+    UI.setTitlePage('Niveles');
     await loadData();
     await nextTick();
     initializeSortable();

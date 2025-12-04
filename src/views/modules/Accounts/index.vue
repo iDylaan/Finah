@@ -256,6 +256,7 @@ import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import { useAccountsStore } from '@/stores/accounts.js';
 import { useModalsStore } from '@/stores/ui-modals.js';
+import { useUIStore } from '@/stores/ui';
 import PageLayout from '@/components/PageLayout.vue';
 import AccountModal from './components/AccountModal.vue';
 import TransactionModal from '@/views/modules/Transactions/components/TransactionModal.vue';
@@ -268,6 +269,7 @@ const router = useRouter();
 const toast = useToast();
 const confirm = useConfirm();
 const accountsStore = useAccountsStore();
+const ui = useUIStore();
 const modalsStore = useModalsStore();
 
 // Estado del modal de pago de tarjeta
@@ -558,6 +560,7 @@ const refreshData = async () => {
 
 // HOOKS
 onMounted(() => {
+    ui.setTitlePage('Cuentas');
     loadData();
 });
 </script>

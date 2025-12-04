@@ -275,16 +275,23 @@
 </template>
 
 <script setup>
+// IMPORTS
+import { onMounted } from 'vue'
 import { useDivisorGastosStore } from '@/stores/divisor_gastos'
+import { useUIStore } from '@/stores/ui'
 import PageLayout from '@/components/PageLayout.vue'
 
+// STORES
 const divisorStore = useDivisorGastosStore()
+const uiStore = useUIStore();
 
+// STATES
 const periodoOptions = [
     { label: 'Mensual', value: 'mensual' },
     { label: 'Quincenal', value: 'quincenal' }
 ]
 
+// FUNCTIONS
 const formatCurrency = (amount) => {
     return new Intl.NumberFormat('es-MX', {
         style: 'currency',
@@ -298,6 +305,11 @@ const formatPercentage = (percentage) => {
         maximumFractionDigits: 1
     }).format(percentage || 0)
 }
+
+// HOOKS
+onMounted(() => {
+    uiStore.setTitlePage('Divisor de Gastos');
+});
 </script>
 
 <style lang="scss" scoped></style>

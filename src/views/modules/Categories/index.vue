@@ -160,6 +160,8 @@ const toast = useToast();
 const confirm = useConfirm();
 import { useCategoriesStore } from '@/stores/categories.js';
 const categoriesStore = useCategoriesStore();
+import { useUIStore } from '@/stores/ui';
+const uiStore = useUIStore();
 
 // VARIABLES
 const isInitialLoad = ref(true);
@@ -533,6 +535,7 @@ const handleDeleteGroup = async (group) => {
 
 // HOOKS
 onMounted(() => {
+    uiStore.setTitlePage('Categorías');
     loadData();
 });
 </script>
