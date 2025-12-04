@@ -84,8 +84,8 @@ function onMaskClick() {
                 </router-view>
             </div>
             <app-footer></app-footer>
+            <app-speed-dial></app-speed-dial>
         </div>
-        <app-speed-dial></app-speed-dial>
         <transaction-modal></transaction-modal>
         <div 
             v-if="uiStore.layoutState.overlayMenuActive || uiStore.layoutState.staticMenuMobileActive" 

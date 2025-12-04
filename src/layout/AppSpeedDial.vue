@@ -6,7 +6,8 @@
                 style: `align-items: flex-end;`
             },
             list: {
-                style: 'align-items: self-end;'
+                style: `align-items: self-end;`,
+                class: hideList ? 'no-height' : ''
             }
         }">
         <template #button="{ toggleCallback }">
@@ -65,9 +66,11 @@ import { useModalsStore } from '@/stores/ui-modals.js'
 
 const modalsStore = useModalsStore()
 const isOpen = ref(false)
+const hideList = ref(true)
 
 const onShow = () => {
     isOpen.value = true
+    hideList.value = false
     const mask = document.querySelector('.p-speeddial-mask')
     if (mask) {
         mask.style.zIndex = '99'
@@ -82,6 +85,12 @@ const onShow = () => {
 
 const onHide = () => {
     isOpen.value = false
+    
+    // Delay para quitar la clase no-height después de la animación
+    setTimeout(() => {
+        hideList.value = true
+    }, 300) // 300ms coincide con la duración de la animación
+    
     const mask = document.querySelector('.p-speeddial-mask')
     if (mask) {
         mask.style.zIndex = '-1'
@@ -123,6 +132,11 @@ const items = ref([
     pointer-events: none;
     position: fixed !important;
     inset: 0 !important;
+}
+
+.no-height {
+    height: 0 !important;
+    overflow: hidden !important;
 }
 
 .p-speeddial {

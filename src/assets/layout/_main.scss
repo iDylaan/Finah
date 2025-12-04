@@ -7,6 +7,7 @@
     transition: margin-left var(--layout-section-transition-duration);
     overflow-y: auto;
     overflow-x: hidden;
+    position: relative;
 }
 
 .layout-main {
