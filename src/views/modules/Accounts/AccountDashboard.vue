@@ -546,7 +546,7 @@ watch(() => route.params.id, () => {
                 </div>
 
                 <!-- Total Transacciones -->
-                <div class="card">
+                <div class="card h-[115px]">
                     <div class="flex items-start justify-between mb-3">
                         <div>
                             <p class="text-sm text-surface-600 dark:text-surface-400 mb-1">Transacciones</p>
