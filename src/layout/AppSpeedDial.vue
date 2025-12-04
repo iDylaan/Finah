@@ -1,9 +1,9 @@
 <template>
     <SpeedDial :model="items" direction="up" :transitionDelay="80" mask
-        :style="{ position: 'fixed', right: '2rem', bottom: '2rem', zIndex: 100 }"
+        :style="{ position: 'fixed', right: '2.9rem', bottom: '2rem', zIndex: 100 }"
         :tooltipOptions="{ position: 'left' }" @show="onShow" @hide="onHide" :pt="{
             root: {
-                style: 'align-items: flex-end'
+                style: `align-items: flex-end;`
             },
             list: {
                 style: 'align-items: self-end;'
@@ -61,11 +61,9 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useToast } from 'primevue/usetoast'
+import { useModalsStore } from '@/stores/ui-modals.js'
 
-const router = useRouter()
-const toast = useToast()
+const modalsStore = useModalsStore()
 const isOpen = ref(false)
 
 const onShow = () => {
@@ -96,39 +94,23 @@ const items = ref([
         label: 'Ingreso',
         icon: 'paid',
         command: () => {
-            // TODO: Abrir modal o navegar a registro de ingreso
-            toast.add({
-                severity: 'success',
-                summary: 'Nuevo Ingreso',
-                detail: 'Función próximamente',
-                life: 3000
-            })
+            modalsStore.openIngresoModal()
         }
     },
     {
         label: 'Gasto',
         icon: 'receipt_long',
         command: () => {
-            // TODO: Abrir modal o navegar a registro de gasto
-            toast.add({
-                severity: 'danger',
-                summary: 'Nuevo Gasto',
-                detail: 'Función próximamente',
-                life: 3000
-            })
+            // TODO: Implementar modal de gasto
+            modalsStore.openGastoModal()
         }
     },
     {
         label: 'Transferir',
         icon: 'send_money',
         command: () => {
-            // TODO: Abrir modal o navegar a registro de transferencia
-            toast.add({
-                severity: 'info',
-                summary: 'Nueva Transferencia',
-                detail: 'Función próximamente',
-                life: 3000
-            })
+            // TODO: Implementar modal de transferencia
+            modalsStore.openTransferenciaModal()
         }
     }
 ].map((item, index) => ({ ...item, index })))

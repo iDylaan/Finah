@@ -241,6 +241,7 @@
 <script setup>
 // IMPORTS
 import { ref, onMounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import { useAccountsStore } from '@/stores/accounts.js';
@@ -250,6 +251,7 @@ import CreditCardInfo from './components/CreditCardInfo.vue';
 import { formatDate } from '@/lib/utils.js';
 
 // STORES & COMPOSABLES
+const router = useRouter();
 const toast = useToast();
 const confirm = useConfirm();
 const accountsStore = useAccountsStore();
@@ -442,12 +444,7 @@ const handleAccountSubmit = async ({ data, isEdit, accountId }) => {
 // ACCOUNT ACTIONS
 const handleViewTransactions = (account) => {
     console.log('👁️ Ver movimientos de cuenta:', account);
-    toast.add({
-        severity: 'info',
-        summary: 'Función pendiente',
-        detail: 'Vista de movimientos próximamente',
-        life: 3000
-    });
+    router.push(`/accounts/${account.id}/dashboard`);
 };
 
 const handleDeleteAccount = (account) => {

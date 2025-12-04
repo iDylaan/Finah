@@ -50,6 +50,12 @@ const router = createRouter({
                     component: () => import('@/views/modules/Accounts/index.vue'),
                 },
                 {
+                    path: '/accounts/:id/dashboard',
+                    name: 'account-dashboard',
+                    component: () => import('@/views/modules/Accounts/AccountDashboard.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
                     path: '/divisor_de_gastos',
                     name: 'divisor_de_gastos',
                     component: () => import('@/views/modules/DivisorGastos/index.vue'),

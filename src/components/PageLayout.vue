@@ -3,7 +3,7 @@
         <!-- Page Header -->
         <div ref="headerRef" class="
                 sticky 
-                top-[62px] 
+                top-0
                 z-10 
                 backdrop-blur-md 
                 supports-[backdrop-filter]:bg-surface-0/60 supports-[backdrop-filter]:dark:bg-surface-900/60 
@@ -19,11 +19,11 @@
             <div class="
                     flex 
                     gap-4 
-                    items-center
+                    items-center md:items-start
                     w-full
                     px-4
                 "
-                :class="isSticky ? 'flex-nowrap' : 'flex-wrap md:flex-row md:items-start'">
+                :class="isSticky ? 'flex-nowrap' : 'flex-wrap md:flex-row'">
                 <!-- Texto del header (título y descripción) -->
                 <div class="min-w-0 overflow-hidden" :class="isSticky ? 'flex-1' : 'w-full md:flex-1'">
                     <slot name="header">
@@ -77,13 +77,14 @@ const props = defineProps({
 // Estado para detectar si está sticky
 const isSticky = ref(false);
 const headerRef = ref(null);
+const scrollContainer = ref(null);
 const activationThreshold = ref(200); // Píxeles para activar sticky (contraer)
 const deactivationThreshold = ref(100); // Píxeles para desactivar sticky (expandir)
 
 // Función para detectar scroll con umbrales fijos
 const handleScroll = () => {
-    if (headerRef.value) {
-        const scrollY = window.scrollY || window.pageYOffset;
+    if (headerRef.value && scrollContainer.value) {
+        const scrollY = scrollContainer.value.scrollTop;
         
         // Si no está sticky y pasamos el umbral de activación -> contraer
         if (!isSticky.value && scrollY > activationThreshold.value) {
@@ -101,12 +102,20 @@ const handleScroll = () => {
 onMounted(() => {
     // Reset del estado al montar
     isSticky.value = false;
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll(); // Check inicial
+    
+    // Buscar el contenedor de scroll (.layout-main-container)
+    scrollContainer.value = document.querySelector('.layout-main-container');
+    
+    if (scrollContainer.value) {
+        scrollContainer.value.addEventListener('scroll', handleScroll, { passive: true });
+        handleScroll(); // Check inicial
+    }
 });
 
 onUnmounted(() => {
-    window.removeEventListener('scroll', handleScroll);
+    if (scrollContainer.value) {
+        scrollContainer.value.removeEventListener('scroll', handleScroll);
+    }
 });
 </script>
 

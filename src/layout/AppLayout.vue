@@ -5,6 +5,7 @@ import AppFooter from './AppFooter.vue';
 import AppSidebar from './AppSidebar.vue';
 import AppTopbar from './AppTopbar.vue';
 import AppSpeedDial from './AppSpeedDial.vue';
+import TransactionModal from '@/views/modules/Transactions/components/TransactionModal.vue';
 
 const uiStore = useUIStore();
 
@@ -85,6 +86,7 @@ function onMaskClick() {
             <app-footer></app-footer>
         </div>
         <app-speed-dial></app-speed-dial>
+        <transaction-modal></transaction-modal>
         <div 
             v-if="uiStore.layoutState.overlayMenuActive || uiStore.layoutState.staticMenuMobileActive" 
             class="layout-mask animate-fadein"
