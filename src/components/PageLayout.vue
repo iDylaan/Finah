@@ -3,7 +3,6 @@
         <!-- Page Header -->
         <div ref="headerRef" class="
                 sticky 
-                top-0
                 z-10 
                 backdrop-blur-md 
                 supports-[backdrop-filter]:bg-surface-0/60 supports-[backdrop-filter]:dark:bg-surface-900/60 
@@ -14,16 +13,16 @@
                 w-[100%]
                 mx-auto
                 transition-all duration-300
-            "
-            :class="isSticky ? 'py-2 md:py-3' : 'py-4 md:py-4'">
+            " :class="[
+                isSticky ? 'py-2 md:py-3 -top-4 md:-top-6' : 'py-4 md:py-4 top-0'
+            ]">
             <div class="
                     flex 
                     gap-4 
                     items-center md:items-start
                     w-full
                     px-4
-                "
-                :class="isSticky ? 'flex-nowrap' : 'flex-wrap md:flex-row'">
+                " :class="isSticky ? 'flex-nowrap' : 'flex-wrap md:flex-row'">
                 <!-- Texto del header (título y descripción) -->
                 <div class="min-w-0 overflow-hidden" :class="isSticky ? 'flex-1' : 'w-full md:flex-1'">
                     <slot name="header">
@@ -45,7 +44,7 @@
                 </div>
 
                 <!-- Acciones del header (botones) -->
-                <div v-if="$slots.actions" class="flex gap-2 items-center shrink-0 page-header-actions" 
+                <div v-if="$slots.actions" class="flex gap-2 items-center shrink-0 page-header-actions"
                     :class="isSticky ? 'ml-auto' : 'w-full md:w-auto justify-end'">
                     <slot name="actions"></slot>
                 </div>
@@ -85,7 +84,7 @@ const deactivationThreshold = ref(100); // Píxeles para desactivar sticky (expa
 const handleScroll = () => {
     if (headerRef.value && scrollContainer.value) {
         const scrollY = scrollContainer.value.scrollTop;
-        
+
         // Si no está sticky y pasamos el umbral de activación -> contraer
         if (!isSticky.value && scrollY > activationThreshold.value) {
             isSticky.value = true;
@@ -102,10 +101,10 @@ const handleScroll = () => {
 onMounted(() => {
     // Reset del estado al montar
     isSticky.value = false;
-    
+
     // Buscar el contenedor de scroll (.layout-main-container)
     scrollContainer.value = document.querySelector('.layout-main-container');
-    
+
     if (scrollContainer.value) {
         scrollContainer.value.addEventListener('scroll', handleScroll, { passive: true });
         handleScroll(); // Check inicial
