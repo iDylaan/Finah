@@ -187,7 +187,7 @@ const handleForgotPassword = async () => {
                 <label for="email1" class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">
                     Correo electrónico *
                 </label>
-                <InputText id="email1" type="email" placeholder="correo@dominio.com" class="w-full"
+                <InputText id="email1" type="email" placeholder="Correo electrónico" class="w-full"
                     :class="{ 'p-invalid': emailTouched && !isEmailValid }" :modelValue="email"
                     @input="(e) => handleEmailInput(e.target.value)" @blur="handleEmailBlur" autocomplete="email"
                     :disabled="isLoading" />
