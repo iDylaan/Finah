@@ -8,9 +8,12 @@
                     {{ formatPercentage(porcentajeUso) }}
                 </span>
             </div>
-            <ProgressBar :value="Math.round(porcentajeUso)" :showValue="false" :class="getProgressBarClass(porcentajeUso)" :pt="{
-                value: { style: `background: ${getUsageColor(porcentajeUso)}` }
-            }" />
+            <ProgressBar
+                :value="Math.round(porcentajeUso)"
+                :showValue="false"
+                :severity="getSeverityByUsage(porcentajeUso)"
+                style="height: 10px"
+            />
             <div class="flex justify-between text-xs text-surface-600 dark:text-surface-400 mt-1">
                 <span>{{ formatCurrency(montoUtilizado || 0) }} usado</span>
                 <span>{{ formatCurrency(card.credito_disponible || 0) }} disponible</span>
@@ -224,6 +227,14 @@ const getProgressBarClass = (porcentaje) => {
     return 'progress-success';
 };
 
+// Severity para ProgressBar de PrimeVue
+const getSeverityByUsage = (porcentaje) => {
+    if (porcentaje >= 90) return 'danger';
+    if (porcentaje >= 70) return 'warn';
+    if (porcentaje >= 50) return 'info';
+    return 'success';
+};
+
 // Clases de fondo según días restantes
 const getBgClassByDays = (dias, tipo) => {
     const severidad = obtenerSeveridadPorDias(dias);
@@ -265,22 +276,5 @@ watch(() => props.card, () => {
 <style scoped>
 .credit-card-info {
     width: 100%;
-}
-
-/* Estilos para ProgressBar */
-:deep(.progress-danger .p-progressbar-value) {
-    background: var(--red-500);
-}
-
-:deep(.progress-warning .p-progressbar-value) {
-    background: var(--orange-500);
-}
-
-:deep(.progress-info .p-progressbar-value) {
-    background: var(--yellow-500);
-}
-
-:deep(.progress-success .p-progressbar-value) {
-    background: var(--green-500);
 }
 </style>

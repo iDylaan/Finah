@@ -556,6 +556,11 @@ ejecuciones_transacciones_periodicas (
 - Permite montos personalizados por cuota (automático, redondeado, manual)
 - Actualización bidireccional de meses pagados (aumentar/disminuir)
 
+**Opciones de Meses Disponibles**:
+- **Estándar**: 3, 6, 9, 12, 18, 24 meses (opciones predefinidas)
+- **15 meses**: Opción adicional común en tiendas departamentales
+- **Personalizado**: El usuario puede ingresar cualquier número de meses (1-999)
+
 **Creación** (usando función SQL):
 ```javascript
 // Frontend: src/stores/recurring-transactions.js
@@ -567,7 +572,7 @@ const createMSI = async (msiData) => {
     p_nombre: msiData.nombre,
     p_descripcion: msiData.descripcion,
     p_monto_total: msiData.monto_total,       // Ej: 25091.25
-    p_numero_meses: msiData.numero_meses,     // Ej: 12
+    p_numero_meses: msiData.numero_meses,     // Ej: 12, 15, o cualquier número
     p_meses_ya_pagados: msiData.meses_ya_pagados || 0,  // Ej: 8
     p_monto_personalizado_por_mes: msiData.monto_por_mes || null  // Opcional
   }
@@ -578,12 +583,39 @@ const createMSI = async (msiData) => {
 
 **Lo que hace la función SQL** `crear_msi_tarjeta_credito`:
 1. Valida que la cuenta sea una tarjeta de crédito con día de corte
-2. Calcula el monto mensual (personalizado o automático)
-3. Crea 1 registro en `transacciones_periodicas` con `es_msi = TRUE`
-4. Crea N registros en `ejecuciones_transacciones_periodicas`:
+2. Calcula el monto mensual según la lógica:
+   - **Si se proporciona `p_monto_personalizado_por_mes`**: Usa ese monto exacto
+   - **Si NO se proporciona**: Calcula automáticamente `monto_total / numero_meses`
+3. Calcula el saldo pendiente de pago:
+   ```sql
+   v_saldo_pendiente := p_monto_total - (p_meses_ya_pagados * v_monto_por_mes)
+   ```
+4. Actualiza el crédito disponible de la tarjeta:
+   ```sql
+   UPDATE cuentas 
+   SET credito_disponible = credito_disponible - v_saldo_pendiente
+   WHERE id = p_cuenta_id
+   ```
+   Esto asegura que solo se descuente el saldo que **realmente falta por pagar**, no el monto total.
+5. Crea 1 registro en `transacciones_periodicas` con `es_msi = TRUE`
+6. Crea N registros en `ejecuciones_transacciones_periodicas`:
    - Meses ya pagados → `estado = 'ejecutada'`
    - Meses restantes → `estado = 'pendiente'`
-5. Cada ejecución se programa según el día de corte de la tarjeta
+7. Cada ejecución se programa según el día de corte de la tarjeta
+
+**Casos de uso del monto personalizado**:
+- **Caso 1 - Monto automático**: Usuario no especifica `monto_por_mes`
+  * Total: $25,091.25 / 12 meses = $2,090.94 por mes
+  * Se usa el monto calculado exacto
+  
+- **Caso 2 - Monto redondeado**: Usuario quiere pagar $2,100.00 por mes
+  * Total: $25,091.25 / 12 meses = $2,090.94
+  * Usuario elige redondear a $2,100.00
+  * Se pasa `p_monto_personalizado_por_mes: 2100.00`
+  
+- **Caso 3 - Monto personalizado**: Usuario quiere pagar $2,500.00 por mes
+  * Independiente del cálculo automático
+  * Se pasa `p_monto_personalizado_por_mes: 2500.00`
 
 **Edición de meses pagados** (bidireccional):
 ```javascript
@@ -701,13 +733,29 @@ const calcularGastosPeriodoActual = async (cuentaId) => {
 
 **Para MSI**:
 - `MSIConfig.vue`: Configurar nuevo MSI con opciones avanzadas
+  * Dropdown con opciones: 3, 6, 9, 12, 15, 18, 24, Personalizado
+  * Si selecciona "Personalizado", muestra InputNumber para ingresar cualquier número (1-999)
+  * Radio buttons para tipo de cuota: Automático, Redondeado, Manual
+  * Validación: Si "Personalizado" seleccionado, debe ingresar número válido
+  
 - `MSIListModal.vue`: Lista de MSI activos de una tarjeta
+  * Muestra iconos según `biblioteca_iconos` (PrimeVue o Material Symbols)
+  * Validación: Verifica biblioteca antes de renderizar `<i>` o componente PrimeVue
+  
 - `MSIEditModal.vue`: Editar meses pagados de un MSI existente
 
 **Para Transacciones Periódicas**:
 - `RecurringTransactionForm.vue`: Crear/editar transacción periódica
 - `RecurringTransactionsList.vue`: Listar todas las transacciones programadas
 - `PendingExecutionsView.vue`: Ver y confirmar ejecuciones pendientes
+
+**Para Gastos con MSI** (diferir desde formulario):
+- `GastoForm.vue`: Formulario de registro de gastos
+  * Checkbox "Diferir en MSI" (solo visible si cuenta es tarjeta de crédito)
+  * Dropdown con opciones: 3, 6, 9, 12, 15, 18, 24, Personalizado
+  * Si selecciona "Personalizado", muestra InputNumber adicional
+  * Radio buttons para tipo de cuota
+  * Validación completa antes de enviar
 
 ##### Flujo de Trabajo
 
@@ -736,6 +784,50 @@ const calcularGastosPeriodoActual = async (cuentaId) => {
 5. Saldo del periodo se actualiza para el siguiente mes
 
 ##### Notas Importantes
+
+**Validaciones críticas implementadas**:
+
+1. **Manejo de valor "personalizado" en campos numéricos**:
+   - Problema: Cuando `meses === 'personalizado'`, hacer `'personalizado' - mesesYaPagados` resulta en `NaN`
+   - Solución: Usar valor condicional `mesesFinal` que valida si es 'personalizado' antes de calcular
+   ```javascript
+   const mesesFinal = computed(() => {
+     return props.meses === 'personalizado' ? mesesPersonalizados.value : props.meses
+   })
+   
+   const mesesRestantes = computed(() => {
+     if (!mesesFinal.value) return 0
+     return Math.max(0, mesesFinal.value - props.mesesYaPagados)
+   })
+   ```
+
+2. **Parsing de números en crédito disponible**:
+   - Problema: `credito_disponible` y `limite_credito` vienen como strings desde Supabase
+   - Síntoma: ProgressBar no muestra porcentaje, `porcentajeUsoCredito` es `NaN`
+   - Solución: Usar `parseFloat()` en todos los cálculos numéricos
+   ```javascript
+   export const porcentajeUsoCredito = (creditoDisponible, limiteCredito) => {
+     const disponible = parseFloat(creditoDisponible) || 0
+     const limite = parseFloat(limiteCredito) || 1
+     const usado = limite - disponible
+     return Math.min(100, Math.max(0, (usado / limite) * 100))
+   }
+   ```
+
+3. **Manejo de fechas sin cambio de zona horaria**:
+   - Problema: `new Date('2025-12-11')` se interpreta como UTC medianoche, mostrando día anterior
+   - Síntoma: Fecha muestra "10 de diciembre" cuando debería ser "11 de diciembre"
+   - Solución: Usar `formatDate()` que parsea en hora local
+   ```javascript
+   export const formatDate = (dateString) => {
+     if (!dateString) return ''
+     const [year, month, day] = dateString.split('-')
+     const date = new Date(year, month - 1, day) // Hora local, no UTC
+     return new Intl.DateTimeFormat('es-MX', {
+       year: 'numeric', month: 'long', day: 'numeric'
+     }).format(date)
+   }
+   ```
 
 **NO usar tablas antiguas**:
 - ❌ `compras_msi` (obsoleta)
