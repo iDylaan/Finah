@@ -141,6 +141,153 @@
                 class="w-full"
             />
         </div>
+
+        <!-- Opción de Meses Sin Intereses (solo para tarjetas de crédito) -->
+        <div v-if="selectedCuenta && selectedCuenta.tipo === 'credit_card'" class="flex flex-col gap-3 p-3 border border-primary-200 dark:border-primary-800 rounded-lg bg-primary-50 dark:bg-primary-900/20">
+            <div class="flex items-center justify-between">
+                <label class="font-semibold text-sm flex items-center gap-2">
+                    <i class="pi pi-calendar text-primary"></i>
+                    Diferir Pago a Meses
+                </label>
+                <InputSwitch v-model="formData.diferirMSI" />
+            </div>
+
+            <!-- Configuración de MSI -->
+            <div v-if="formData.diferirMSI" class="flex flex-col gap-3 pl-6 border-l-2 border-primary-300 dark:border-primary-700">
+                <div class="flex flex-col gap-2">
+                    <label for="meses" class="font-semibold text-sm">Número de meses *</label>
+                    <Dropdown
+                        id="meses"
+                        v-model="formData.numeroMeses"
+                        :options="mesesOptions"
+                        optionLabel="label"
+                        optionValue="value"
+                        placeholder="Selecciona los meses"
+                        :class="{ 'p-invalid': errors.numeroMeses }"
+                        class="w-full"
+                    />
+                    <small v-if="errors.numeroMeses" class="text-red-500">{{ errors.numeroMeses }}</small>
+                </div>
+
+                <!-- Input para meses personalizados -->
+                <div v-if="formData.numeroMeses === 'personalizado'" class="flex flex-col gap-2">
+                    <label for="meses-personalizados" class="font-semibold text-sm">Especifica el número de meses *</label>
+                    <InputNumber
+                        id="meses-personalizados"
+                        v-model="formData.mesesPersonalizados"
+                        :min="1"
+                        :max="60"
+                        placeholder="Ej: 15"
+                        :class="{ 'p-invalid': errors.mesesPersonalizados }"
+                        showButtons
+                        buttonLayout="horizontal"
+                    >
+                        <template #incrementbuttonicon>
+                            <span class="pi pi-plus" />
+                        </template>
+                        <template #decrementbuttonicon>
+                            <span class="pi pi-minus" />
+                        </template>
+                    </InputNumber>
+                    <small v-if="errors.mesesPersonalizados" class="text-red-500">{{ errors.mesesPersonalizados }}</small>
+                </div>
+
+                <!-- Tipo de monto -->
+                <div class="flex flex-col gap-2">
+                    <label class="font-semibold text-sm">Monto por cuota</label>
+                    <div class="flex flex-col gap-2">
+                        <div class="flex items-center gap-2">
+                            <RadioButton 
+                                v-model="formData.tipoMonto" 
+                                inputId="automatico" 
+                                value="automatico" 
+                            />
+                            <label for="automatico" class="cursor-pointer">
+                                Automático: {{ formatCurrency((formData.monto || 0) / (formData.numeroMeses || 1)) }}
+                            </label>
+                        </div>
+                        
+                        <div class="flex items-center gap-2">
+                            <RadioButton 
+                                v-model="formData.tipoMonto" 
+                                inputId="redondeado" 
+                                value="redondeado" 
+                            />
+                            <label for="redondeado" class="cursor-pointer">
+                                Redondeado: {{ formatCurrency(montoPorMesRedondeado) }}
+                            </label>
+                        </div>
+                        
+                        <div class="flex items-center gap-2">
+                            <RadioButton 
+                                v-model="formData.tipoMonto" 
+                                inputId="manual" 
+                                value="manual" 
+                            />
+                            <label for="manual" class="cursor-pointer">Manual</label>
+                        </div>
+                        
+                        <!-- Campo de monto manual -->
+                        <div v-if="formData.tipoMonto === 'manual'" class="pl-6">
+                            <InputNumber
+                                v-model="formData.montoPorMes"
+                                mode="currency"
+                                currency="MXN"
+                                locale="es-MX"
+                                :min="0"
+                                :max="formData.monto"
+                                placeholder="Ingresa el monto por mes"
+                                class="w-full"
+                                :class="{ 'p-invalid': errors.montoPorMes }"
+                            />
+                            <small v-if="errors.montoPorMes" class="text-red-500">{{ errors.montoPorMes }}</small>
+                            <small v-else class="text-surface-600 dark:text-surface-400">
+                                Total: {{ formatCurrency((formData.montoPorMes || 0) * (formData.numeroMeses || 1)) }}
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <label for="mesesPagados" class="font-semibold text-sm">Meses ya pagados</label>
+                    <InputNumber
+                        id="mesesPagados"
+                        v-model="formData.mesesYaPagados"
+                        :min="0"
+                        :max="formData.numeroMeses ? formData.numeroMeses - 1 : 0"
+                        :disabled="!formData.numeroMeses"
+                        showButtons
+                        buttonLayout="horizontal"
+                        :step="1"
+                        incrementButtonIcon="pi pi-plus"
+                        decrementButtonIcon="pi pi-minus"
+                    >
+                        <template #incrementbuttonicon>
+                            <span class="pi pi-plus" />
+                        </template>
+                        <template #decrementbuttonicon>
+                            <span class="pi pi-minus" />
+                        </template>
+                    </InputNumber>
+                    <small class="text-surface-600 dark:text-surface-400">
+                        Si ya pagaste algunos meses, indícalo aquí
+                    </small>
+                </div>
+
+                <div class="flex flex-col gap-2">
+                    <label for="nombreMSI" class="font-semibold text-sm">Nombre del pago diferido</label>
+                    <InputText
+                        id="nombreMSI"
+                        v-model="formData.nombreMSI"
+                        placeholder="Ej: Laptop Dell, TV Samsung, etc."
+                        class="w-full"
+                    />
+                    <small class="text-surface-600 dark:text-surface-400">
+                        Opcional: identifica fácilmente este pago diferido
+                    </small>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
@@ -174,11 +321,48 @@ const formData = ref({
     nivel_id: null,
     monto: null,
     fecha_ocurrencia: new Date(),
-    descripcion: ''
+    descripcion: '',
+    // Campos de MSI
+    diferirMSI: false,
+    numeroMeses: null,
+    mesesPersonalizados: null,
+    mesesYaPagados: 0,
+    nombreMSI: '',
+    tipoMonto: 'automatico', // 'automatico', 'redondeado', 'manual'
+    montoPorMes: null
 });
 
 // Errors
 const errors = ref({});
+
+// Computed - Monto redondeado por mes
+const montoPorMesRedondeado = computed(() => {
+    const mesesFinal = formData.value.numeroMeses === 'personalizado' 
+        ? formData.value.mesesPersonalizados 
+        : formData.value.numeroMeses;
+    
+    if (!formData.value.monto || !mesesFinal) return 0;
+    const montoAutomatico = formData.value.monto / mesesFinal;
+    return Math.ceil(montoAutomatico);
+});
+
+// Computed
+const selectedCuenta = computed(() => getCuentaById(formData.value.cuenta_id));
+
+// Opciones de meses comunes
+const mesesOptions = [
+    { label: '3 meses', value: 3 },
+    { label: '4 meses', value: 4 },
+    { label: '6 meses', value: 6 },
+    { label: '9 meses', value: 9 },
+    { label: '10 meses', value: 10 },
+    { label: '12 meses', value: 12 },
+    { label: '15 meses', value: 15 },
+    { label: '18 meses', value: 18 },
+    { label: '24 meses', value: 24 },
+    { label: '36 meses', value: 36 },
+    { label: 'Personalizado', value: 'personalizado' }
+];
 
 // Helpers para obtener datos por ID
 const getCuentaById = (id) => props.cuentas.find(c => c.id === id);
@@ -223,6 +407,14 @@ const getAccountIcon = (account) => {
     return icons[account.tipo] || 'pi pi-wallet';
 };
 
+// Formato de moneda
+const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('es-MX', {
+        style: 'currency',
+        currency: 'MXN'
+    }).format(amount || 0);
+};
+
 // Validación
 const validate = () => {
     errors.value = {};
@@ -242,9 +434,33 @@ const validate = () => {
     if (!formData.value.fecha_ocurrencia) {
         errors.value.fecha_ocurrencia = 'La fecha es obligatoria';
     }
+    
+    // Validaciones de MSI
+    if (formData.value.diferirMSI) {
+        if (!formData.value.numeroMeses) {
+            errors.value.numeroMeses = 'Selecciona el número de meses';
+        }
+        if (formData.value.numeroMeses === 'personalizado') {
+            if (!formData.value.mesesPersonalizados || formData.value.mesesPersonalizados < 1) {
+                errors.value.mesesPersonalizados = 'Ingresa un número de meses válido';
+            }
+        }
+    }
 
     return Object.keys(errors.value).length === 0;
 };
+
+// Watch para resetear MSI si se cambia de cuenta
+watch(() => formData.value.cuenta_id, (newCuentaId) => {
+    const cuenta = getCuentaById(newCuentaId);
+    if (cuenta && cuenta.tipo !== 'credit_card') {
+        // Si no es tarjeta de crédito, resetear opciones de MSI
+        formData.value.diferirMSI = false;
+        formData.value.numeroMeses = null;
+        formData.value.mesesYaPagados = 0;
+        formData.value.nombreMSI = '';
+    }
+});
 
 // Exponer datos y validación
 defineExpose({
@@ -257,7 +473,12 @@ defineExpose({
             nivel_id: null,
             monto: null,
             fecha_ocurrencia: new Date(),
-            descripcion: ''
+            descripcion: '',
+            diferirMSI: false,
+            numeroMeses: null,
+            mesesPersonalizados: null,
+            mesesYaPagados: 0,
+            nombreMSI: ''
         };
         errors.value = {};
     }

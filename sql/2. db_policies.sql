@@ -28,6 +28,8 @@ ALTER TABLE compras_msi            ENABLE ROW LEVEL SECURITY;  -- Compras en mes
 ALTER TABLE invitaciones_grupo     ENABLE ROW LEVEL SECURITY;  -- Invitaciones a grupos
 ALTER TABLE historial_saldos       ENABLE ROW LEVEL SECURITY;  -- Historial de saldos
 ALTER TABLE jerarquias_usuario     ENABLE ROW LEVEL SECURITY;  -- Jerarquías de usuario
+ALTER TABLE transacciones_periodicas ENABLE ROW LEVEL SECURITY;  -- Transacciones periódicas
+ALTER TABLE ejecuciones_transacciones_periodicas ENABLE ROW LEVEL SECURITY;  -- Ejecuciones de transacciones periódicas
 
 -- ===================================================
 -- 2) Funciones auxiliares para evitar recursión en políticas RLS
@@ -1111,3 +1113,95 @@ CREATE POLICY select_historial_saldos ON historial_saldos
   );
 
 -- El historial se inserta automáticamente por triggers, no necesita política INSERT
+
+
+-- ===================================================
+-- 23) POLÍTICAS PARA TRANSACCIONES PERIÓDICAS
+-- ===================================================
+
+-- SELECT - Ver sus propias transacciones periódicas
+DROP POLICY IF EXISTS select_transacciones_periodicas ON transacciones_periodicas;
+CREATE POLICY select_transacciones_periodicas ON transacciones_periodicas
+  FOR SELECT USING (
+    usuario_id = id_usuario_sesion()
+  );
+
+-- INSERT - Crear sus propias transacciones periódicas
+DROP POLICY IF EXISTS insert_transacciones_periodicas ON transacciones_periodicas;
+CREATE POLICY insert_transacciones_periodicas ON transacciones_periodicas
+  FOR INSERT WITH CHECK (
+    usuario_id = id_usuario_sesion()
+  );
+
+-- UPDATE - Actualizar sus propias transacciones periódicas
+DROP POLICY IF EXISTS update_transacciones_periodicas ON transacciones_periodicas;
+CREATE POLICY update_transacciones_periodicas ON transacciones_periodicas
+  FOR UPDATE USING (
+    usuario_id = id_usuario_sesion()
+  )
+  WITH CHECK (
+    usuario_id = id_usuario_sesion()
+  );
+
+-- DELETE - Eliminar sus propias transacciones periódicas
+DROP POLICY IF EXISTS delete_transacciones_periodicas ON transacciones_periodicas;
+CREATE POLICY delete_transacciones_periodicas ON transacciones_periodicas
+  FOR DELETE USING (
+    usuario_id = id_usuario_sesion()
+  );
+
+
+-- ===================================================
+-- 24) POLÍTICAS PARA EJECUCIONES DE TRANSACCIONES PERIÓDICAS
+-- ===================================================
+
+-- SELECT - Ver ejecuciones de sus transacciones periódicas
+DROP POLICY IF EXISTS select_ejecuciones_periodicas ON ejecuciones_transacciones_periodicas;
+CREATE POLICY select_ejecuciones_periodicas ON ejecuciones_transacciones_periodicas
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM transacciones_periodicas tp
+      WHERE tp.id = ejecuciones_transacciones_periodicas.transaccion_periodica_id
+        AND tp.usuario_id = id_usuario_sesion()
+    )
+  );
+
+-- INSERT - Crear ejecuciones de sus transacciones periódicas
+DROP POLICY IF EXISTS insert_ejecuciones_periodicas ON ejecuciones_transacciones_periodicas;
+CREATE POLICY insert_ejecuciones_periodicas ON ejecuciones_transacciones_periodicas
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM transacciones_periodicas tp
+      WHERE tp.id = ejecuciones_transacciones_periodicas.transaccion_periodica_id
+        AND tp.usuario_id = id_usuario_sesion()
+    )
+  );
+
+-- UPDATE - Actualizar ejecuciones de sus transacciones periódicas
+DROP POLICY IF EXISTS update_ejecuciones_periodicas ON ejecuciones_transacciones_periodicas;
+CREATE POLICY update_ejecuciones_periodicas ON ejecuciones_transacciones_periodicas
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM transacciones_periodicas tp
+      WHERE tp.id = ejecuciones_transacciones_periodicas.transaccion_periodica_id
+        AND tp.usuario_id = id_usuario_sesion()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM transacciones_periodicas tp
+      WHERE tp.id = ejecuciones_transacciones_periodicas.transaccion_periodica_id
+        AND tp.usuario_id = id_usuario_sesion()
+    )
+  );
+
+-- DELETE - Eliminar ejecuciones de sus transacciones periódicas
+DROP POLICY IF EXISTS delete_ejecuciones_periodicas ON ejecuciones_transacciones_periodicas;
+CREATE POLICY delete_ejecuciones_periodicas ON ejecuciones_transacciones_periodicas
+  FOR DELETE USING (
+    EXISTS (
+      SELECT 1 FROM transacciones_periodicas tp
+      WHERE tp.id = ejecuciones_transacciones_periodicas.transaccion_periodica_id
+        AND tp.usuario_id = id_usuario_sesion()
+    )
+  );

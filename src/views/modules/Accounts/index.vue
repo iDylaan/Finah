@@ -202,7 +202,12 @@
                         <div v-if="account.tipo === 'credit_card' && isCardExpanded(account.id)" 
                             class="bg-surface-100 dark:bg-surface-900 px-3 md:px-4 pb-3 md:pb-4 pt-3 overflow-hidden"
                             @click.stop>
-                            <CreditCardInfo :card="account" @open-payment-modal="handleOpenPaymentModal(account.id)" />
+                            <CreditCardInfo 
+                                :card="account" 
+                                @open-payment-modal="handleOpenPaymentModal(account.id)"
+                                @configure-msi="handleConfigureMSI(account)"
+                                @view-msi="handleViewMSI(account)"
+                            />
                         </div>
                     </Transition>
                 </div>
@@ -245,6 +250,21 @@
             :credit-card-id="selectedCardForPayment"
             @payment-registered="handlePaymentRegistered"
         />
+
+        <!-- Modal de Configuración de MSI -->
+        <MSIConfig
+            v-model:visible="showMSIConfigModal"
+            :credit-card-id="selectedCardForMSI"
+            v-model:selected-category="selectedCategoryForMSI"
+            @msi-created="handleMSICreated"
+        />
+
+        <!-- Modal de Lista de MSI -->
+        <MSIListModal
+            v-model:visible="showMSIListModal"
+            :credit-card-id="selectedCardForMSI"
+            @msi-deleted="handleMSIDeleted"
+        />
     </PageLayout>
 </template>
 
@@ -257,11 +277,15 @@ import { useConfirm } from 'primevue/useconfirm';
 import { useAccountsStore } from '@/stores/accounts.js';
 import { useModalsStore } from '@/stores/ui-modals.js';
 import { useUIStore } from '@/stores/ui';
+import { useRecurringTransactionsStore } from '@/stores/recurring-transactions';
+import { useCategoriesStore } from '@/stores/categories';
 import PageLayout from '@/components/PageLayout.vue';
 import AccountModal from './components/AccountModal.vue';
 import TransactionModal from '@/views/modules/Transactions/components/TransactionModal.vue';
 import CreditCardInfo from './components/CreditCardInfo.vue';
 import CreditCardPaymentModal from './components/CreditCardPaymentModal.vue';
+import MSIConfig from '@/components/MSIConfig.vue';
+import MSIListModal from '@/components/MSIListModal.vue';
 import { formatDate } from '@/lib/utils.js';
 
 // STORES & COMPOSABLES
@@ -271,10 +295,17 @@ const confirm = useConfirm();
 const accountsStore = useAccountsStore();
 const ui = useUIStore();
 const modalsStore = useModalsStore();
+const recurringStore = useRecurringTransactionsStore();
 
 // Estado del modal de pago de tarjeta
 const showPaymentModal = ref(false);
 const selectedCardForPayment = ref(null);
+
+// Estado de MSI
+const showMSIConfigModal = ref(false);
+const showMSIListModal = ref(false);
+const selectedCardForMSI = ref(null);
+const selectedCategoryForMSI = ref(null);
 
 // VARIABLES
 const isInitialLoad = ref(true);
@@ -356,7 +387,7 @@ const formatCurrency = (amount) => {
 };
 
 const getAccountMenuItems = (account) => {
-    return [
+    const baseItems = [
         {
             label: 'Ver movimientos',
             icon: 'pi pi-list',
@@ -366,7 +397,29 @@ const getAccountMenuItems = (account) => {
             label: 'Realizar transferencia',
             icon: 'pi pi-arrow-right',
             command: () => handleTransferFromAccount(account)
-        },
+        }
+    ];
+
+    // Si es tarjeta de crédito, agregar opciones de MSI
+    if (account.tipo === 'tarjeta_credito') {
+        baseItems.push(
+            {
+                separator: true
+            },
+            {
+                label: 'Diferir Pago',
+                icon: 'pi pi-credit-card',
+                command: () => handleConfigureMSI(account)
+            },
+            {
+                label: 'Ver Pagos Diferidos',
+                icon: 'pi pi-calendar',
+                command: () => handleViewMSI(account)
+            }
+        );
+    }
+
+    baseItems.push(
         {
             separator: true
         },
@@ -381,7 +434,9 @@ const getAccountMenuItems = (account) => {
             command: () => handleDeleteAccount(account),
             class: 'text-red-500'
         }
-    ];
+    );
+
+    return baseItems;
 };
 
 const setAccountMenuRef = (el, accountId) => {
@@ -486,6 +541,44 @@ const handleOpenPaymentModal = (cardId) => {
 const handlePaymentRegistered = () => {
     console.log('✅ Pago registrado exitosamente');
     // El modal ya refrescará las cuentas automáticamente
+};
+
+const handleConfigureMSI = async (account) => {
+    console.log('🛍️ Configurar MSI para tarjeta:', account);
+    
+    // Verificar que exista al menos una categoría disponible
+    const categoriesStore = useCategoriesStore();
+    await categoriesStore.fetchCategories({ toast });
+    
+    if (categoriesStore.categories.length === 0) {
+        toast.add({
+            severity: 'warn',
+            summary: 'Categoría requerida',
+            detail: 'Necesitas crear al menos una categoría antes de configurar un MSI',
+            life: 5000
+        });
+        return;
+    }
+    
+    selectedCardForMSI.value = account.id;
+    selectedCategoryForMSI.value = null;
+    showMSIConfigModal.value = true;
+};
+
+const handleViewMSI = (account) => {
+    console.log('📋 Ver MSI activos de tarjeta:', account);
+    selectedCardForMSI.value = account.id;
+    showMSIListModal.value = true;
+};
+
+const handleMSIDeleted = async () => {
+    console.log('🔄 MSI eliminado, refrescando cuentas...');
+    await accountsStore.refreshAccounts({ toast });
+};
+
+const handleMSICreated = async () => {
+    console.log('🔄 MSI creado, refrescando cuentas...');
+    await accountsStore.refreshAccounts({ toast });
 };
 
 const handleDeleteAccount = (account) => {

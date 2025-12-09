@@ -351,9 +351,14 @@ const creditCard = computed(() => {
 });
 
 const saldoPendiente = computed(() => {
+    // El saldo pendiente debe ser solo los gastos del periodo actual
+    // No el total acumulado (que incluiría todos los MSI completos)
     if (!creditCard.value) return 0;
-    return (creditCard.value.limite_credito || 0) - (creditCard.value.credito_disponible || 0);
+    // Usamos gastosPeriodo si está disponible, sino usamos el saldo total como fallback
+    return gastosPeriodoActual.value || ((creditCard.value.limite_credito || 0) - (creditCard.value.credito_disponible || 0));
 });
+
+const gastosPeriodoActual = ref(0);
 
 const pagoMinimo = computed(() => {
     if (!creditCard.value || !saldoPendiente.value) return 0;
@@ -549,6 +554,25 @@ const resetForm = () => {
     paymentType.value = 'manual';
 };
 
+// Función para calcular gastos del periodo actual
+const calcularGastosPeriodo = async () => {
+    if (!creditCard.value) return;
+    
+    try {
+        // Obtener gastos del periodo actual
+        const gastos = await accountsStore.calcularGastosPeriodoActual(
+            creditCard.value.id,
+            creditCard.value.dia_corte,
+            creditCard.value.dia_pago
+        );
+        
+        gastosPeriodoActual.value = gastos || 0;
+    } catch (error) {
+        console.error('Error calculando gastos del periodo:', error);
+        gastosPeriodoActual.value = 0;
+    }
+};
+
 // Cargar datos cuando se abre el modal
 watch(() => props.visible, async (newValue) => {
     if (newValue) {
@@ -558,6 +582,9 @@ watch(() => props.visible, async (newValue) => {
                 accountsStore.fetchAccountsWithDetails({ toast }),
                 categoriesStore.fetchCategoryGroupsWithCategories({ toast })
             ]);
+            
+            // Calcular gastos del periodo actual
+            await calcularGastosPeriodo();
         } catch (error) {
             console.error('Error cargando datos:', error);
         } finally {

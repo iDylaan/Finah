@@ -2,25 +2,35 @@
 import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
+import { useConfirm } from 'primevue/useconfirm';
 import { useAccountsStore } from '@/stores/accounts.js';
 import { useTransactionsStore } from '@/stores/transactions.js';
 import { useCategoriesStore } from '@/stores/categories.js';
 import { useLevelStore } from '@/stores/levels.js';
+import { useRecurringTransactionsStore } from '@/stores/recurring-transactions';
+import PageLayout from '@/components/PageLayout.vue';
+import MSIConfig from '@/components/MSIConfig.vue';
 
 const route = useRoute();
 const router = useRouter();
 const toast = useToast();
+const confirm = useConfirm();
 
 // Stores
 const accountsStore = useAccountsStore();
 const transactionsStore = useTransactionsStore();
 const categoriesStore = useCategoriesStore();
 const levelsStore = useLevelStore();
+const recurringStore = useRecurringTransactionsStore();
 
 // State
 const loading = ref(true);
 const accountId = computed(() => route.params.id);
 const activeTab = ref('0');
+
+// Modal de MSI
+const showMSIConfigModal = ref(false);
+const transactionToDefer = ref(null);
 
 // Charts
 const lineChart = ref(null);
@@ -439,6 +449,46 @@ const goBack = () => {
     router.push('/accounts');
 };
 
+// Manejar diferir transacción
+const handleDeferTransaction = (transaction) => {
+    console.log('🛍️ Diferir transacción:', transaction);
+    
+    confirm.require({
+        message: `¿Convertir este gasto de ${formatCurrency(transaction.monto)} en un pago diferido a meses?`,
+        header: 'Diferir Pago',
+        icon: 'pi pi-calendar',
+        rejectLabel: 'Cancelar',
+        acceptLabel: 'Diferir',
+        accept: () => {
+            transactionToDefer.value = transaction;
+            showMSIConfigModal.value = true;
+        }
+    });
+};
+
+// Manejar creación de MSI desde transacción
+const handleMSICreatedFromTransaction = async () => {
+    try {
+        // Eliminar la transacción original ya que ahora será un MSI
+        if (transactionToDefer.value) {
+            await transactionsStore.deleteTransaction(transactionToDefer.value.id, { toast });
+            transactionToDefer.value = null;
+        }
+        
+        // Recargar datos
+        await loadData();
+        
+        toast.add({
+            severity: 'success',
+            summary: 'Pago Diferido',
+            detail: 'El gasto se convirtió exitosamente en un pago diferido a meses',
+            life: 4000
+        });
+    } catch (error) {
+        console.error('Error al eliminar transacción original:', error);
+    }
+};
+
 onMounted(() => {
     loadData();
 });
@@ -738,6 +788,22 @@ watch(() => route.params.id, () => {
                                         </span>
                                     </template>
                                 </Column>
+
+                                <!-- Columna de Acciones -->
+                                <Column header="Acciones" style="min-width: 120px" v-if="account?.tipo === 'credit_card'">
+                                    <template #body="{ data }">
+                                        <Button 
+                                            v-if="data.tipo === 'gasto' && !data.metadatos?.msi_id"
+                                            label="Diferir"
+                                            icon="pi pi-calendar"
+                                            size="small"
+                                            severity="secondary"
+                                            outlined
+                                            @click="handleDeferTransaction(data)"
+                                            v-tooltip.top="'Convertir en pago diferido a meses'"
+                                        />
+                                    </template>
+                                </Column>
                             </DataTable>
                         </div>
                     </TabPanel>
@@ -821,5 +887,15 @@ watch(() => route.params.id, () => {
             </p>
             <Button label="Volver a Cuentas" @click="goBack" />
         </div>
+
+        <!-- Modal de MSI Config -->
+        <MSIConfig 
+            v-model:visible="showMSIConfigModal"
+            :credit-card="account"
+            :category-id="transactionToDefer?.categoria_id"
+            :initial-amount="transactionToDefer?.monto"
+            :initial-description="transactionToDefer?.descripcion"
+            @msi-created="handleMSICreatedFromTransaction"
+        />
     </PageLayout>
 </template>

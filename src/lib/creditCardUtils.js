@@ -3,7 +3,7 @@
  * Cálculos de periodos, fechas de corte, pagos y saldos
  */
 
-import { diasHasta } from '@/utils/misc.js';
+import { diasHasta } from '@/lib/utils.js';
 
 /**
  * Calcula la próxima fecha de un día específico del mes
@@ -80,8 +80,12 @@ export const calcularPeriodoActual = (diaCorte, diaPago, desde = new Date()) => 
 export const porcentajeUsoCredito = (limiteCredito, creditoDisponible) => {
     if (!limiteCredito || limiteCredito <= 0) return 0;
     
-    const usado = limiteCredito - (creditoDisponible || 0);
-    const porcentaje = (usado / limiteCredito) * 100;
+    // Asegurar que creditoDisponible sea un número válido
+    const disponible = parseFloat(creditoDisponible) || 0;
+    const limite = parseFloat(limiteCredito) || 0;
+    
+    const usado = limite - disponible;
+    const porcentaje = (usado / limite) * 100;
     
     return Math.max(0, Math.min(100, porcentaje));
 };
@@ -94,7 +98,9 @@ export const porcentajeUsoCredito = (limiteCredito, creditoDisponible) => {
  */
 export const montoUsado = (limiteCredito, creditoDisponible) => {
     if (!limiteCredito) return 0;
-    return limiteCredito - (creditoDisponible || 0);
+    const limite = parseFloat(limiteCredito) || 0;
+    const disponible = parseFloat(creditoDisponible) || 0;
+    return Math.max(0, limite - disponible);
 };
 
 /**
