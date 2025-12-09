@@ -1,6 +1,6 @@
 <template>
     <SpeedDial :model="items" direction="up" :transitionDelay="80" mask
-        :style="{ position: 'fixed', right: '2.9rem', bottom: '2rem', zIndex: 100 }"
+        :style="{ position: 'fixed', right: '2.5rem', bottom: '2rem', zIndex: 100 }"
         :tooltipOptions="{ position: 'left' }" @show="onShow" @hide="onHide" :pt="{
             root: {
                 style: `align-items: flex-end;`
@@ -11,50 +11,41 @@
             }
         }">
         <template #button="{ toggleCallback }">
-            <Button severity="primary" class="mt-1" aria-label="Bookmark" @click="toggleCallback" size="large">
+            <Button severity="primary" :pt="{
+                root: {
+                    style: `
+                        width: 4.5rem;
+                        height: 4.5rem;
+                        border-radius: 0.75rem;
+                        box-shadow: var(--p-shadow-6);
+                    `
+                }
+            }" aria-label="Bookmark" @click="toggleCallback" size="large">
                 <template #icon>
-                    <span class="material-symbols-outlined speed-dial-icon" :class="{ 'rotate': isOpen }">add</span>
+                    <span class="material-symbols-outlined speed-dial-icon" style="font-size: 2.5rem;" :class="{ 'rotate': isOpen }">add</span>
                 </template>
             </Button>
         </template>
-        <template #item="{ item, toggleCallback, index }">
-            <div class="speed-dial-item-wrapper">
-                <div class="
-                    flex 
-                    flex-col 
-                    items-center 
-                    justify-center 
-                    w-[3rem] h-[3rem]
-                    gap-4
-                    p-1 
-                    border 
-                    rounded-lg
-                    hover:bg-surface-50 dark:hover:bg-surface-700 
-                    cursor-pointer 
-                    border-surface-200 dark:border-surface-700/60
-                    bg-surface-0
-                    dark:bg-surface-800
-                    transition-colors 
-                    shadow-md" @click="toggleCallback">
-                    <div class="flex flex-col justify-center items-center">
-                        <span class="material-symbols-outlined">{{ item.icon }}</span>
-                    </div>
-                </div>
-                <Transition enter-active-class="animate__animated animate__fadeInLeft animate__faster"
-                    leave-active-class="animate__animated animate__fadeOutRight"
-                    :style="{ '--animate-delay': `${index * 0.05}s` }">
-                    <div v-if="isOpen" class="speed-dial-tooltip">
-                        <span class="
-                            bg-[#c8c9c9]
-                            dark:bg-[#2a2e33]
-                            text-surface-800 dark:text-surface-0/70
-                            px-3
-                            py-2 
-                            rounded-md
-                            shadow-md">{{ item.label }}</span>
-                        <div class="speed-dial-arrow"></div>
-                    </div>
-                </Transition>
+        <template #item="{ item, toggleCallback }">
+            <div class="
+                flex 
+                flex-col 
+                items-center 
+                justify-center 
+                w-[4.5rem] 
+                gap-1
+                p-2 
+                border 
+                rounded-lg
+                hover:bg-surface-50 dark:hover:bg-surface-700 
+                cursor-pointer 
+                border-surface-200 dark:border-surface-700/60
+                bg-surface-0
+                dark:bg-surface-800
+                transition-colors 
+                shadow-md" @click="toggleCallback">
+                <span class="material-symbols-outlined text-2xl">{{ item.icon }}</span>
+                <span class="text-xs text-center text-surface-700 dark:text-surface-300 leading-tight">{{ item.label }}</span>
             </div>
         </template>
     </SpeedDial>
@@ -149,53 +140,5 @@ const items = ref([
 
 .speed-dial-icon.rotate {
     transform: rotate(45deg);
-}
-
-.speed-dial-item-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    flex-direction: row-reverse;
-}
-
-.speed-dial-tooltip {
-    display: flex;
-    align-items: center;
-    gap: 0;
-    position: relative;
-}
-
-.speed-dial-arrow {
-    width: 0;
-    height: 0;
-    border-top: 6px solid transparent;
-    border-bottom: 6px solid transparent;
-    border-left: 8px solid rgb(var(--p-surface-0-rgb) / 0.6);
-}
-
-.app-dark .speed-dial-arrow {
-    border-left-color: rgb(var(--p-surface-700-rgb) / 0.4);
-}
-
-.speed-dial-label {
-    background: var(--p-surface-900);
-    color: var(--p-surface-0);
-    padding: 0.5rem 0.75rem;
-    border-radius: 0.375rem;
-    font-size: 0.875rem;
-    white-space: nowrap;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-/* Animación de salida con delay secuencial */
-.animate__fadeOutDown {
-    animation-delay: var(--animate-delay, 0s);
-}
-
-@media (prefers-color-scheme: dark) {
-    .speed-dial-label {
-        background: var(--p-surface-700);
-        color: var(--p-surface-0);
-    }
 }
 </style>

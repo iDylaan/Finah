@@ -276,23 +276,44 @@ const handleSubmit = async () => {
         console.log('📤 Enviando datos de transacción:', transactionData);
 
         // Crear según tipo
-        if (modalsStore.transactionModalType === 'ingreso') {
-            await transactionsStore.createIngreso(transactionData, { toast });
-        } else if (modalsStore.transactionModalType === 'gasto') {
-            await transactionsStore.createGasto(transactionData, { toast });
-        } else if (modalsStore.transactionModalType === 'transferencia') {
-            await transactionsStore.createTransferencia(transactionData, { toast });
+        try {
+            if (modalsStore.transactionModalType === 'ingreso') {
+                await transactionsStore.createIngreso(transactionData, { toast });
+            } else if (modalsStore.transactionModalType === 'gasto') {
+                await transactionsStore.createGasto(transactionData, { toast });
+            } else if (modalsStore.transactionModalType === 'transferencia') {
+                await transactionsStore.createTransferencia(transactionData, { toast });
+            }
+
+            console.log('✅ Transacción creada exitosamente, cerrando modal...');
+
+            // Refrescar datos de cuentas (no bloqueante)
+            accountsStore.fetchAccountsWithDetails({ toast, force: true }).catch(err => {
+                console.error('Error refrescando cuentas:', err);
+            });
+
+            // Establecer loading a false ANTES de cerrar el modal
+            isLoading.value = false;
+
+            // Cerrar modal
+            handleClose();
+            console.log('🚪 Modal cerrado');
+        } catch (error) {
+            // El error ya fue mostrado en el toast por la función create*
+            // Solo logueamos para debugging
+            console.error('❌ Error al crear transacción:', error);
+            // No cerramos el modal para que el usuario pueda corregir
+            isLoading.value = false;
         }
-
-        // Refrescar datos de cuentas
-        await accountsStore.fetchAccountsWithDetails({ toast, force: true });
-
-        // Cerrar modal
-        handleClose();
 
     } catch (error) {
         console.error('Error en handleSubmit:', error);
-    } finally {
+        toast.add({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Ocurrió un error inesperado',
+            life: 5000
+        });
         isLoading.value = false;
     }
 };

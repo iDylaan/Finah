@@ -7,7 +7,7 @@
         <Dropdown 
             :id="inputId"
             :modelValue="modelValue"
-            @update:modelValue="$emit('update:modelValue', $event)"
+            @update:modelValue="handleSelection"
             :options="categoryGroups" 
             optionLabel="nombre"
             optionValue="id"
@@ -19,9 +19,22 @@
             filter
             filterPlaceholder="Buscar categoría..."
         >
+            <template #header>
+                <div class="border-b border-surface-200 dark:border-surface-700 pb-2 mb-2">
+                    <Button 
+                        label="Crear nuevo grupo"
+                        icon="pi pi-plus-circle"
+                        severity="info"
+                        text
+                        size="small"
+                        class="w-full justify-start"
+                        @click="handleCreateGroup"
+                    />
+                </div>
+            </template>
             <template #optiongroup="slotProps">
-                <div class="flex items-center gap-2 font-semibold py-2">
-                    <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white"
+                <div class="flex items-center gap-2 font-semibold py-2 hover:bg-surface-50 dark:hover:bg-surface-700/50 rounded transition-colors">
+                    <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0"
                         :style="{ backgroundColor: slotProps.option.color || '#6366f1' }">
                         <i v-if="slotProps.option.biblioteca_iconos === 'primevue'"
                             :class="slotProps.option.nombre_icono" class="text-sm"></i>
@@ -30,12 +43,22 @@
                             {{ slotProps.option.nombre_icono }}
                         </span>
                     </div>
-                    <div class="flex-1">
+                    <div class="flex-1 min-w-0">
                         <div>{{ slotProps.option.nombre }}</div>
                         <div v-if="slotProps.option.descripcion" class="text-xs font-normal text-surface-500 truncate">
                             {{ slotProps.option.descripcion }}
                         </div>
                     </div>
+                    <Button 
+                        icon="pi pi-plus"
+                        severity="success"
+                        text
+                        rounded
+                        size="small"
+                        class="!w-7 !h-7 shrink-0"
+                        @click.stop="handleCreateCategoryInGroup(slotProps.option.id)"
+                        v-tooltip.left="'Agregar categoría'"
+                    />
                 </div>
             </template>
             <template #option="slotProps">
@@ -82,6 +105,9 @@
 
 <script setup>
 import { computed } from 'vue';
+import { useModalsStore } from '@/stores/ui-modals';
+
+const modalsStore = useModalsStore();
 
 const props = defineProps({
     modelValue: {
@@ -122,7 +148,22 @@ const props = defineProps({
     }
 });
 
-defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue']);
+
+// Handler para la selección
+const handleSelection = (value) => {
+    emit('update:modelValue', value);
+};
+
+// Handler para crear categoría en un grupo específico
+const handleCreateCategoryInGroup = (groupId) => {
+    modalsStore.openNewCategoryModal(groupId);
+};
+
+// Handler para crear grupo
+const handleCreateGroup = () => {
+    modalsStore.openCategoryGroupModal();
+};
 
 // Helper para obtener categoría por ID
 const getCategoriaById = (id) => {

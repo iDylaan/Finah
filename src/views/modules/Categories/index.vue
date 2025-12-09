@@ -133,16 +133,6 @@
                 <Button label="Recargar datos" icon="pi pi-refresh" @click="loadData" outlined />
             </div>
         </div>
-
-        <!-- Modal Components -->
-        <CategoryGroupForm v-model:visible="showCategoryGroupModal" :is-edit="modalEditMode"
-            :edit-group-id="editingGroupId" :category-groups="categoryGroups" :is-loading="categoriesStore.loading"
-            @submit="handleCategoryGroupSubmit" @close="handleModalClose" />
-
-        <!-- Modal de Categoría -->
-        <CategoryForm v-model:visible="showCategoryModal" :is-new="newCategoryMode" :category-id="editingCategoryId"
-            :group-id="selectedGroupId" :category="selectedCategory" :category-groups="categoryGroups"
-            :is-loading="categoriesStore.loading" @close="handleCategoryModalClose" @success="handleCategorySuccess" />
     </PageLayout>
 </template>
 
@@ -152,8 +142,6 @@ import { ref, onMounted, computed } from 'vue';
 import { useToast } from 'primevue/usetoast';
 import { useConfirm } from 'primevue/useconfirm';
 import PageLayout from '@/components/PageLayout.vue';
-import CategoryGroupForm from './components/CategoryGroupForm.vue';
-import CategoryForm from './components/CategoryForm.vue';
 
 // STORES & COMPOSABLES
 const toast = useToast();
@@ -162,6 +150,8 @@ import { useCategoriesStore } from '@/stores/categories.js';
 const categoriesStore = useCategoriesStore();
 import { useUIStore } from '@/stores/ui';
 const uiStore = useUIStore();
+import { useModalsStore } from '@/stores/ui-modals';
+const modalsStore = useModalsStore();
 
 // VARIABLES
 const isInitialLoad = ref(true);
@@ -192,18 +182,6 @@ const hexToRgba = (hex, opacity = 1) => {
 const toggleGroup = (groupId) => {
     collapsedGroups.value[groupId] = !collapsedGroups.value[groupId];
 };
-
-// Modal state - Grupo
-const showCategoryGroupModal = ref(false);
-const modalEditMode = ref(false);
-const editingGroupId = ref(null);
-
-// Modal state - Categoría
-const showCategoryModal = ref(false);
-const newCategoryMode = ref(false);
-const editingCategoryId = ref(null);
-const selectedGroupId = ref(null);
-const selectedCategory = ref(null);
 
 // FUNCTIONS - Grupos
 const getGroupMenuItems = (group) => {
@@ -288,25 +266,16 @@ const toggleCategoryMenu = (event, categoryId) => {
 };
 
 // Modal handlers - Grupo
-const handleNewCategoryGroup = () => {
-    // Resetear estado para creación
-    modalEditMode.value = false;
-    editingGroupId.value = null;
-    showCategoryGroupModal.value = true;
+const handleNewCategoryGroup = async () => {
+    modalsStore.openCategoryGroupModal();
 };
 
-const handleEditGroup = (group) => {
-    // Configurar estado para edición
-    modalEditMode.value = true;
-    editingGroupId.value = group.id;
-    showCategoryGroupModal.value = true;
+const handleEditGroup = async (group) => {
+    modalsStore.openCategoryGroupModal(group.id);
 };
 
 const handleModalClose = () => {
-    // Resetear todo el estado del modal
-    showCategoryGroupModal.value = false;
-    modalEditMode.value = false;
-    editingGroupId.value = null;
+    modalsStore.closeCategoryGroupModal();
 };
 
 const handleCategoryGroupSubmit = async ({ data, isEdit, groupId, onSuccess, onError }) => {
@@ -337,60 +306,31 @@ const handleCategoryGroupSubmit = async ({ data, isEdit, groupId, onSuccess, onE
 };
 
 // Modal handlers - Categoría
-const handleNewCategory = (groupID) => {
-    // Configurar estado para nueva categoría
-    newCategoryMode.value = true;
-    selectedGroupId.value = groupID;
-    editingCategoryId.value = null;
-    selectedCategory.value = null;
-
-    // Mostrar el modal
-    showCategoryModal.value = true;
+const handleNewCategory = async (groupID) => {
+    modalsStore.openNewCategoryModal(groupID);
 };
 
-const handleEditCategory = (category) => {
+const handleEditCategory = async (category) => {
     // Encontrar el grupo de la categoría
     const group = categoryGroups.value.find(g =>
         g.categories?.some(c => c.id === category.id)
     );
 
-    if (group) {
-        selectedGroupId.value = group.id;
-    }
-
-    // Configurar estado para edición
-    newCategoryMode.value = false;
-    editingCategoryId.value = category.id;
-    selectedCategory.value = {
+    modalsStore.openEditCategoryModal(category.id, {
         ...category,
-        group_id: group?.id // Asegurar que tenemos el group_id
-    };
-
-    // Mostrar el modal
-    showCategoryModal.value = true;
+        group_id: group?.id
+    });
 };
 
-const handleCategoryClick = (category, group) => {
-    // Configurar estado para ver/editar
-    newCategoryMode.value = false;
-    editingCategoryId.value = category.id;
-    selectedCategory.value = {
+const handleCategoryClick = async (category, group) => {
+    modalsStore.openViewCategoryModal(category.id, {
         ...category,
-        group_id: group.id // Asegurar que tenemos el group_id
-    };
-    selectedGroupId.value = group.id;
-
-    // Mostrar el modal
-    showCategoryModal.value = true;
+        group_id: group.id
+    });
 };
 
 const handleCategoryModalClose = () => {
-    // Resetear estado del modal
-    showCategoryModal.value = false;
-    newCategoryMode.value = false;
-    editingCategoryId.value = null;
-    selectedCategory.value = null;
-    selectedGroupId.value = null;
+    modalsStore.closeCategoryModal();
 };
 
 // Función para manejar el éxito de crear/editar categoría

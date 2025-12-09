@@ -25,17 +25,106 @@ export const useModalsStore = defineStore('modals', () => {
     const openGastoModal = () => openTransactionModal('gasto')
     const openTransferenciaModal = (accountId = null) => openTransactionModal('transferencia', accountId)
 
+    // ============================================
+    // MODALS DE CATEGORÍAS
+    // ============================================
+    
+    // Estado del modal de grupo de categorías
+    const categoryGroupModalVisible = ref(false)
+    const categoryGroupModalMode = ref('create') // 'create' | 'edit'
+    const categoryGroupEditId = ref(null)
+    
+    // Estado del modal de categoría
+    const categoryModalVisible = ref(false)
+    const categoryModalMode = ref('create') // 'create' | 'edit' | 'view'
+    const categoryEditId = ref(null)
+    const categoryGroupId = ref(null)
+    const categoryData = ref(null)
+    
+    // Funciones para grupo de categorías
+    const openCategoryGroupModal = (groupId = null) => {
+        if (groupId) {
+            categoryGroupModalMode.value = 'edit'
+            categoryGroupEditId.value = groupId
+        } else {
+            categoryGroupModalMode.value = 'create'
+            categoryGroupEditId.value = null
+        }
+        categoryGroupModalVisible.value = true
+    }
+    
+    const closeCategoryGroupModal = () => {
+        categoryGroupModalVisible.value = false
+        categoryGroupModalMode.value = 'create'
+        categoryGroupEditId.value = null
+    }
+    
+    // Funciones para categoría
+    const openCategoryModal = (options = {}) => {
+        const { mode = 'create', categoryId = null, groupId = null, category = null } = options
+        
+        categoryModalMode.value = mode
+        categoryEditId.value = categoryId
+        categoryGroupId.value = groupId
+        categoryData.value = category
+        categoryModalVisible.value = true
+    }
+    
+    const closeCategoryModal = () => {
+        categoryModalVisible.value = false
+        categoryModalMode.value = 'create'
+        categoryEditId.value = null
+        categoryGroupId.value = null
+        categoryData.value = null
+    }
+    
+    // Shortcuts para categorías
+    const openNewCategoryModal = (groupId) => {
+        openCategoryModal({ mode: 'create', groupId })
+    }
+    
+    const openEditCategoryModal = (categoryId, category = null) => {
+        openCategoryModal({ mode: 'edit', categoryId, category })
+    }
+    
+    const openViewCategoryModal = (categoryId, category = null) => {
+        openCategoryModal({ mode: 'view', categoryId, category })
+    }
+
     return {
-        // Estado
+        // Estado transacciones
         transactionModalVisible,
         transactionModalType,
         preselectedAccountId,
 
-        // Acciones
+        // Acciones transacciones
         openTransactionModal,
         closeTransactionModal,
         openIngresoModal,
         openGastoModal,
-        openTransferenciaModal
+        openTransferenciaModal,
+        
+        // Estado grupo de categorías
+        categoryGroupModalVisible,
+        categoryGroupModalMode,
+        categoryGroupEditId,
+        
+        // Estado categoría
+        categoryModalVisible,
+        categoryModalMode,
+        categoryEditId,
+        categoryGroupId,
+        categoryData,
+        
+        // Acciones grupo de categorías
+        openCategoryGroupModal,
+        closeCategoryGroupModal,
+        
+        // Acciones categoría
+        openCategoryModal,
+        closeCategoryModal,
+        openNewCategoryModal,
+        openEditCategoryModal,
+        openViewCategoryModal
     }
 })
