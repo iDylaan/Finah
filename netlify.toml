@@ -1,0 +1,31 @@
+[build]
+  # Comando para construir tu aplicación
+  command = "npm run build"
+  # Directorio donde se genera el build
+  publish = "dist"
+
+# Configuración de escaneo de secretos
+# La ANON_KEY de Supabase es pública y está diseñada para ser usada en el frontend
+[build.environment]
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_ANON_KEY"
+
+# Redirecciones para SPA - todas las rutas deben ir al index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Headers de seguridad y optimización
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Cache para assets estáticos
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
