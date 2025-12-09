@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRecurringTransactionsStore } from '@/stores/recurring-transactions'
 import { useToast } from 'primevue/usetoast'
+import { formatDate } from '@/lib/utils'
 
 const props = defineProps({
   visible: {
@@ -81,10 +82,13 @@ const montoPorMes = computed(() => {
 })
 
 const mesesRestantes = computed(() => {
-  return numeroMeses.value - mesesYaPagados.value
+  const mesesFinal = numeroMeses.value === 'personalizado' ? mesesPersonalizados.value : numeroMeses.value
+  if (!mesesFinal) return 0
+  return mesesFinal - mesesYaPagados.value
 })
 
 const totalAPagar = computed(() => {
+  if (!montoPorMes.value || !mesesRestantes.value) return '0.00'
   const total = montoPorMes.value * mesesRestantes.value
   return total.toFixed(2)
 })
@@ -98,12 +102,7 @@ const diferenciaMonto = computed(() => {
 
 const proximaFechaCorte = computed(() => {
   if (!props.creditCard?.proxima_fecha_corte) return 'No configurada'
-  const fecha = new Date(props.creditCard.proxima_fecha_corte)
-  return fecha.toLocaleDateString('es-MX', { 
-    day: 'numeric', 
-    month: 'long', 
-    year: 'numeric' 
-  })
+  return formatDate(props.creditCard.proxima_fecha_corte, 'largo')
 })
 
 // Validaciones
@@ -475,7 +474,7 @@ watch(() => props.visible, (newVal) => {
 
       <!-- Resumen de cálculos -->
       <div class="p-3 bg-primary/10 dark:bg-primary/20 rounded-lg border border-primary/30">
-        <h3 class="font-semibold mb-2 text-primary">📊 Resumen</h3>
+        <h4 class="font-semibold mb-2 text-primary">Resumen</h4>
         <div class="grid grid-cols-2 gap-2 text-sm">
           <div>
             <p class="text-surface-600 dark:text-surface-400">Pago mensual:</p>

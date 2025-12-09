@@ -1,8 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { supabase } from '@/lib/supabase.js'
-import { handleError } from '@/lib/utils.js'
-import { diasHasta } from '@/utils/misc.js'
+import { handleError, diasHasta } from '@/lib/utils.js'
 import { 
     calcularPeriodoActual, 
     porcentajeUsoCredito, 

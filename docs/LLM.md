@@ -333,6 +333,88 @@ SELECT COUNT(*) FROM bancos WHERE es_publico = TRUE; -- Expect: ~15
    - Búsqueda mejorada en IconPicker por keywords en español
    - Archivo: `src/assets/constants/icon-keywords.js`
 
+11. **Sistema de Diferir Transacciones a MSI** (Diciembre 2024):
+   - **Ubicación**: `AccountDashboard.vue` - Tabla de transacciones
+   - **Funcionalidad**: Convertir gastos existentes en pagos diferidos a meses
+   - **Componentes involucrados**:
+     - `AccountDashboard.vue`: Botón "Diferir" en columna de acciones
+     - `MSIConfig.vue`: Modal de configuración de MSI (reutilizado)
+     - Store: `recurring-transactions.js` (createMSI)
+     - Store: `transactions.js` (deleteTransaction)
+   - **Flujo completo**:
+     1. Usuario ve gasto en tarjeta de crédito (ej: $25,091.25 - Compra Amazon)
+     2. Click en botón "Diferir" → ConfirmDialog pregunta confirmación
+     3. Al aceptar → Abre `MSIConfig` con datos prellenados:
+        - `initial-amount`: Monto del gasto original
+        - `initial-description`: Descripción del gasto
+        - `category-id`: Categoría del gasto
+        - `credit-card`: Tarjeta de crédito actual
+     4. Usuario configura:
+        - Plazo (3, 6, 9, 12, 15, 18, 24, 36 meses o personalizado)
+        - Meses ya pagados (si la compra ya está en progreso)
+        - Tipo de monto por cuota:
+          * Automático: `total ÷ meses` (ej: $2,090.94)
+          * Redondeado: `Math.ceil(total ÷ meses)` (ej: $2,091.00)
+          * Manual: Usuario ingresa monto exacto
+     5. `createMSI()` ejecuta función SQL `crear_msi_tarjeta_credito()`
+     6. `handleMSICreatedFromTransaction()` elimina transacción original
+     7. MSI queda registrado en `transacciones_periodicas` con ejecuciones programadas
+   - **Validaciones**:
+     - Solo gastos pueden ser diferidos (no ingresos/transferencias)
+     - Solo en tarjetas de crédito (no efectivo/banco/débito)
+     - Solo si NO es ya un MSI (`!data.metadatos?.msi_id`)
+   - **Props de MSIConfig para diferir**:
+     ```vue
+     <MSIConfig 
+       v-model:visible="showMSIConfigModal"
+       :credit-card="account"
+       :category-id="transactionToDefer?.categoria_id"
+       :initial-amount="transactionToDefer?.monto"
+       :initial-description="transactionToDefer?.descripcion"
+       @msi-created="handleMSICreatedFromTransaction"
+     />
+     ```
+   - **Ventajas**:
+     - Reutiliza componente MSIConfig existente
+     - Mantiene historial correcto (elimina transacción duplicada)
+     - Permite registrar compras MSI existentes con meses ya pagados
+     - Soporta montos personalizados para match exacto con bancos
+   - **UI/UX**:
+     - Botón solo visible en columna de acciones de tarjetas de crédito
+     - Confirmación con ConfirmDialog antes de abrir modal
+     - Tooltip explicativo: "Convertir en pago diferido a meses"
+     - Icono: `pi pi-calendar`
+     - Severity: `secondary`, `outlined`
+
+12. **Consolidación de Utilidades en lib/utils.js** (Diciembre 2024):
+   - **Migración completa**: Todas las funciones de `utils/misc.js` → `lib/utils.js`
+   - **Archivo deprecated**: `utils/misc.js` ahora solo reexporta para compatibilidad
+   - **Funciones centralizadas**:
+     - Fechas: `diasHasta()`, `diasDesde()`, `esHoy()`, `esFuturo()`, `diferenciaEnDias()`, `agregarDias()`
+     - Formato: `formatCurrency()`, `formatNumber()`, `formatDate()`, `formatDateTime()`, `formatTime()`
+     - Color: `getContrastTextColor()`, `getContrastTextWithOpacity()`
+     - Errores: `handleError()`
+   - **Beneficios**:
+     - Un solo punto de verdad para utilidades
+     - Mejor organización con secciones documentadas
+     - Facilita mantenimiento y testing
+     - Evita duplicación de código
+   - **Parsing de fechas mejorado**:
+     - Detecta formato `YYYY-MM-DD` y parsea en zona horaria local
+     - Previene problemas de cambio de día por UTC
+     - Usado en `formatDate()` para mostrar fechas correctas
+   - **Ejemplo de uso**:
+     ```javascript
+     import { formatDate, diasHasta, formatCurrency } from '@/lib/utils.js'
+     
+     // Fecha de corte se muestra correctamente
+     const proximaFechaCorte = computed(() => {
+       if (!creditCard?.proxima_fecha_corte) return 'No configurada'
+       return formatDate(creditCard.proxima_fecha_corte, 'largo')
+       // Output: "11 de diciembre de 2025" (correcto, no "10 de diciembre")
+     })
+     ```
+
 ### Problemas Comunes y Soluciones
 
 **Error: "Tags with side effect are ignored"**

@@ -115,8 +115,7 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue';
 import { useAccountsStore } from '@/stores/accounts.js';
-import { formatDate } from '@/lib/utils.js';
-import { diasHasta, formatCurrency as formatMoneda } from '@/utils/misc.js';
+import { formatDate, diasHasta, formatCurrency as formatMoneda } from '@/lib/utils.js';
 import {
     obtenerMensajePago,
     obtenerMensajeCorte,
@@ -150,11 +149,15 @@ const diasHastaPago = computed(() => {
 });
 
 const porcentajeUso = computed(() => {
-    return porcentajeUsoCredito(props.card.limite_credito, props.card.credito_disponible);
+    const limite = parseFloat(props.card.limite_credito) || 0;
+    const disponible = parseFloat(props.card.credito_disponible) || 0;
+    return porcentajeUsoCredito(limite, disponible);
 });
 
 const montoUtilizado = computed(() => {
-    return montoUsado(props.card.limite_credito, props.card.credito_disponible);
+    const limite = parseFloat(props.card.limite_credito) || 0;
+    const disponible = parseFloat(props.card.credito_disponible) || 0;
+    return montoUsado(limite, disponible);
 });
 
 const pagoMinimo = computed(() => {
