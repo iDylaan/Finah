@@ -97,11 +97,12 @@ export const useAccountsStore = defineStore('accounts', () => {
             }
 
 
-            // Obtener cuentas con toda la información
+            // Obtener cuentas con toda la información (solo activas)
             const { data: accountsData, error: accountsError } = await supabase
                 .from('cuentas')
                 .select('*')
                 .eq('creada_por', user.id)
+                .is('deleted_at', null) // Excluir cuentas eliminadas (soft delete)
                 .order('fecha_creacion', { ascending: false })
 
             if (accountsError) {
@@ -401,14 +402,15 @@ export const useAccountsStore = defineStore('accounts', () => {
                 throw new Error('Usuario no autenticado')
             }
 
-            console.log('🗑️ Eliminando cuenta:', accountId)
+            console.log('🗑️ Eliminando cuenta (soft delete):', accountId)
 
-            // Eliminar account (CASCADE eliminará credit_cards automáticamente)
+            // Soft delete: marcar deleted_at con la fecha actual
             const { error } = await supabase
                 .from('cuentas')
-                .delete()
+                .update({ deleted_at: new Date().toISOString() })
                 .eq('id', accountId)
                 .eq('creada_por', user.id)
+                .is('deleted_at', null) // Solo si no está ya eliminada
 
             if (error) {
                 console.error('💥 Error eliminando cuenta:', error)
@@ -418,7 +420,7 @@ export const useAccountsStore = defineStore('accounts', () => {
             // ✅ ACTUALIZAR ESTADO LOCAL DIRECTAMENTE (MÁS EFICIENTE)
             accounts.value = accounts.value.filter(account => account.id !== accountId)
 
-            console.log('✅ Cuenta eliminada exitosamente')
+            console.log('✅ Cuenta eliminada exitosamente (soft delete)')
 
             // Mostrar mensaje de éxito
             if (toast) {
@@ -477,6 +479,7 @@ export const useAccountsStore = defineStore('accounts', () => {
                 .from('transacciones')
                 .select('*')
                 .eq('cuenta_id', cuentaId)
+                .is('deleted_at', null) // Excluir transacciones eliminadas
                 .gte('fecha_ocurrencia', fechaInicio.toISOString().split('T')[0])
                 .lte('fecha_ocurrencia', fechaFin.toISOString().split('T')[0])
                 .order('fecha_ocurrencia', { ascending: false });
@@ -500,14 +503,58 @@ export const useAccountsStore = defineStore('accounts', () => {
         try {
             const { inicioCorte, finCorte } = calcularPeriodoActual(diaCorte, diaPago);
             
+            console.log('📅 Periodo actual:', {
+                inicioCorte: inicioCorte.toISOString().split('T')[0],
+                finCorte: finCorte.toISOString().split('T')[0]
+            });
+            
+            // Obtener transacciones normales del periodo
             const transacciones = await obtenerTransaccionesPeriodo(cuentaId, inicioCorte, finCorte);
+            
+            console.log('🧾 Transacciones del periodo:', transacciones);
             
             // Sumar solo gastos (tipo='gasto') del periodo
             const totalGastos = transacciones
                 .filter(t => t.tipo === 'gasto')
                 .reduce((sum, t) => sum + parseFloat(t.monto || 0), 0);
             
-            return totalGastos;
+            console.log('💰 Gastos normales del periodo:', totalGastos);
+            
+            // Obtener cuotas MSI pendientes para este periodo
+            const { data: cuotasMSI, error: msiError } = await supabase
+                .from('ejecuciones_transacciones_periodicas')
+                .select(`
+                    id,
+                    monto_programado,
+                    fecha_programada,
+                    estado,
+                    numero_cuota,
+                    transaccion_periodica:transacciones_periodicas!inner(
+                        cuenta_id,
+                        es_msi,
+                        nombre
+                    )
+                `)
+                .eq('transaccion_periodica.cuenta_id', cuentaId)
+                .eq('transaccion_periodica.es_msi', true)
+                .gte('fecha_programada', inicioCorte.toISOString().split('T')[0])
+                .lte('fecha_programada', finCorte.toISOString().split('T')[0])
+                .in('estado', ['pendiente', 'confirmada']) // Solo pendientes, NO las ya ejecutadas
+            
+            if (msiError) {
+                console.error('Error obteniendo cuotas MSI:', msiError);
+            }
+            
+            console.log('📋 Cuotas MSI del periodo:', cuotasMSI);
+            
+            // Sumar cuotas MSI del periodo
+            const totalCuotasMSI = (cuotasMSI || [])
+                .reduce((sum, cuota) => sum + parseFloat(cuota.monto_programado || 0), 0);
+            
+            console.log('💳 Total cuotas MSI:', totalCuotasMSI);
+            console.log('🎯 TOTAL GASTOS DEL PERIODO:', totalGastos + totalCuotasMSI);
+            
+            return totalGastos + totalCuotasMSI;
         } catch (error) {
             console.error('Error calculando gastos del periodo:', error);
             return 0;

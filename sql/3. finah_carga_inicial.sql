@@ -25,7 +25,8 @@ INSERT INTO niveles (nombre, color, es_publico, jerarquia)
 VALUES
   ('Necesario', 'green',    TRUE, 1),
   ('Lujo',     'orange',   TRUE, 2),
-  ('Ahorro',         'cyan',   TRUE, 3);
+  ('Ahorro',         'cyan',   TRUE, 3),
+  ('Otro',         'grey',   TRUE, 4);
 
 -- ===================================================
 -- 3) Grupos de categorías - Organizadores principales
@@ -34,13 +35,14 @@ INSERT INTO grupos_categoria (nombre, es_publico, color, biblioteca_iconos, nomb
 VALUES
   ('Hogar',           TRUE, '#3F51B5', 'material', 'home'),
   ('Transporte',      TRUE, '#009688', 'material', 'directions_car'),
-  ('Alimentacion',    TRUE, '#FF5722', 'material', 'restaurant'),
+  ('Alimentación',    TRUE, '#FF5722', 'material', 'restaurant'),
   ('Salud',           TRUE, '#4CAF50', 'material', 'local_hospital'),
-  ('Educacion',       TRUE, '#673AB7', 'material', 'school'),
+  ('Educación',       TRUE, '#673AB7', 'material', 'school'),
   ('Entretenimiento', TRUE, '#E91E63', 'material', 'movie'),
   ('Servicios',       TRUE, '#795548', 'material', 'build'),
   ('Ingresos',        TRUE, '#4CAF50', 'material', 'attach_money'),
-  ('Ahorros',         TRUE, '#2196F3', 'material', 'savings');
+  ('Ahorros',         TRUE, '#2196F3', 'material', 'savings'),
+  ('Otros',            TRUE, '#575757', 'material', 'adjust');
 
 -- ===================================================
 -- 4) Categorías específicas por grupo
@@ -48,6 +50,7 @@ VALUES
 INSERT INTO categorias (nombre, grupo_id, es_publico, biblioteca_iconos, nombre_icono)
 VALUES
   -- Hogar
+  ('Hogar',           (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'home'),
   ('Renta',           (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'meeting_room'),
   ('Luz',             (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'wb_sunny'),
   ('Agua',            (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'water_damage'),
@@ -57,6 +60,7 @@ VALUES
   ('Mantenimiento',   (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'home_repair_service'),
 
   -- Transporte
+  ('Transporte',       (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'directions_car'),
   ('Gasolina',        (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'local_gas_station'),
   ('Transporte publico', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'commute'),
   ('Mantenimiento vehiculo', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'build'),
@@ -64,25 +68,31 @@ VALUES
   ('Seguro vehiculo', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'security'),
 
   -- Alimentación
-  ('Supermercado',    (SELECT id FROM grupos_categoria WHERE nombre='Alimentacion'), TRUE, 'material', 'local_grocery_store'),
-  ('Restaurantes',    (SELECT id FROM grupos_categoria WHERE nombre='Alimentacion'), TRUE, 'material', 'restaurant_menu'),
-  ('Comida rapida',   (SELECT id FROM grupos_categoria WHERE nombre='Alimentacion'), TRUE, 'material', 'fastfood'),
-  ('Bebidas',         (SELECT id FROM grupos_categoria WHERE nombre='Alimentacion'), TRUE, 'material', 'local_bar'),
+  ('Alimentación',    (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'local_grocery_store'),
+  ('Supermercado',    (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'local_grocery_store'),
+  ('Restaurantes',    (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'restaurant_menu'),
+  ('Comida rapida',   (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'fastfood'),
+  ('Bebidas',         (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'local_bar'),
+  ('Comida diaria',   (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'cookie'),
 
   -- Salud
+  ('Salud',        (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'local_hospital'),
   ('Farmacia',        (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'local_pharmacy'),
   ('Clinica',         (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'healing'),
   ('Dentista',        (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'medical_services'),
   ('Seguro medico',   (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'health_and_safety'),
   ('Examenes',        (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'biotech'),
+  ('Cita médica',     (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'clinical_notes'),
 
   -- Educación
-  ('Colegiaturas',    (SELECT id FROM grupos_categoria WHERE nombre='Educacion'), TRUE, 'material', 'school'),
-  ('Libros',          (SELECT id FROM grupos_categoria WHERE nombre='Educacion'), TRUE, 'material', 'book'),
-  ('Cursos',          (SELECT id FROM grupos_categoria WHERE nombre='Educacion'), TRUE, 'material', 'psychology'),
-  ('Material escolar', (SELECT id FROM grupos_categoria WHERE nombre='Educacion'), TRUE, 'material', 'edit'),
+  ('Educación',    (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'school'),
+  ('Colegiaturas',    (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'school'),
+  ('Libros',          (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'book'),
+  ('Cursos',          (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'psychology'),
+  ('Material escolar', (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'edit'),
 
   -- Entretenimiento
+  ('Entretenimiento', (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'movie'),
   ('Cine',            (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'movie'),
   ('Conciertos',      (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'music_note'),
   ('Deportes',        (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'sports_soccer'),
@@ -106,7 +116,13 @@ VALUES
   ('Emergencias',     (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'emergency'),
   ('Vacaciones',      (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'flight'),
   ('Compras grandes', (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'shopping_cart'),
-  ('Jubilacion',      (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'elderly');
+  ('Jubilacion',      (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'elderly'),
+  ('Ahorro',          (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'savings'),
+  ('Fondo de emergencia',      (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'e911_emergency'),
+
+  -- Otros
+  ('Transferencia',     (SELECT id FROM grupos_categoria WHERE nombre='Otros'), TRUE, 'material', 'arrow_forward'),
+  ('Otro',              (SELECT id FROM grupos_categoria WHERE nombre='Otros'), TRUE, 'material', 'adjust');
 
 -- ===================================================
 -- 5) Bancos más utilizados en México

@@ -38,10 +38,21 @@ export const useRecurringTransactionsStore = defineStore('recurringTransactions'
                 .from('transacciones_periodicas')
                 .select(`
                     *,
-                    cuenta:cuentas!cuenta_id(id, nombre, tipo, icono),
-                    cuenta_destino:cuentas!cuenta_destino_id(id, nombre, tipo, icono),
+                    cuenta:cuentas!cuenta_id(
+                        id, 
+                        nombre, 
+                        tipo,
+                        banco:bancos(id, nombre, nombre_icono, biblioteca_iconos, color)
+                    ),
+                    cuenta_destino:cuentas!cuenta_destino_id(
+                        id, 
+                        nombre, 
+                        tipo,
+                        banco:bancos(id, nombre, nombre_icono, biblioteca_iconos, color)
+                    ),
                     categoria:categorias(id, nombre, nombre_icono, biblioteca_iconos)
                 `)
+                // .is('deleted_at', null) // TODO: Descomentar después de migración
                 .order('created_at', { ascending: false })
 
             if (fetchError) throw fetchError
@@ -76,7 +87,7 @@ export const useRecurringTransactionsStore = defineStore('recurringTransactions'
         error.value = null
 
         try {
-            const { data, error: createError } = await supabase.rpc('crear_msi_tarjeta_credito', {
+            const rpcParams = {
                 p_usuario_id: (await supabase.auth.getUser()).data.user.id,
                 p_cuenta_id: msiData.cuenta_id,
                 p_categoria_id: msiData.categoria_id,
@@ -84,8 +95,15 @@ export const useRecurringTransactionsStore = defineStore('recurringTransactions'
                 p_descripcion: msiData.descripcion || null,
                 p_monto_total: msiData.monto_total,
                 p_numero_meses: msiData.numero_meses,
-                p_meses_ya_pagados: msiData.meses_pagados || 0
-            })
+                p_meses_ya_pagados: msiData.meses_ya_pagados || 0
+            }
+
+            // Agregar monto personalizado si existe
+            if (msiData.monto_por_mes && msiData.monto_por_mes > 0) {
+                rpcParams.p_monto_personalizado_por_mes = msiData.monto_por_mes
+            }
+
+            const { data, error: createError } = await supabase.rpc('crear_msi_tarjeta_credito', rpcParams)
 
             if (createError) throw createError
 
@@ -95,7 +113,7 @@ export const useRecurringTransactionsStore = defineStore('recurringTransactions'
             if (toast) {
                 toast.add({
                     severity: 'success',
-                    summary: 'MSI Creado',
+                    summary: 'Pago Diferido Creado',
                     detail: `Se creó el pago diferido de ${msiData.numero_meses} meses`,
                     life: 4000
                 })
@@ -234,10 +252,12 @@ export const useRecurringTransactionsStore = defineStore('recurringTransactions'
         error.value = null
 
         try {
+            // TODO: Cambiar a soft delete después de migración
             const { error: deleteError } = await supabase
                 .from('transacciones_periodicas')
                 .delete()
                 .eq('id', id)
+                // .is('deleted_at', null)
 
             if (deleteError) throw deleteError
 
@@ -285,6 +305,124 @@ export const useRecurringTransactionsStore = defineStore('recurringTransactions'
             { activa: !transaction.activa },
             { toast }
         )
+    }
+
+    /**
+     * Actualizar meses pagados de un MSI
+     */
+    const updateMSIPaidMonths = async (msiId, mesesPagados, { toast } = {}) => {
+        loading.value = true
+        error.value = null
+
+        try {
+            // Obtener el MSI actual
+            const msi = recurringTransactions.value.find(t => t.id === msiId && t.es_msi)
+            if (!msi) {
+                throw new Error('MSI no encontrado')
+            }
+
+            const mesesAnteriores = msi.meses_pagados || 0
+            const diferencia = mesesPagados - mesesAnteriores
+
+            // Actualizar el registro de la transacción periódica
+            const { error: updateError } = await supabase
+                .from('transacciones_periodicas')
+                .update({
+                    meses_pagados: mesesPagados,
+                    repeticiones_completadas: mesesPagados
+                })
+                .eq('id', msiId)
+
+            if (updateError) throw updateError
+
+            // Si aumentaron los meses pagados, marcar más ejecuciones como ejecutadas
+            if (diferencia > 0) {
+                // Obtener ejecuciones pendientes ordenadas por fecha
+                const { data: ejecuciones, error: fetchError } = await supabase
+                    .from('ejecuciones_transacciones_periodicas')
+                    .select('*')
+                    .eq('transaccion_periodica_id', msiId)
+                    .in('estado', ['pendiente', 'confirmada'])
+                    .order('fecha_programada', { ascending: true })
+                    .limit(diferencia)
+
+                if (fetchError) throw fetchError
+
+                // Marcar como ejecutadas
+                if (ejecuciones && ejecuciones.length > 0) {
+                    const idsAMarcar = ejecuciones.map(e => e.id)
+                    const { error: markError } = await supabase
+                        .from('ejecuciones_transacciones_periodicas')
+                        .update({
+                            estado: 'ejecutada',
+                            fecha_ejecutada: new Date().toISOString(),
+                            monto_ejecutado: msi.monto_por_mes
+                        })
+                        .in('id', idsAMarcar)
+
+                    if (markError) throw markError
+                }
+            }
+
+            // Si disminuyeron los meses pagados, regresar ejecuciones a pendiente
+            if (diferencia < 0) {
+                // Obtener ejecuciones ejecutadas ordenadas por fecha DESC
+                const { data: ejecuciones, error: fetchError } = await supabase
+                    .from('ejecuciones_transacciones_periodicas')
+                    .select('*')
+                    .eq('transaccion_periodica_id', msiId)
+                    .eq('estado', 'ejecutada')
+                    .order('fecha_programada', { ascending: false })
+                    .limit(Math.abs(diferencia))
+
+                if (fetchError) throw fetchError
+
+                // Marcar como pendientes
+                if (ejecuciones && ejecuciones.length > 0) {
+                    const idsAMarcar = ejecuciones.map(e => e.id)
+                    const { error: markError } = await supabase
+                        .from('ejecuciones_transacciones_periodicas')
+                        .update({
+                            estado: 'pendiente',
+                            fecha_ejecutada: null,
+                            monto_ejecutado: null
+                        })
+                        .in('id', idsAMarcar)
+
+                    if (markError) throw markError
+                }
+            }
+
+            // Recargar transacciones
+            await fetchRecurringTransactions()
+
+            if (toast) {
+                toast.add({
+                    severity: 'success',
+                    summary: 'MSI Actualizado',
+                    detail: `Se actualizaron los meses pagados a ${mesesPagados}`,
+                    life: 4000
+                })
+            }
+
+            return true
+        } catch (err) {
+            error.value = err.message
+            console.error('💥 Error al actualizar meses pagados:', err)
+            
+            if (toast) {
+                toast.add({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail: err.message || 'No se pudieron actualizar los meses pagados',
+                    life: 5000
+                })
+            }
+            
+            throw err
+        } finally {
+            loading.value = false
+        }
     }
 
     // ============================================
@@ -461,6 +599,7 @@ export const useRecurringTransactionsStore = defineStore('recurringTransactions'
         updateRecurringTransaction,
         deleteRecurringTransaction,
         toggleRecurringTransaction,
+        updateMSIPaidMonths,
 
         // Acciones - Ejecuciones
         fetchPendingExecutions,

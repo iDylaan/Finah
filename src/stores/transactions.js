@@ -518,6 +518,58 @@ export const useTransactionsStore = defineStore('transactions', () => {
         }
     }
 
+    // FUNCIÓN PARA ELIMINAR TRANSACCIÓN
+    const deleteTransaction = async (transactionId, { toast }) => {
+        loading.value = true
+
+        try {
+            console.log('🗑️ Eliminando transacción:', transactionId)
+
+            // TODO: Cambiar a soft delete después de migración
+            const { error: deleteError } = await supabase
+                .from('transacciones')
+                .delete()
+                .eq('id', transactionId)
+                // .is('deleted_at', null) // Solo si no está ya eliminada
+
+            if (deleteError) {
+                console.error('💥 Error eliminando transacción:', deleteError)
+                throw deleteError
+            }
+
+            console.log('✅ Transacción eliminada exitosamente (soft delete)')
+
+            // Mostrar mensaje de éxito
+            if (toast) {
+                toast.add({
+                    severity: 'success',
+                    summary: 'Transacción Eliminada',
+                    detail: 'La transacción se eliminó correctamente',
+                    life: 3000
+                })
+            }
+
+            return true
+
+        } catch (error) {
+            console.error('💥 Error eliminando transacción:', error)
+
+            if (toast) {
+                toast.add({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail: error.message || 'Error eliminando la transacción',
+                    life: 5000
+                })
+            }
+
+            throw error
+
+        } finally {
+            loading.value = false
+        }
+    }
+
     return {
         // Estados
         transactions,
@@ -528,6 +580,7 @@ export const useTransactionsStore = defineStore('transactions', () => {
         createIngreso,
         createGasto,
         createTransferencia,
-        fetchTransactionsByAccount
+        fetchTransactionsByAccount,
+        deleteTransaction
     }
 })

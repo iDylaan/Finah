@@ -132,7 +132,7 @@
                                 <label for="catRate" class="block mb-2 font-medium">CAT %</label>
                                 <InputNumber id="catRate" v-model="accountForm.tarjeta_credito.porcentaje_cat" :min="0"
                                     :max="500" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
-                                    suffix="%" placeholder="0.0%" class="w-full" />
+                                    locale="en-US" suffix="%" placeholder="0.0%" class="w-full" />
                                 <small class="text-xs text-surface-500">Costo Anual Total</small>
                             </div>
 
@@ -163,7 +163,7 @@
                                 <label for="interestRate" class="block mb-2 font-medium">Tasa de interés anual</label>
                                 <InputNumber id="interestRate" v-model="accountForm.tarjeta_credito.tasa_interes" :min="0"
                                     :max="99.99" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
-                                    suffix="%" placeholder="0.0%" class="w-full" />
+                                    locale="en-US" suffix="%" placeholder="0.0%" class="w-full" />
                             </div>
 
                             <!-- Pago mínimo -->
@@ -171,7 +171,7 @@
                                 <label for="minPayment" class="block mb-2 font-medium">Pago mínimo %</label>
                                 <InputNumber id="minPayment" v-model="accountForm.tarjeta_credito.porcentaje_pago_minimo" :min="0"
                                     :max="100" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
-                                    suffix="%" placeholder="5.0%" class="w-full" />
+                                    locale="en-US" suffix="%" placeholder="5.0%" class="w-full" />
                                 <small class="text-xs text-surface-500">Porcentaje del saldo a pagar mensualmente</small>
                             </div>
                         </div>
@@ -211,7 +211,7 @@
                             <label for="rewardsPoints" class="block mb-2 font-medium">Puntos por peso gastado</label>
                             <InputNumber id="rewardsPoints" v-model="accountForm.tarjeta_credito.puntos_por_peso" :min="0"
                                 :max="100" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
-                                placeholder="0.0" class="w-full" />
+                                locale="en-US" placeholder="0.0" class="w-full" />
                             <small class="text-xs text-surface-500">Puntos de recompensa que acumulas por cada peso</small>
                         </div>
 
@@ -250,7 +250,7 @@
                                         <InputNumber id="cashbackPercentage"
                                             v-model="accountForm.tarjeta_credito.porcentaje_cashback" :min="0"
                                             :max="100" mode="decimal" :minFractionDigits="1" :maxFractionDigits="2"
-                                            suffix="%" placeholder="0.0%" class="w-full" />
+                                            locale="en-US" suffix="%" placeholder="0.0%" class="w-full" />
                                     </div>
                                 </div>
                             </div>

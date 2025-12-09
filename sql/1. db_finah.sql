@@ -335,6 +335,7 @@ CREATE TABLE cuentas (
   -- FECHAS DE CONTROL
   fecha_creacion         TIMESTAMPTZ      NOT NULL DEFAULT now(),   -- Cuándo se creó
   fecha_actualizacion    TIMESTAMPTZ      NOT NULL DEFAULT now(),   -- Última modificación
+  deleted_at             TIMESTAMPTZ,                                -- Baja lógica: NULL = activa, con fecha = eliminada
   
   -- RESTRICCIONES PARA VALIDAR DATOS
   CONSTRAINT chk_tipo_cuenta CHECK (tipo IN ('cash', 'bank', 'debit_card', 'credit_card')),
@@ -404,7 +405,7 @@ CREATE INDEX ON reglas_reparto_grupo(grupo_id, tipo_recurso);
 CREATE TABLE transacciones (
   id               UUID              DEFAULT gen_random_uuid() PRIMARY KEY,
   usuario_id       UUID              NOT NULL REFERENCES profiles(id),    -- Usuario que registró la transacción
-  cuenta_id        UUID              NOT NULL REFERENCES cuentas(id),     -- Cuenta donde se realizó
+  cuenta_id        UUID              NOT NULL REFERENCES cuentas(id) ON DELETE RESTRICT,     -- Cuenta donde se realizó
   categoria_id     UUID              NOT NULL REFERENCES categorias(id),  -- Categoría del gasto/ingreso
   nivel_id         UUID              REFERENCES niveles(id),              -- Nivel de prioridad (opcional)
   tipo             tipo_transaccion  NOT NULL,                            -- Tipo de transacción
@@ -415,7 +416,8 @@ CREATE TABLE transacciones (
   url_recibo       TEXT,                                                  -- URL del comprobante/recibo
   metadatos        JSONB,                                                 -- Datos adicionales (ID de deuda, cuota, etc.)
   fecha_creacion   TIMESTAMPTZ       NOT NULL DEFAULT now(),             -- Cuándo se registró
-  fecha_actualizacion TIMESTAMPTZ    NOT NULL DEFAULT now()              -- Última modificación
+  fecha_actualizacion TIMESTAMPTZ    NOT NULL DEFAULT now(),              -- Última modificación
+  deleted_at       TIMESTAMPTZ                                            -- Baja lógica: NULL = activa, con fecha = eliminada
 );
 -- Índices para mejorar consultas
 CREATE INDEX ON transacciones(usuario_id, fecha_ocurrencia); -- Buscar por usuario y fecha
@@ -441,12 +443,13 @@ CREATE INDEX ON divisiones_transaccion(transaccion_id);
 CREATE TABLE compras_deuda (
   id               UUID             DEFAULT gen_random_uuid() PRIMARY KEY,
   usuario_id       UUID             NOT NULL REFERENCES profiles(id),   -- Usuario que realizó la compra
-  cuenta_id        UUID             NOT NULL REFERENCES cuentas(id),    -- Cuenta donde se cargó (tarjeta de crédito)
+  cuenta_id        UUID             NOT NULL REFERENCES cuentas(id) ON DELETE RESTRICT,    -- Cuenta donde se cargó (tarjeta de crédito)
   descripcion      TEXT,                                                -- Descripción de lo que se compró
   monto_total      NUMERIC(14,2)    NOT NULL,                          -- Monto total de la compra
   meses            INT              NOT NULL,                           -- Número de meses para pagar
   fecha_inicio     DATE             NOT NULL,                           -- Cuándo empezó a pagarse
-  fecha_creacion   TIMESTAMPTZ      NOT NULL DEFAULT now()             -- Cuándo se registró
+  fecha_creacion   TIMESTAMPTZ      NOT NULL DEFAULT now(),             -- Cuándo se registró
+  deleted_at       TIMESTAMPTZ                                          -- Baja lógica: NULL = activa, con fecha = eliminada
 );
 
 
@@ -590,6 +593,15 @@ COMMENT ON COLUMN jerarquias_usuario.fecha_actualizacion IS 'Timestamp de la úl
 -- ==================================================================
 -- 7) Triggers y funciones auxiliares
 -- ==================================================================
+
+-- 7.0) Función genérica para actualizar timestamp updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
 -- 7.1) Función para guardar historial de saldos automáticamente
 CREATE OR REPLACE FUNCTION guardar_historial_saldo()
@@ -871,10 +883,224 @@ $$;
 
 
 -- ==================================================================
--- 8) Funciones para transacciones periódicas
+-- 8) Tablas para transacciones periódicas y MSI
 -- ==================================================================
 
--- 8.1) Función para calcular próxima ejecución de transacción periódica
+-- 8.1) Tabla principal de transacciones periódicas
+CREATE TABLE transacciones_periodicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    usuario_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    
+    -- Información básica
+    nombre VARCHAR(200) NOT NULL,
+    descripcion TEXT,
+    tipo tipo_transaccion NOT NULL, -- 'ingreso', 'gasto', 'transferencia'
+    
+    -- Monto
+    monto DECIMAL(15, 2) NOT NULL CHECK (monto > 0),
+    
+    -- ========================================
+    -- CONFIGURACIÓN DE RECURRENCIA AVANZADA
+    -- ========================================
+    
+    frecuencia frecuencia_transaccion NOT NULL,
+    
+    -- Para frecuencia 'dias_naturales': cada X días
+    intervalo_dias INTEGER, -- Ej: 30 para cada 30 días
+    
+    -- Para frecuencia 'mensual': día específico del mes
+    dia_del_mes INTEGER CHECK (dia_del_mes >= 1 AND dia_del_mes <= 31),
+    
+    -- Para frecuencia 'semanal': días de la semana
+    dias_semana dia_semana[], -- Array de días ['lunes', 'miercoles', 'viernes']
+    
+    -- Para frecuencia 'anual': mes y día específico
+    mes_del_anio INTEGER CHECK (mes_del_anio >= 1 AND mes_del_anio <= 12),
+    dia_del_anio INTEGER CHECK (dia_del_anio >= 1 AND dia_del_anio <= 31),
+    
+    -- ========================================
+    -- CRITERIOS DE FINALIZACIÓN
+    -- ========================================
+    
+    criterio_fin criterio_finalizacion NOT NULL DEFAULT 'sin_fin',
+    
+    -- Si criterio_fin = 'fecha_fin'
+    fecha_fin DATE,
+    
+    -- Si criterio_fin = 'numero_repeticiones'
+    numero_total_repeticiones INTEGER,
+    repeticiones_completadas INTEGER DEFAULT 0,
+    
+    -- ========================================
+    -- ESPECÍFICO PARA MSI
+    -- ========================================
+    
+    es_msi BOOLEAN DEFAULT FALSE,
+    monto_total_msi DECIMAL(15, 2), -- Monto total del MSI
+    numero_meses_total INTEGER, -- Total de meses del MSI
+    meses_pagados INTEGER DEFAULT 0, -- Meses ya pagados (para registros avanzados)
+    monto_por_mes DECIMAL(15, 2), -- Monto mensual calculado (auto-calculado)
+    
+    -- ========================================
+    -- CUENTA(S) INVOLUCRADA(S)
+    -- ========================================
+    
+    cuenta_id UUID REFERENCES cuentas(id) ON DELETE CASCADE,
+    cuenta_destino_id UUID REFERENCES cuentas(id) ON DELETE SET NULL, -- Para transferencias
+    categoria_id UUID REFERENCES categorias(id) ON DELETE SET NULL,
+    
+    -- ========================================
+    -- PROGRAMACIÓN Y ESTADO
+    -- ========================================
+    
+    fecha_inicio DATE NOT NULL,
+    proxima_ejecucion TIMESTAMP WITH TIME ZONE,
+    
+    -- ========================================
+    -- CONTROL DE EJECUCIÓN
+    -- ========================================
+    
+    activa BOOLEAN DEFAULT TRUE,
+    requiere_confirmacion BOOLEAN DEFAULT TRUE, -- FALSE para MSI en tarjetas de crédito
+    auto_ejecutar BOOLEAN DEFAULT FALSE, -- TRUE para MSI, FALSE para otras
+    
+    -- ========================================
+    -- METADATA
+    -- ========================================
+    
+    etiquetas TEXT[],
+    notas TEXT,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- ========================================
+    -- CONSTRAINTS
+    -- ========================================
+    
+    -- MSI debe tener todos los campos requeridos
+    CONSTRAINT chk_msi_completo CHECK (
+        NOT es_msi OR (
+            monto_total_msi IS NOT NULL AND
+            numero_meses_total IS NOT NULL AND
+            monto_por_mes IS NOT NULL AND
+            cuenta_id IS NOT NULL AND
+            frecuencia = 'msi'
+        )
+    ),
+    
+    -- Validar que si usa días_naturales tenga intervalo_dias
+    CONSTRAINT chk_dias_naturales CHECK (
+        frecuencia != 'dias_naturales' OR intervalo_dias IS NOT NULL
+    ),
+    
+    -- Validar que si es mensual tenga dia_del_mes
+    CONSTRAINT chk_mensual CHECK (
+        frecuencia != 'mensual' OR dia_del_mes IS NOT NULL
+    ),
+    
+    -- Validar que si es semanal tenga dias_semana
+    CONSTRAINT chk_semanal CHECK (
+        frecuencia != 'semanal' OR (dias_semana IS NOT NULL AND array_length(dias_semana, 1) > 0)
+    ),
+    
+    -- Validar que si es anual tenga mes y día
+    CONSTRAINT chk_anual CHECK (
+        frecuencia != 'anual' OR (mes_del_anio IS NOT NULL AND dia_del_anio IS NOT NULL)
+    ),
+    
+    -- Validar criterios de finalización
+    CONSTRAINT chk_fecha_fin CHECK (
+        criterio_fin != 'fecha_fin' OR fecha_fin IS NOT NULL
+    ),
+    
+    CONSTRAINT chk_numero_repeticiones CHECK (
+        criterio_fin != 'numero_repeticiones' OR numero_total_repeticiones IS NOT NULL
+    )
+);
+
+-- Índices para transacciones_periodicas
+CREATE INDEX ON transacciones_periodicas(usuario_id);
+CREATE INDEX ON transacciones_periodicas(cuenta_id);
+CREATE INDEX ON transacciones_periodicas(proxima_ejecucion) WHERE activa = TRUE;
+CREATE INDEX ON transacciones_periodicas(activa);
+
+-- Trigger para updated_at
+CREATE TRIGGER update_transacciones_periodicas_updated_at
+    BEFORE UPDATE ON transacciones_periodicas
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Comentarios para transacciones_periodicas
+COMMENT ON TABLE transacciones_periodicas IS 'Transacciones programadas y recurrentes - soporta ingresos periódicos, gastos recurrentes, MSI, etc.';
+COMMENT ON COLUMN transacciones_periodicas.frecuencia IS 'Tipo de frecuencia: diaria, semanal, mensual, etc.';
+COMMENT ON COLUMN transacciones_periodicas.intervalo_dias IS 'Para frecuencia dias_naturales: ejecutar cada X días (ej: cada 30 días)';
+COMMENT ON COLUMN transacciones_periodicas.dia_del_mes IS 'Para frecuencia mensual: día específico del mes (1-31)';
+COMMENT ON COLUMN transacciones_periodicas.dias_semana IS 'Para frecuencia semanal: array de días [''lunes'', ''miercoles'', ''viernes'']';
+COMMENT ON COLUMN transacciones_periodicas.mes_del_anio IS 'Para frecuencia anual: mes específico (1-12)';
+COMMENT ON COLUMN transacciones_periodicas.dia_del_anio IS 'Para frecuencia anual: día específico (1-31)';
+COMMENT ON COLUMN transacciones_periodicas.criterio_fin IS 'Cómo determinar cuándo termina: sin_fin, fecha_fin, numero_repeticiones';
+COMMENT ON COLUMN transacciones_periodicas.fecha_fin IS 'Fecha límite si criterio_fin = fecha_fin';
+COMMENT ON COLUMN transacciones_periodicas.numero_total_repeticiones IS 'Total de veces a repetir si criterio_fin = numero_repeticiones';
+COMMENT ON COLUMN transacciones_periodicas.repeticiones_completadas IS 'Contador de repeticiones completadas';
+COMMENT ON COLUMN transacciones_periodicas.es_msi IS 'TRUE si es un pago a Meses Sin Intereses';
+COMMENT ON COLUMN transacciones_periodicas.monto_total_msi IS 'Monto total de la compra MSI';
+COMMENT ON COLUMN transacciones_periodicas.numero_meses_total IS 'Total de meses del MSI (3, 6, 9, 12, 18, 24)';
+COMMENT ON COLUMN transacciones_periodicas.meses_pagados IS 'Meses ya pagados (útil para registrar MSI en progreso)';
+COMMENT ON COLUMN transacciones_periodicas.monto_por_mes IS 'Monto mensual calculado (monto_total / numero_meses)';
+
+-- 8.2) Tabla para ejecuciones de transacciones periódicas
+CREATE TABLE ejecuciones_transacciones_periodicas (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transaccion_periodica_id UUID NOT NULL REFERENCES transacciones_periodicas(id) ON DELETE CASCADE,
+    transaccion_id UUID REFERENCES transacciones(id) ON DELETE SET NULL, -- NULL si está pendiente
+    
+    -- Estado
+    estado VARCHAR(20) NOT NULL DEFAULT 'pendiente', -- 'pendiente', 'confirmada', 'ejecutada', 'cancelada', 'fallida'
+    
+    -- Fechas
+    fecha_programada DATE NOT NULL,
+    fecha_ejecutada TIMESTAMP WITH TIME ZONE,
+    fecha_confirmada TIMESTAMP WITH TIME ZONE,
+    
+    -- Monto (puede variar si el usuario lo ajusta)
+    monto_programado DECIMAL(15, 2) NOT NULL,
+    monto_ejecutado DECIMAL(15, 2),
+    
+    -- Para MSI
+    numero_cuota INTEGER, -- Número de cuota (1, 2, 3, etc.)
+    
+    -- Notas
+    notas TEXT,
+    error_mensaje TEXT,
+    
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE  -- Baja lógica: NULL = activa, con fecha = eliminada
+);
+
+-- Índices para ejecuciones_transacciones_periodicas
+CREATE INDEX ON ejecuciones_transacciones_periodicas(transaccion_periodica_id);
+CREATE INDEX ON ejecuciones_transacciones_periodicas(estado);
+CREATE INDEX ON ejecuciones_transacciones_periodicas(fecha_programada);
+
+-- Trigger para updated_at
+CREATE TRIGGER update_ejecuciones_periodicas_updated_at
+    BEFORE UPDATE ON ejecuciones_transacciones_periodicas
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Comentarios para ejecuciones_transacciones_periodicas
+COMMENT ON TABLE ejecuciones_transacciones_periodicas IS 'Registro de cada ejecución individual de una transacción periódica';
+
+
+-- ==================================================================
+-- 9) Funciones para transacciones periódicas
+-- ==================================================================
+
+-- 9.1) Función para calcular próxima ejecución de transacción periódica
 CREATE OR REPLACE FUNCTION calcular_proxima_ejecucion(
     p_transaccion_periodica_id UUID,
     p_fecha_base TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -1020,6 +1246,8 @@ END;
 $$;
 
 -- 8.2) Función para crear MSI en tarjeta de crédito
+DROP FUNCTION IF EXISTS crear_msi_tarjeta_credito;
+
 CREATE OR REPLACE FUNCTION crear_msi_tarjeta_credito(
     p_usuario_id UUID,
     p_cuenta_id UUID,
@@ -1028,7 +1256,8 @@ CREATE OR REPLACE FUNCTION crear_msi_tarjeta_credito(
     p_descripcion TEXT,
     p_monto_total DECIMAL,
     p_numero_meses INTEGER,
-    p_meses_ya_pagados INTEGER DEFAULT 0
+    p_meses_ya_pagados INTEGER DEFAULT 0,
+    p_monto_personalizado_por_mes DECIMAL DEFAULT NULL
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -1037,6 +1266,7 @@ AS $$
 DECLARE
     v_transaccion_periodica_id UUID;
     v_monto_mensual DECIMAL;
+    v_saldo_pendiente DECIMAL;
     v_fecha_corte INTEGER;
     v_proxima_fecha_corte DATE;
     v_meses_restantes INTEGER;
@@ -1061,9 +1291,18 @@ BEGIN
         RAISE EXCEPTION 'La cuenta debe ser una tarjeta de crédito con día de corte configurado';
     END IF;
     
-    -- Calcular monto mensual
-    v_monto_mensual := ROUND(p_monto_total / p_numero_meses, 2);
+    -- Calcular monto mensual (personalizado o automático)
+    IF p_monto_personalizado_por_mes IS NOT NULL AND p_monto_personalizado_por_mes > 0 THEN
+        v_monto_mensual := p_monto_personalizado_por_mes;
+    ELSE
+        v_monto_mensual := ROUND(p_monto_total / p_numero_meses, 2);
+    END IF;
+    
     v_meses_restantes := p_numero_meses - p_meses_ya_pagados;
+    
+    -- Calcular saldo pendiente basado en el monto total original
+    -- No usar v_monto_mensual * v_meses_restantes porque puede diferir si hay redondeo
+    v_saldo_pendiente := p_monto_total - (p_meses_ya_pagados * v_monto_mensual);
     
     -- Calcular próxima fecha de corte
     v_proxima_fecha_corte := (
@@ -1130,39 +1369,62 @@ BEGIN
         TRUE   -- Se ejecuta automáticamente
     ) RETURNING id INTO v_transaccion_periodica_id;
     
-    -- Crear ejecuciones programadas para cada mes restante
+    -- Crear ejecuciones para TODOS los meses (ya pagados + restantes)
     v_fecha_ejecucion := v_proxima_fecha_corte;
     
-    FOR i IN (p_meses_ya_pagados + 1)..p_numero_meses LOOP
+    -- Retroceder a la fecha del primer mes si hay meses ya pagados
+    IF p_meses_ya_pagados > 0 THEN
+        v_fecha_ejecucion := v_fecha_ejecucion - (p_meses_ya_pagados || ' months')::INTERVAL;
+    END IF;
+    
+    FOR i IN 1..p_numero_meses LOOP
         INSERT INTO ejecuciones_transacciones_periodicas (
             transaccion_periodica_id,
             estado,
             fecha_programada,
             monto_programado,
-            numero_cuota
+            numero_cuota,
+            fecha_ejecutada,
+            monto_ejecutado
         ) VALUES (
             v_transaccion_periodica_id,
-            'pendiente',
+            CASE 
+                WHEN i <= p_meses_ya_pagados THEN 'ejecutada'
+                ELSE 'pendiente'
+            END,
             v_fecha_ejecucion,
             v_monto_mensual,
-            i
+            i,
+            CASE 
+                WHEN i <= p_meses_ya_pagados THEN v_fecha_ejecucion::TIMESTAMP
+                ELSE NULL
+            END,
+            CASE 
+                WHEN i <= p_meses_ya_pagados THEN v_monto_mensual
+                ELSE NULL
+            END
         );
         
         -- Calcular siguiente fecha de corte (próximo mes)
-        IF v_fecha_corte <= EXTRACT(DAY FROM v_fecha_ejecucion) THEN
-            v_fecha_ejecucion := (DATE_TRUNC('month', v_fecha_ejecucion) + INTERVAL '1 month' + (v_fecha_corte - 1 || ' days')::INTERVAL)::DATE;
-        ELSE
-            v_fecha_ejecucion := (DATE_TRUNC('month', v_fecha_ejecucion) + INTERVAL '1 month' + (v_fecha_corte - 1 || ' days')::INTERVAL)::DATE;
-        END IF;
+        v_fecha_ejecucion := (DATE_TRUNC('month', v_fecha_ejecucion) + INTERVAL '1 month' + (v_fecha_corte - 1 || ' days')::INTERVAL)::DATE;
     END LOOP;
+    
+    -- Actualizar el crédito disponible de la tarjeta
+    -- Descontar el saldo pendiente total (monto_total - lo ya pagado)
+    UPDATE cuentas
+    SET credito_disponible = credito_disponible - v_saldo_pendiente,
+        fecha_actualizacion = NOW()
+    WHERE id = p_cuenta_id;
     
     RETURN v_transaccion_periodica_id;
 END;
 $$;
 
+COMMENT ON FUNCTION crear_msi_tarjeta_credito IS 'Crea un MSI con todas sus cuotas programadas, soporta monto personalizado por mes y registra cuotas ya pagadas como ejecutadas. Descuenta del crédito disponible solo el saldo pendiente (meses restantes)';
+
 
 -- ==================================================================
--- 9) Función auxiliar para obtener el ID del usuario en sesión
+-- 10) Función auxiliar para obtener el ID del usuario en sesión
 -- ==================================================================
 -- Esta función se ejecuta una sola vez por consulta para obtener el usuario autenticado
 -- Es usada por las políticas RLS (Row Level Security) para filtrar datos por usuario
@@ -1177,7 +1439,7 @@ $$;
 
 
 -- ==================================================================
--- 10) Comentarios descriptivos de las tablas principales
+-- 11) Comentarios descriptivos de las tablas principales
 -- ==================================================================
 
 -- Comentarios para grupos de usuarios
@@ -1315,193 +1577,3 @@ CREATE TABLE historial_saldos (
 -- Índices
 CREATE INDEX ON historial_saldos(cuenta_id, fecha DESC);
 CREATE INDEX ON historial_saldos(fecha DESC);
-
-
--- 4.20) Transacciones periódicas/programadas
-CREATE TABLE transacciones_periodicas (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    usuario_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-    
-    -- Información básica
-    nombre VARCHAR(200) NOT NULL,
-    descripcion TEXT,
-    tipo tipo_transaccion NOT NULL, -- 'ingreso', 'gasto', 'transferencia'
-    
-    -- Monto
-    monto DECIMAL(15, 2) NOT NULL CHECK (monto > 0),
-    
-    -- ========================================
-    -- CONFIGURACIÓN DE RECURRENCIA AVANZADA
-    -- ========================================
-    
-    frecuencia frecuencia_transaccion NOT NULL,
-    
-    -- Para frecuencia 'dias_naturales': cada X días
-    intervalo_dias INTEGER, -- Ej: 30 para cada 30 días
-    
-    -- Para frecuencia 'mensual': día específico del mes
-    dia_del_mes INTEGER CHECK (dia_del_mes >= 1 AND dia_del_mes <= 31),
-    
-    -- Para frecuencia 'semanal': días de la semana
-    dias_semana dia_semana[], -- Array de días ['lunes', 'miercoles', 'viernes']
-    
-    -- Para frecuencia 'anual': mes y día específico
-    mes_del_anio INTEGER CHECK (mes_del_anio >= 1 AND mes_del_anio <= 12),
-    dia_del_anio INTEGER CHECK (dia_del_anio >= 1 AND dia_del_anio <= 31),
-    
-    -- ========================================
-    -- CRITERIOS DE FINALIZACIÓN
-    -- ========================================
-    
-    criterio_fin criterio_finalizacion NOT NULL DEFAULT 'sin_fin',
-    
-    -- Si criterio_fin = 'fecha_fin'
-    fecha_fin DATE,
-    
-    -- Si criterio_fin = 'numero_repeticiones'
-    numero_total_repeticiones INTEGER,
-    repeticiones_completadas INTEGER DEFAULT 0,
-    
-    -- ========================================
-    -- ESPECÍFICO PARA MSI
-    -- ========================================
-    
-    es_msi BOOLEAN DEFAULT FALSE,
-    monto_total_msi DECIMAL(15, 2), -- Monto total del MSI
-    numero_meses_total INTEGER, -- Total de meses del MSI
-    meses_pagados INTEGER DEFAULT 0, -- Meses ya pagados (para registros avanzados)
-    monto_por_mes DECIMAL(15, 2), -- Monto mensual calculado (auto-calculado)
-    
-    -- ========================================
-    -- CUENTA(S) INVOLUCRADA(S)
-    -- ========================================
-    
-    cuenta_id UUID REFERENCES cuentas(id) ON DELETE CASCADE,
-    cuenta_destino_id UUID REFERENCES cuentas(id) ON DELETE SET NULL, -- Para transferencias
-    categoria_id UUID REFERENCES categorias(id) ON DELETE SET NULL,
-    
-    -- ========================================
-    -- PROGRAMACIÓN Y ESTADO
-    -- ========================================
-    
-    fecha_inicio DATE NOT NULL,
-    proxima_ejecucion TIMESTAMP WITH TIME ZONE,
-    
-    -- ========================================
-    -- CONTROL DE EJECUCIÓN
-    -- ========================================
-    
-    activa BOOLEAN DEFAULT TRUE,
-    requiere_confirmacion BOOLEAN DEFAULT TRUE, -- FALSE para MSI en tarjetas de crédito
-    auto_ejecutar BOOLEAN DEFAULT FALSE, -- TRUE para MSI, FALSE para otras
-    
-    -- ========================================
-    -- METADATA
-    -- ========================================
-    
-    etiquetas TEXT[],
-    notas TEXT,
-    
-    -- Timestamps
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    
-    -- ========================================
-    -- CONSTRAINTS
-    -- ========================================
-    
-    -- MSI debe tener todos los campos requeridos
-    CONSTRAINT chk_msi_completo CHECK (
-        NOT es_msi OR (
-            monto_total_msi IS NOT NULL AND
-            numero_meses_total IS NOT NULL AND
-            monto_por_mes IS NOT NULL AND
-            cuenta_id IS NOT NULL AND
-            frecuencia = 'msi'
-        )
-    ),
-    
-    -- Validar que si usa días_naturales tenga intervalo_dias
-    CONSTRAINT chk_dias_naturales CHECK (
-        frecuencia != 'dias_naturales' OR intervalo_dias IS NOT NULL
-    ),
-    
-    -- Validar que si es mensual tenga dia_del_mes
-    CONSTRAINT chk_mensual CHECK (
-        frecuencia != 'mensual' OR dia_del_mes IS NOT NULL
-    ),
-    
-    -- Validar que si es semanal tenga dias_semana
-    CONSTRAINT chk_semanal CHECK (
-        frecuencia != 'semanal' OR (dias_semana IS NOT NULL AND array_length(dias_semana, 1) > 0)
-    ),
-    
-    -- Validar que si es anual tenga mes y día
-    CONSTRAINT chk_anual CHECK (
-        frecuencia != 'anual' OR (mes_del_anio IS NOT NULL AND dia_del_anio IS NOT NULL)
-    ),
-    
-    -- Validar criterios de finalización
-    CONSTRAINT chk_fecha_fin CHECK (
-        criterio_fin != 'fecha_fin' OR fecha_fin IS NOT NULL
-    ),
-    
-    CONSTRAINT chk_numero_repeticiones CHECK (
-        criterio_fin != 'numero_repeticiones' OR numero_total_repeticiones IS NOT NULL
-    )
-);
-
--- Índices para transacciones_periodicas
-CREATE INDEX ON transacciones_periodicas(usuario_id);
-CREATE INDEX ON transacciones_periodicas(cuenta_id);
-CREATE INDEX ON transacciones_periodicas(proxima_ejecucion) WHERE activa = TRUE;
-CREATE INDEX ON transacciones_periodicas(activa);
-CREATE INDEX ON transacciones_periodicas(es_msi) WHERE es_msi = TRUE;
-
--- Comentarios para transacciones_periodicas
-COMMENT ON TABLE transacciones_periodicas IS 'Transacciones programadas y recurrentes - soporta ingresos periódicos, gastos recurrentes, MSI, etc.';
-COMMENT ON COLUMN transacciones_periodicas.frecuencia IS 'Tipo de frecuencia: diaria, semanal, mensual, etc.';
-COMMENT ON COLUMN transacciones_periodicas.intervalo_dias IS 'Para frecuencia dias_naturales: ejecutar cada X días (ej: cada 30 días)';
-COMMENT ON COLUMN transacciones_periodicas.dia_del_mes IS 'Para frecuencia mensual: día específico del mes (1-31)';
-COMMENT ON COLUMN transacciones_periodicas.dias_semana IS 'Para frecuencia semanal: array de días [''lunes'', ''miercoles'', ''viernes'']';
-COMMENT ON COLUMN transacciones_periodicas.criterio_fin IS 'Cómo determinar cuándo termina: sin_fin, fecha_fin, numero_repeticiones';
-COMMENT ON COLUMN transacciones_periodicas.es_msi IS 'TRUE si es un pago a Meses Sin Intereses';
-
-
--- 4.21) Ejecuciones de transacciones periódicas
-CREATE TABLE ejecuciones_transacciones_periodicas (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    transaccion_periodica_id UUID NOT NULL REFERENCES transacciones_periodicas(id) ON DELETE CASCADE,
-    transaccion_id UUID REFERENCES transacciones(id) ON DELETE SET NULL, -- NULL si está pendiente
-    
-    -- Estado
-    estado VARCHAR(20) NOT NULL DEFAULT 'pendiente', -- 'pendiente', 'confirmada', 'ejecutada', 'cancelada', 'fallida'
-    
-    -- Fechas
-    fecha_programada DATE NOT NULL,
-    fecha_ejecutada TIMESTAMP WITH TIME ZONE,
-    fecha_confirmada TIMESTAMP WITH TIME ZONE,
-    
-    -- Monto (puede variar si el usuario lo ajusta)
-    monto_programado DECIMAL(15, 2) NOT NULL,
-    monto_ejecutado DECIMAL(15, 2),
-    
-    -- Para MSI
-    numero_cuota INTEGER, -- Número de cuota (1, 2, 3, etc.)
-    
-    -- Notas
-    notas TEXT,
-    error_mensaje TEXT,
-    
-    -- Timestamps
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Índices para ejecuciones_transacciones_periodicas
-CREATE INDEX ON ejecuciones_transacciones_periodicas(transaccion_periodica_id);
-CREATE INDEX ON ejecuciones_transacciones_periodicas(estado);
-CREATE INDEX ON ejecuciones_transacciones_periodicas(fecha_programada);
-
--- Comentarios para ejecuciones_transacciones_periodicas
-COMMENT ON TABLE ejecuciones_transacciones_periodicas IS 'Registro de cada ejecución individual de una transacción periódica';

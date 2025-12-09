@@ -90,6 +90,7 @@ import { useAccountsStore } from '@/stores/accounts.js';
 import { useCategoriesStore } from '@/stores/categories.js';
 import { useLevelStore } from '@/stores/levels.js';
 import { useTransactionsStore } from '@/stores/transactions.js';
+import { useRecurringTransactionsStore } from '@/stores/recurring-transactions.js';
 import { useModalsStore } from '@/stores/ui-modals.js';
 import IngresoForm from './IngresoForm.vue';
 import GastoForm from './GastoForm.vue';
@@ -103,6 +104,7 @@ const accountsStore = useAccountsStore();
 const categoriesStore = useCategoriesStore();
 const levelsStore = useLevelStore();
 const transactionsStore = useTransactionsStore();
+const recurringStore = useRecurringTransactionsStore();
 const modalsStore = useModalsStore();
 
 // State
@@ -280,7 +282,45 @@ const handleSubmit = async () => {
             if (modalsStore.transactionModalType === 'ingreso') {
                 await transactionsStore.createIngreso(transactionData, { toast });
             } else if (modalsStore.transactionModalType === 'gasto') {
-                await transactionsStore.createGasto(transactionData, { toast });
+                // Si es gasto y tiene MSI configurado
+                if (formData.diferirMSI && formData.numeroMeses) {
+                    console.log('🛍️ Creando gasto con MSI...');
+                    
+                    const mesesYaPagados = formData.mesesYaPagados || 0;
+                    
+                    // Crear el MSI directamente (NO crear transacción de gasto)
+                    // El MSI maneja todo a través de sus cuotas programadas
+                    
+                    // Calcular meses finales (personalizado o del dropdown)
+                    const mesesFinales = formData.numeroMeses === 'personalizado' 
+                        ? formData.mesesPersonalizados 
+                        : formData.numeroMeses;
+                    
+                    const msiData = {
+                        cuenta_id: formData.cuenta_id,
+                        categoria_id: formData.categoria_id,
+                        nombre: formData.nombreMSI || transactionData.descripcion || 'Pago diferido sin nombre',
+                        descripcion: transactionData.descripcion,
+                        monto_total: formData.monto,
+                        numero_meses: mesesFinales,
+                        meses_ya_pagados: mesesYaPagados
+                    };
+                    
+                    // Agregar monto personalizado si no es automático
+                    if (formData.tipoMonto === 'manual' && formData.montoPorMes) {
+                        msiData.monto_por_mes = formData.montoPorMes;
+                    } else if (formData.tipoMonto === 'redondeado') {
+                        msiData.monto_por_mes = Math.ceil(formData.monto / mesesFinales);
+                    }
+                    
+                    await recurringStore.createMSI(msiData, { toast });
+                    
+                    // Recargar la lista de MSI
+                    await recurringStore.fetchRecurringTransactions({ toast });
+                } else {
+                    // Gasto normal sin MSI
+                    await transactionsStore.createGasto(transactionData, { toast });
+                }
             } else if (modalsStore.transactionModalType === 'transferencia') {
                 await transactionsStore.createTransferencia(transactionData, { toast });
             }

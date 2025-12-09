@@ -8,7 +8,7 @@
                     {{ formatPercentage(porcentajeUso) }}
                 </span>
             </div>
-            <ProgressBar :value="porcentajeUso || 0" :showValue="false" :class="getProgressBarClass(porcentajeUso)" :pt="{
+            <ProgressBar :value="Math.round(porcentajeUso)" :showValue="false" :class="getProgressBarClass(porcentajeUso)" :pt="{
                 value: { style: `background: ${getUsageColor(porcentajeUso)}` }
             }" />
             <div class="flex justify-between text-xs text-surface-600 dark:text-surface-400 mt-1">
@@ -59,21 +59,35 @@
 
             <!-- Información de pagos -->
             <div class="p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <div class="text-xs text-green-700 dark:text-green-400 mb-1">Saldo por pagar</div>
+                <div class="text-xs text-green-700 dark:text-green-400 mb-1">Saldo del periodo por pagar</div>
                 <div class="text-sm font-bold text-green-800 dark:text-green-300">
-                    {{ formatCurrency(montoUtilizado || 0) }}
+                    {{ formatCurrency(info?.gastosPeriodo || 0) }}
+                </div>
+                <div class="text-xs text-green-600 dark:text-green-500 mt-1">
+                    Total adeudado: {{ formatCurrency(montoUtilizado || 0) }}
                 </div>
             </div>
 
-            <!-- Botón de realizar pago -->
-            <Button 
-                v-if="montoUtilizado > 0"
-                label="Realizar Pago" 
-                icon="pi pi-credit-card"
-                class="w-full"
-                severity="success"
-                @click="emit('open-payment-modal')"
-            />
+            <!-- Botones de acción -->
+            <div class="flex flex-col gap-2">
+                <Button 
+                    v-if="info?.gastosPeriodo > 0"
+                    label="Realizar Pago" 
+                    icon="pi pi-credit-card"
+                    class="w-full"
+                    severity="success"
+                    @click="emit('open-payment-modal')"
+                />
+                <Button 
+                    label="Ver Pagos Diferidos" 
+                    icon="pi pi-list"
+                    class="w-full"
+                    severity="secondary"
+                    outlined
+                    size="small"
+                    @click="emit('view-msi')"
+                />
+            </div>
 
             <!-- Badge de alerta si está en peligro -->
             <Message v-if="enPeligro" severity="error" :closable="false" class="text-xs p-2 mt-2">
@@ -120,7 +134,7 @@ const props = defineProps({
     }
 });
 
-const emit = defineEmits(['open-payment-modal']);
+const emit = defineEmits(['open-payment-modal', 'configure-msi', 'view-msi']);
 
 const accountsStore = useAccountsStore();
 const info = ref(null);
