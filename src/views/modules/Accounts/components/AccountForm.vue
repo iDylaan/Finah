@@ -654,19 +654,43 @@ const calcularProximaFecha = (diaDelMes) => {
     return proximaFecha;
 };
 
-// Función para calcular ambas fechas automáticamente
+// Función para calcular ambas fechas automáticamente considerando la relación corte-pago
 const calcularFechasAutomaticas = () => {
     if (accountForm.value.tipo === 'credit_card') {
+        const diaCorte = accountForm.value.tarjeta_credito.dia_corte;
+        const diaPago = accountForm.value.tarjeta_credito.dia_pago;
+        
         // Calcular próxima fecha de corte
-        if (accountForm.value.tarjeta_credito.dia_corte) {
+        if (diaCorte) {
             accountForm.value.tarjeta_credito.proxima_fecha_corte = 
-                calcularProximaFecha(accountForm.value.tarjeta_credito.dia_corte);
+                calcularProximaFecha(diaCorte);
         }
         
-        // Calcular próxima fecha de pago
-        if (accountForm.value.tarjeta_credito.dia_pago) {
+        // Calcular próxima fecha de pago considerando la fecha de corte
+        if (diaPago && diaCorte) {
+            const fechaCorte = accountForm.value.tarjeta_credito.proxima_fecha_corte;
+            
+            if (fechaCorte) {
+                const añoCorte = fechaCorte.getFullYear();
+                const mesCorte = fechaCorte.getMonth();
+                
+                // Si el día de pago es menor que el día de corte, 
+                // significa que el pago es en el mes siguiente al corte
+                let fechaPago;
+                if (diaPago < diaCorte) {
+                    // Pago en el mes siguiente al corte
+                    fechaPago = new Date(añoCorte, mesCorte + 1, diaPago, 12, 0, 0, 0);
+                } else {
+                    // Pago en el mismo mes que el corte
+                    fechaPago = new Date(añoCorte, mesCorte, diaPago, 12, 0, 0, 0);
+                }
+                
+                accountForm.value.tarjeta_credito.proxima_fecha_pago = fechaPago;
+            }
+        } else if (diaPago && !diaCorte) {
+            // Si solo hay día de pago sin día de corte, usar el cálculo simple
             accountForm.value.tarjeta_credito.proxima_fecha_pago = 
-                calcularProximaFecha(accountForm.value.tarjeta_credito.dia_pago);
+                calcularProximaFecha(diaPago);
         }
     }
 };
@@ -702,17 +726,17 @@ watch(() => accountForm.value.tarjeta_credito.limite_credito, (newLimit) => {
     }
 });
 
-// Watch para calcular próxima fecha de corte automáticamente
+// Watch para recalcular fechas cuando cambia el día de corte
 watch(() => accountForm.value.tarjeta_credito.dia_corte, (nuevoDia) => {
     if (accountForm.value.tipo === 'credit_card' && nuevoDia) {
-        accountForm.value.tarjeta_credito.proxima_fecha_corte = calcularProximaFecha(nuevoDia);
+        calcularFechasAutomaticas();
     }
 });
 
-// Watch para calcular próxima fecha de pago automáticamente
+// Watch para recalcular fechas cuando cambia el día de pago
 watch(() => accountForm.value.tarjeta_credito.dia_pago, (nuevoDia) => {
     if (accountForm.value.tipo === 'credit_card' && nuevoDia) {
-        accountForm.value.tarjeta_credito.proxima_fecha_pago = calcularProximaFecha(nuevoDia);
+        calcularFechasAutomaticas();
     }
 });
 

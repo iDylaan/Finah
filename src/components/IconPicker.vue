@@ -30,10 +30,10 @@
         <!-- Selector de iconos usando Dialog en lugar de Popover -->
         <Dialog v-model:visible="isPickerVisible" modal header="Seleccionar Icono" 
             :style="{ width: '95vw', maxWidth: '56rem' }" :breakpoints="{ '768px': '100vw' }"
-            :contentStyle="{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }" class="mobile-fullscreen-dialog">
+            :contentStyle="{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }" class="mobile-fullscreen-dialog"
             :pt="{
-                root: { class: 'z-[9999]' }, // Asegurarse que tenga un z-index muy alto
-                mask: { class: 'z-[9998]' }  // También para la máscara
+                root: { class: 'z-[9999]' },
+                mask: { class: 'z-[9998]' }
             }"
             :dismissableMask="true">
             <div class="rounded-lg">
@@ -117,7 +117,8 @@
 import { ref, computed, watch } from 'vue';
 import materialSymbolsData from '@/assets/constants/material-symbols.json';
 import primevueIconsData from '@/assets/constants/primevue-icons.json';
-import ICONS from '@/assets/constants/icon-providers.js'
+import ICONS from '@/assets/constants/icon-providers.js';
+import { materialIconKeywords, primeIconKeywords } from '@/assets/constants/icon-keywords.js';
 
 // Props
 const props = defineProps({
@@ -233,17 +234,33 @@ const tempFinalIcon = computed(() => {
     return currentLibrary.value === ICONS.MATERIAL ? tempSelectedMaterialIcon.value : tempSelectedPrimeIcon.value;
 });
 
-// Filtros usando debouncedSearchQuery
+// Filtros usando debouncedSearchQuery con búsqueda mejorada
 const filteredPrimeIcons = computed(() => {
-    const query = debouncedSearchQuery.value.toLowerCase();
+    const query = debouncedSearchQuery.value.toLowerCase().trim();
     if (!query) return primeIcons;
-    return primeIcons.filter(icon => icon.toLowerCase().includes(query));
+    
+    return primeIcons.filter(icon => {
+        // Buscar en el nombre del icono
+        if (icon.toLowerCase().includes(query)) return true;
+        
+        // Buscar en las palabras clave en español
+        const keywords = primeIconKeywords[icon] || [];
+        return keywords.some(keyword => keyword.toLowerCase().includes(query));
+    });
 });
 
 const filteredMaterialIcons = computed(() => {
-    const query = debouncedSearchQuery.value.toLowerCase();
+    const query = debouncedSearchQuery.value.toLowerCase().trim();
     if (!query) return materialIcons;
-    return materialIcons.filter(icon => icon.toLowerCase().includes(query));
+    
+    return materialIcons.filter(icon => {
+        // Buscar en el nombre del icono
+        if (icon.toLowerCase().includes(query)) return true;
+        
+        // Buscar en las palabras clave en español
+        const keywords = materialIconKeywords[icon] || [];
+        return keywords.some(keyword => keyword.toLowerCase().includes(query));
+    });
 });
 
 const filteredIcons = computed(() => {
