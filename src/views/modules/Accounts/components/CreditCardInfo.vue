@@ -60,14 +60,25 @@
                 </span>
             </div>
 
-            <!-- Información de pagos -->
+            <!-- Información de pagos del periodo actual -->
             <div class="p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <div class="text-xs text-green-700 dark:text-green-400 mb-1">Saldo del periodo por pagar</div>
+                <div class="text-xs text-green-700 dark:text-green-400 mb-1">Saldo del periodo actual</div>
                 <div class="text-sm font-bold text-green-800 dark:text-green-300">
                     {{ formatCurrency(info?.gastosPeriodo || 0) }}
                 </div>
                 <div class="text-xs text-green-600 dark:text-green-500 mt-1">
                     Total adeudado: {{ formatCurrency(montoUtilizado || 0) }}
+                </div>
+            </div>
+
+            <!-- Información del periodo siguiente -->
+            <div v-if="info?.gastosPeriodoSiguiente > 0" class="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div class="text-xs text-blue-700 dark:text-blue-400 mb-1">Proyección periodo siguiente</div>
+                <div class="text-sm font-bold text-blue-800 dark:text-blue-300">
+                    {{ formatCurrency(info?.gastosPeriodoSiguiente || 0) }}
+                </div>
+                <div class="text-xs text-blue-600 dark:text-blue-500 mt-1">
+                    Gastos futuros registrados
                 </div>
             </div>
 
@@ -140,6 +151,7 @@ const emit = defineEmits(['open-payment-modal', 'configure-msi', 'view-msi']);
 
 const accountsStore = useAccountsStore();
 const info = ref(null);
+const resumenPeriodos = ref(null);
 const loading = ref(true);
 
 // Calcular días usando las fechas que ya vienen en card
@@ -175,24 +187,28 @@ const requiereAtencion = computed(() => {
     return diasHastaPago.value <= 7 || porcentajeUso.value >= 70;
 });
 
-// Cargar información de la tarjeta (solo gastos del periodo)
+// Cargar información completa de periodos de la tarjeta
 const loadCardInfo = async () => {
     loading.value = true;
     try {
-        // Solo obtener gastos del periodo
         if (props.card.dia_corte && props.card.dia_pago) {
-            const gastosPeriodo = await accountsStore.calcularGastosPeriodoActual(
-                props.card.id,
-                props.card.dia_corte,
-                props.card.dia_pago
-            );
-            info.value = { gastosPeriodo };
+            // Obtener resumen completo de periodos (actual y siguiente)
+            const resumen = await accountsStore.obtenerResumenPeriodosTarjeta(props.card.id);
+            resumenPeriodos.value = resumen;
+            
+            // Mantener compatibilidad con info anterior
+            info.value = { 
+                gastosPeriodo: resumen?.periodo_actual?.total || 0,
+                gastosPeriodoSiguiente: resumen?.periodo_siguiente?.total || 0
+            };
         } else {
-            info.value = { gastosPeriodo: 0 };
+            resumenPeriodos.value = null;
+            info.value = { gastosPeriodo: 0, gastosPeriodoSiguiente: 0 };
         }
     } catch (error) {
         console.error('Error cargando info de tarjeta:', error);
-        info.value = { gastosPeriodo: 0 };
+        resumenPeriodos.value = null;
+        info.value = { gastosPeriodo: 0, gastosPeriodoSiguiente: 0 };
     } finally {
         loading.value = false;
     }

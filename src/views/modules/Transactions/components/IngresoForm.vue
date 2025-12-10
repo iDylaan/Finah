@@ -3,7 +3,7 @@
         <!-- Cuenta -->
         <div class="flex flex-col gap-2">
             <label for="cuenta" class="font-semibold text-sm">Cuenta *</label>
-            <Dropdown 
+            <Select 
                 id="cuenta"
                 v-model="formData.cuenta_id" 
                 :options="cuentas" 
@@ -49,7 +49,7 @@
                         </div>
                     </div>
                 </template>
-            </Dropdown>
+            </Select>
             <small v-if="errors.cuenta_id" class="text-red-500">{{ errors.cuenta_id }}</small>
         </div>
 
@@ -66,7 +66,7 @@
         <!-- Nivel (Opcional) -->
         <div class="flex flex-col gap-2">
             <label for="nivel" class="font-semibold text-sm">Nivel de Prioridad</label>
-            <Dropdown 
+            <Select 
                 id="nivel"
                 v-model="formData.nivel_id" 
                 :options="niveles" 
@@ -91,7 +91,7 @@
                         <span>{{ slotProps.option.nombre }}</span>
                     </div>
                 </template>
-            </Dropdown>
+            </Select>
         </div>
 
         <!-- Monto -->

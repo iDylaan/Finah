@@ -4,7 +4,7 @@
             {{ label }}
             <span v-if="required" class="text-red-500">*</span>
         </label>
-        <Dropdown 
+        <Select 
             :id="inputId"
             :modelValue="modelValue"
             @update:modelValue="handleSelection"
@@ -97,7 +97,7 @@
                 </div>
                 <span v-else>{{ slotProps.placeholder }}</span>
             </template>
-        </Dropdown>
+        </Select>
         <small v-if="error" class="text-red-500">{{ error }}</small>
         <small v-else-if="hint" class="text-surface-500">{{ hint }}</small>
     </div>
