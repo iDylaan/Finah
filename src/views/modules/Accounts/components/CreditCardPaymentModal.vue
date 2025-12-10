@@ -112,7 +112,7 @@
             <!-- Cuenta de origen (solo si es transferencia) -->
             <div v-if="paymentType === 'transfer'" class="flex flex-col gap-2">
                 <label for="cuenta_origen" class="font-semibold text-sm">Cuenta de Origen *</label>
-                <Dropdown 
+                <Select 
                     id="cuenta_origen"
                     v-model="formData.cuenta_origen_id" 
                     :options="availableAccounts" 
@@ -164,7 +164,7 @@
                             </div>
                         </div>
                     </template>
-                </Dropdown>
+                </Select>
                 <small v-if="errors.cuenta_origen_id" class="text-red-500">{{ errors.cuenta_origen_id }}</small>
             </div>
 
@@ -497,37 +497,16 @@ const handleSubmit = async () => {
     isLoading.value = true;
     
     try {
-        const paymentData = {
-            monto: formData.value.monto,
+        // Usar la nueva función de registro de pago de periodo
+        await accountsStore.registrarPagoPeriodoTarjeta({
+            cuenta_tarjeta_id: props.creditCardId,
+            monto_pago: formData.value.monto,
             categoria_id: formData.value.categoria_id,
-            fecha_ocurrencia: formData.value.fecha_ocurrencia instanceof Date 
-                ? formData.value.fecha_ocurrencia.toISOString().split('T')[0]
-                : formData.value.fecha_ocurrencia,
+            fecha_pago: formData.value.fecha_ocurrencia,
             descripcion: formData.value.descripcion || `Pago de tarjeta ${creditCard.value?.nombre}`,
-            metadatos: {
-                tipo_pago: paymentType.value
-            }
-        };
-        
-        if (paymentType.value === 'transfer') {
-            // Crear como transferencia desde cuenta origen a tarjeta de crédito
-            const transferData = {
-                cuenta_origen_id: formData.value.cuenta_origen_id,
-                cuenta_destino_id: props.creditCardId,
-                ...paymentData
-            };
-            
-            await transactionsStore.createTransferencia(transferData, { toast });
-        } else {
-            // Crear como ingreso directo a la tarjeta de crédito
-            const ingresoData = {
-                cuenta_id: props.creditCardId,
-                nivel_id: null, // Los pagos de tarjeta no necesitan nivel
-                ...paymentData
-            };
-            
-            await transactionsStore.createIngreso(ingresoData, { toast });
-        }
+            tipo_pago: paymentType.value,
+            cuenta_origen_id: paymentType.value === 'transfer' ? formData.value.cuenta_origen_id : null
+        }, { toast });
         
         // Refrescar cuentas
         await accountsStore.fetchAccountsWithDetails({ toast, force: true });
@@ -559,14 +538,9 @@ const calcularGastosPeriodo = async () => {
     if (!creditCard.value) return;
     
     try {
-        // Obtener gastos del periodo actual
-        const gastos = await accountsStore.calcularGastosPeriodoActual(
-            creditCard.value.id,
-            creditCard.value.dia_corte,
-            creditCard.value.dia_pago
-        );
-        
-        gastosPeriodoActual.value = gastos || 0;
+        // Obtener resumen completo de periodos
+        const resumen = await accountsStore.obtenerResumenPeriodosTarjeta(creditCard.value.id);
+        gastosPeriodoActual.value = resumen?.periodo_actual?.total || 0;
     } catch (error) {
         console.error('Error calculando gastos del periodo:', error);
         gastosPeriodoActual.value = 0;

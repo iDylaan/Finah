@@ -1577,3 +1577,496 @@ CREATE TABLE historial_saldos (
 -- Índices
 CREATE INDEX ON historial_saldos(cuenta_id, fecha DESC);
 CREATE INDEX ON historial_saldos(fecha DESC);
+
+
+-- ==================================================================
+-- FUNCIONES PARA GESTIÓN DE PERIODOS DE TARJETA DE CRÉDITO
+-- ==================================================================
+-- Este archivo contiene funciones para:
+-- 1. Calcular fechas de periodo actual y siguiente
+-- 2. Obtener gastos y MSI por periodo
+-- 3. Registrar pagos que descuenten del periodo actual
+-- ==================================================================
+
+-- ==================================================================
+-- 1) Función para calcular fechas de periodo de tarjeta
+-- ==================================================================
+DROP FUNCTION IF EXISTS calcular_fechas_periodo_tarjeta(INTEGER, INTEGER, DATE);
+CREATE OR REPLACE FUNCTION calcular_fechas_periodo_tarjeta(
+    p_dia_corte INTEGER,
+    p_dia_pago INTEGER,
+    p_fecha_referencia DATE DEFAULT CURRENT_DATE
+)
+RETURNS TABLE (
+    periodo_actual_inicio DATE,
+    periodo_actual_fin DATE,
+    periodo_siguiente_inicio DATE,
+    periodo_siguiente_fin DATE,
+    fecha_corte_actual DATE,
+    fecha_pago_actual DATE,
+    fecha_corte_siguiente DATE,
+    fecha_pago_siguiente DATE
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_fecha_corte_actual DATE;
+    v_fecha_pago_actual DATE;
+    v_fecha_corte_anterior DATE;
+    v_fecha_corte_siguiente DATE;
+    v_fecha_pago_siguiente DATE;
+BEGIN
+    -- Calcular fecha de corte del mes actual
+    v_fecha_corte_actual := DATE_TRUNC('month', p_fecha_referencia)::DATE + (p_dia_corte - 1);
+    
+    -- Si la fecha de referencia es mayor al día de corte, el corte actual ya pasó
+    IF p_fecha_referencia > v_fecha_corte_actual THEN
+        -- El corte actual es el del próximo mes
+        v_fecha_corte_actual := (DATE_TRUNC('month', v_fecha_corte_actual) + INTERVAL '1 month')::DATE + (p_dia_corte - 1);
+    END IF;
+    
+    -- Calcular corte anterior (inicio del periodo actual)
+    v_fecha_corte_anterior := (DATE_TRUNC('month', v_fecha_corte_actual) - INTERVAL '1 month')::DATE + (p_dia_corte - 1);
+    
+    -- Calcular corte siguiente
+    v_fecha_corte_siguiente := (DATE_TRUNC('month', v_fecha_corte_actual) + INTERVAL '1 month')::DATE + (p_dia_corte - 1);
+    
+    -- Calcular fecha de pago actual (días después del corte)
+    v_fecha_pago_actual := v_fecha_corte_actual + p_dia_pago;
+    
+    -- Calcular fecha de pago siguiente
+    v_fecha_pago_siguiente := v_fecha_corte_siguiente + p_dia_pago;
+    
+    -- Retornar todas las fechas
+    RETURN QUERY
+    SELECT 
+        v_fecha_corte_anterior + 1 AS periodo_actual_inicio,
+        v_fecha_corte_actual AS periodo_actual_fin,
+        v_fecha_corte_actual + 1 AS periodo_siguiente_inicio,
+        v_fecha_corte_siguiente AS periodo_siguiente_fin,
+        v_fecha_corte_actual AS fecha_corte_actual,
+        v_fecha_pago_actual AS fecha_pago_actual,
+        v_fecha_corte_siguiente AS fecha_corte_siguiente,
+        v_fecha_pago_siguiente AS fecha_pago_siguiente;
+END;
+$$;
+
+COMMENT ON FUNCTION calcular_fechas_periodo_tarjeta IS 'Calcula las fechas de inicio y fin del periodo actual y siguiente de una tarjeta de crédito';
+
+
+-- ==================================================================
+-- 2) Función para obtener gastos del periodo (actual o siguiente)
+-- ==================================================================
+DROP FUNCTION IF EXISTS obtener_gastos_periodo_tarjeta(UUID, DATE, DATE);
+CREATE OR REPLACE FUNCTION obtener_gastos_periodo_tarjeta(
+    p_cuenta_id UUID,
+    p_fecha_inicio DATE,
+    p_fecha_fin DATE
+)
+RETURNS TABLE (
+    total_gastos_normales NUMERIC,
+    total_cuotas_msi NUMERIC,
+    total_periodo NUMERIC,
+    cuotas_msi JSONB
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+SET row_security = OFF
+AS $$
+DECLARE
+    v_gastos_normales NUMERIC := 0;
+    v_cuotas_msi NUMERIC := 0;
+    v_cuotas_detalle JSONB;
+BEGIN
+    -- 1. Obtener gastos normales del periodo
+    SELECT COALESCE(SUM(monto), 0)
+    INTO v_gastos_normales
+    FROM transacciones
+    WHERE cuenta_id = p_cuenta_id
+        AND tipo = 'gasto'
+        AND fecha_ocurrencia >= p_fecha_inicio
+        AND fecha_ocurrencia <= p_fecha_fin
+        AND (metadatos->>'msi_id') IS NULL -- Excluir gastos que fueron convertidos a MSI
+        AND COALESCE((metadatos->>'pagado_en_periodo')::BOOLEAN, FALSE) = FALSE -- Solo gastos NO pagados
+        AND deleted_at IS NULL;
+    
+    -- 2. Obtener cuotas MSI del periodo
+    SELECT 
+        COALESCE(SUM(e.monto_programado), 0),
+        COALESCE(
+            JSONB_AGG(
+                JSONB_BUILD_OBJECT(
+                    'id', e.id,
+                    'msi_id', tp.id,
+                    'msi_nombre', tp.nombre,
+                    'monto', e.monto_programado,
+                    'fecha_programada', e.fecha_programada,
+                    'numero_cuota', e.numero_cuota,
+                    'estado', e.estado
+                )
+            ) FILTER (WHERE e.id IS NOT NULL),
+            '[]'::JSONB
+        )
+    INTO v_cuotas_msi, v_cuotas_detalle
+    FROM ejecuciones_transacciones_periodicas e
+    INNER JOIN transacciones_periodicas tp ON e.transaccion_periodica_id = tp.id
+    WHERE tp.cuenta_id = p_cuenta_id
+        AND tp.es_msi = TRUE
+        AND tp.activa = TRUE
+        AND e.fecha_programada >= p_fecha_inicio
+        AND e.fecha_programada <= p_fecha_fin
+        AND e.estado IN ('pendiente', 'confirmada'); -- Solo las que no han sido pagadas
+    
+    -- 3. Retornar resultados
+    RETURN QUERY
+    SELECT 
+        v_gastos_normales,
+        v_cuotas_msi,
+        v_gastos_normales + v_cuotas_msi AS total,
+        v_cuotas_detalle;
+END;
+$$;
+
+COMMENT ON FUNCTION obtener_gastos_periodo_tarjeta IS 'Obtiene el total de gastos pendientes (normales + MSI) de un periodo específico de tarjeta de crédito. Solo cuenta gastos no pagados y cuotas MSI pendientes.';
+
+
+-- ==================================================================
+-- 3) Función para registrar pago de periodo de tarjeta
+-- ==================================================================
+DROP FUNCTION IF EXISTS registrar_pago_periodo_tarjeta(UUID, NUMERIC, UUID, DATE, TEXT, TEXT, UUID);
+CREATE OR REPLACE FUNCTION registrar_pago_periodo_tarjeta(
+    p_cuenta_tarjeta_id UUID,
+    p_monto_pago NUMERIC,
+    p_categoria_id UUID,
+    p_fecha_pago DATE,
+    p_descripcion TEXT DEFAULT NULL,
+    p_tipo_pago TEXT DEFAULT 'manual', -- 'manual' o 'transfer'
+    p_cuenta_origen_id UUID DEFAULT NULL -- Solo si es transferencia
+)
+RETURNS UUID -- Retorna el ID de la transacción creada
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+SET row_security = OFF
+AS $$
+DECLARE
+    v_usuario_id UUID;
+    v_transaccion_id UUID;
+    v_cuenta_tarjeta RECORD;
+    v_fechas_periodo RECORD;
+    v_monto_restante NUMERIC;
+    v_cuota RECORD;
+    v_monto_a_pagar_cuota NUMERIC;
+BEGIN
+    -- Obtener usuario en sesión
+    v_usuario_id := auth.uid();
+    
+    IF v_usuario_id IS NULL THEN
+        RAISE EXCEPTION 'Usuario no autenticado';
+    END IF;
+    
+    -- Validar que la cuenta existe y es una tarjeta de crédito
+    SELECT * INTO v_cuenta_tarjeta
+    FROM cuentas
+    WHERE id = p_cuenta_tarjeta_id
+        AND creada_por = v_usuario_id
+        AND tipo = 'credit_card'
+        AND deleted_at IS NULL;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Tarjeta de crédito no encontrada o no autorizada';
+    END IF;
+    
+    -- Validar monto
+    IF p_monto_pago <= 0 THEN
+        RAISE EXCEPTION 'El monto del pago debe ser mayor a 0';
+    END IF;
+    
+    -- Obtener fechas del periodo actual
+    SELECT * INTO v_fechas_periodo
+    FROM calcular_fechas_periodo_tarjeta(
+        v_cuenta_tarjeta.dia_corte,
+        v_cuenta_tarjeta.dia_pago,
+        p_fecha_pago
+    );
+    
+    -- Crear la transacción de pago (ingreso a la tarjeta)
+    INSERT INTO transacciones (
+        usuario_id,
+        cuenta_id,
+        tipo,
+        monto,
+        fecha_ocurrencia,
+        categoria_id,
+        descripcion,
+        metadatos
+    ) VALUES (
+        v_usuario_id,
+        p_cuenta_tarjeta_id,
+        'ingreso',
+        p_monto_pago,
+        p_fecha_pago,
+        p_categoria_id,
+        COALESCE(p_descripcion, 'Pago de tarjeta ' || v_cuenta_tarjeta.nombre),
+        JSONB_BUILD_OBJECT(
+            'tipo_pago', p_tipo_pago,
+            'periodo_inicio', v_fechas_periodo.periodo_actual_inicio,
+            'periodo_fin', v_fechas_periodo.periodo_actual_fin,
+            'es_pago_periodo', TRUE
+        )
+    ) RETURNING id INTO v_transaccion_id;
+    
+    -- Si es transferencia, crear el egreso en la cuenta origen
+    IF p_tipo_pago = 'transfer' AND p_cuenta_origen_id IS NOT NULL THEN
+        -- Validar que la cuenta origen existe
+        IF NOT EXISTS (
+            SELECT 1 FROM cuentas 
+            WHERE id = p_cuenta_origen_id 
+                AND creada_por = v_usuario_id 
+                AND deleted_at IS NULL
+        ) THEN
+            RAISE EXCEPTION 'Cuenta de origen no encontrada o no autorizada';
+        END IF;
+        
+        -- Crear egreso en cuenta origen
+        INSERT INTO transacciones (
+            usuario_id,
+            cuenta_id,
+            tipo,
+            monto,
+            fecha_ocurrencia,
+            categoria_id,
+            descripcion,
+            metadatos
+        ) VALUES (
+            v_usuario_id,
+            p_cuenta_origen_id,
+            'gasto',
+            p_monto_pago,
+            p_fecha_pago,
+            p_categoria_id,
+            'Pago de tarjeta ' || v_cuenta_tarjeta.nombre,
+            JSONB_BUILD_OBJECT(
+                'es_transferencia', TRUE,
+                'cuenta_destino_id', p_cuenta_tarjeta_id,
+                'transaccion_relacionada_id', v_transaccion_id
+            )
+        );
+        
+        -- Actualizar saldo de cuenta origen
+        UPDATE cuentas
+        SET saldo = saldo - p_monto_pago,
+            fecha_actualizacion = NOW()
+        WHERE id = p_cuenta_origen_id;
+    END IF;
+    
+    -- Actualizar crédito disponible de la tarjeta
+    UPDATE cuentas
+    SET credito_disponible = LEAST(
+            credito_disponible + p_monto_pago,
+            limite_credito
+        ),
+        fecha_actualizacion = NOW()
+    WHERE id = p_cuenta_tarjeta_id;
+    
+    -- ========================================
+    -- DISTRIBUCIÓN DEL PAGO
+    -- ========================================
+    -- 1. Primero marcar gastos normales del periodo como pagados
+    -- 2. Luego marcar cuotas MSI del periodo como pagadas
+    -- Solo se consideran transacciones del periodo actual
+    
+    v_monto_restante := p_monto_pago;
+    
+    -- PASO 1: Marcar gastos normales del periodo como pagados
+    FOR v_cuota IN (
+        SELECT 
+            id,
+            monto
+        FROM transacciones
+        WHERE cuenta_id = p_cuenta_tarjeta_id
+            AND tipo = 'gasto'
+            AND fecha_ocurrencia >= v_fechas_periodo.periodo_actual_inicio
+            AND fecha_ocurrencia <= v_fechas_periodo.periodo_actual_fin
+            AND (metadatos->>'msi_id') IS NULL -- Solo gastos normales
+            AND COALESCE((metadatos->>'pagado_en_periodo')::BOOLEAN, FALSE) = FALSE -- No pagados aún
+            AND deleted_at IS NULL
+        ORDER BY fecha_ocurrencia ASC
+    ) LOOP
+        -- Si aún hay monto disponible, marcar el gasto como pagado
+        IF v_monto_restante >= v_cuota.monto THEN
+            -- Marcar gasto como pagado en este periodo
+            UPDATE transacciones
+            SET 
+                metadatos = COALESCE(metadatos, '{}'::JSONB) || 
+                    JSONB_BUILD_OBJECT(
+                        'pagado_en_periodo', TRUE,
+                        'periodo_pago_inicio', v_fechas_periodo.periodo_actual_inicio,
+                        'periodo_pago_fin', v_fechas_periodo.periodo_actual_fin,
+                        'pago_transaccion_id', v_transaccion_id,
+                        'fecha_pago', p_fecha_pago
+                    ),
+                fecha_actualizacion = NOW()
+            WHERE id = v_cuota.id;
+            
+            -- Descontar del monto restante
+            v_monto_restante := v_monto_restante - v_cuota.monto;
+        ELSE
+            -- No hay suficiente monto para cubrir este gasto
+            EXIT;
+        END IF;
+    END LOOP;
+    
+    -- PASO 2: Marcar cuotas MSI del periodo como pagadas
+    FOR v_cuota IN (
+        SELECT 
+            e.id,
+            e.monto_programado,
+            e.transaccion_periodica_id,
+            tp.meses_pagados,
+            tp.numero_meses_total
+        FROM ejecuciones_transacciones_periodicas e
+        INNER JOIN transacciones_periodicas tp ON e.transaccion_periodica_id = tp.id
+        WHERE tp.cuenta_id = p_cuenta_tarjeta_id
+            AND tp.es_msi = TRUE
+            AND tp.activa = TRUE
+            AND e.fecha_programada >= v_fechas_periodo.periodo_actual_inicio
+            AND e.fecha_programada <= v_fechas_periodo.periodo_actual_fin
+            AND e.estado IN ('pendiente', 'confirmada')
+        ORDER BY e.fecha_programada ASC, e.numero_cuota ASC
+    ) LOOP
+        -- Si aún hay monto disponible, marcar la cuota como pagada
+        IF v_monto_restante >= v_cuota.monto_programado THEN
+            -- Marcar la cuota como ejecutada
+            UPDATE ejecuciones_transacciones_periodicas
+            SET 
+                estado = 'ejecutada',
+                fecha_ejecutada = NOW(),
+                monto_ejecutado = v_cuota.monto_programado,
+                notas = COALESCE(notas, '') || ' Pagado con transacción ' || v_transaccion_id
+            WHERE id = v_cuota.id;
+            
+            -- Incrementar meses pagados del MSI
+            UPDATE transacciones_periodicas
+            SET meses_pagados = meses_pagados + 1,
+                updated_at = NOW()
+            WHERE id = v_cuota.transaccion_periodica_id;
+            
+            -- Descontar del monto restante
+            v_monto_restante := v_monto_restante - v_cuota.monto_programado;
+            
+            -- Si ya se pagó completamente el MSI, marcarlo como inactivo
+            IF (v_cuota.meses_pagados + 1) >= v_cuota.numero_meses_total THEN
+                UPDATE transacciones_periodicas
+                SET activa = FALSE,
+                    updated_at = NOW()
+                WHERE id = v_cuota.transaccion_periodica_id;
+            END IF;
+        ELSE
+            -- No hay suficiente monto para cubrir esta cuota
+            EXIT;
+        END IF;
+    END LOOP;
+    
+    RETURN v_transaccion_id;
+END;
+$$;
+
+COMMENT ON FUNCTION registrar_pago_periodo_tarjeta IS 'Registra un pago de tarjeta de crédito por periodo. Distribuye el pago primero a gastos normales, luego a cuotas MSI. Marca transacciones como pagadas solo para el periodo actual, actualizando metadatos con información del pago.';
+
+
+-- ==================================================================
+-- 4) Función auxiliar para obtener resumen completo de periodos
+-- ==================================================================
+DROP FUNCTION IF EXISTS obtener_resumen_periodos_tarjeta(UUID);
+CREATE OR REPLACE FUNCTION obtener_resumen_periodos_tarjeta(
+    p_cuenta_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+SET row_security = OFF
+AS $$
+DECLARE
+    v_cuenta RECORD;
+    v_fechas RECORD;
+    v_periodo_actual RECORD;
+    v_periodo_siguiente RECORD;
+    v_resultado JSONB;
+BEGIN
+    -- Obtener información de la cuenta
+    SELECT * INTO v_cuenta
+    FROM cuentas
+    WHERE id = p_cuenta_id;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Cuenta no encontrada';
+    END IF;
+    
+    -- Obtener fechas de periodos
+    SELECT * INTO v_fechas
+    FROM calcular_fechas_periodo_tarjeta(
+        v_cuenta.dia_corte,
+        v_cuenta.dia_pago,
+        CURRENT_DATE
+    );
+    
+    -- Obtener gastos del periodo actual
+    SELECT * INTO v_periodo_actual
+    FROM obtener_gastos_periodo_tarjeta(
+        p_cuenta_id,
+        v_fechas.periodo_actual_inicio,
+        v_fechas.periodo_actual_fin
+    );
+    
+    -- Obtener gastos del periodo siguiente
+    SELECT * INTO v_periodo_siguiente
+    FROM obtener_gastos_periodo_tarjeta(
+        p_cuenta_id,
+        v_fechas.periodo_siguiente_inicio,
+        v_fechas.periodo_siguiente_fin
+    );
+    
+    -- Construir JSON de respuesta
+    v_resultado := JSONB_BUILD_OBJECT(
+        'cuenta_id', p_cuenta_id,
+        'limite_credito', v_cuenta.limite_credito,
+        'credito_disponible', v_cuenta.credito_disponible,
+        'credito_utilizado', v_cuenta.limite_credito - v_cuenta.credito_disponible,
+        'fechas', JSONB_BUILD_OBJECT(
+            'periodo_actual', JSONB_BUILD_OBJECT(
+                'inicio', v_fechas.periodo_actual_inicio,
+                'fin', v_fechas.periodo_actual_fin,
+                'fecha_corte', v_fechas.fecha_corte_actual,
+                'fecha_pago', v_fechas.fecha_pago_actual
+            ),
+            'periodo_siguiente', JSONB_BUILD_OBJECT(
+                'inicio', v_fechas.periodo_siguiente_inicio,
+                'fin', v_fechas.periodo_siguiente_fin,
+                'fecha_corte', v_fechas.fecha_corte_siguiente,
+                'fecha_pago', v_fechas.fecha_pago_siguiente
+            )
+        ),
+        'periodo_actual', JSONB_BUILD_OBJECT(
+            'gastos_normales', v_periodo_actual.total_gastos_normales,
+            'cuotas_msi', v_periodo_actual.total_cuotas_msi,
+            'total', v_periodo_actual.total_periodo,
+            'cuotas_detalle', v_periodo_actual.cuotas_msi
+        ),
+        'periodo_siguiente', JSONB_BUILD_OBJECT(
+            'gastos_normales', v_periodo_siguiente.total_gastos_normales,
+            'cuotas_msi', v_periodo_siguiente.total_cuotas_msi,
+            'total', v_periodo_siguiente.total_periodo,
+            'cuotas_detalle', v_periodo_siguiente.cuotas_msi
+        )
+    );
+    
+    RETURN v_resultado;
+END;
+$$;
+
+COMMENT ON FUNCTION obtener_resumen_periodos_tarjeta IS 'Obtiene un resumen completo de los periodos actual y siguiente de una tarjeta de crédito, incluyendo gastos normales y cuotas MSI';

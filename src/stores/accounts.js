@@ -632,6 +632,92 @@ export const useAccountsStore = defineStore('accounts', () => {
             }));
     });
 
+    /**
+     * Obtiene el resumen completo de periodos de una tarjeta de crédito
+     * @param {string} cuentaId - ID de la cuenta (tarjeta de crédito)
+     * @returns {Object} - Resumen con periodo actual y siguiente
+     */
+    const obtenerResumenPeriodosTarjeta = async (cuentaId) => {
+        try {
+            const { data, error } = await supabase
+                .rpc('obtener_resumen_periodos_tarjeta', {
+                    p_cuenta_id: cuentaId
+                });
+            
+            if (error) {
+                console.error('Error obteniendo resumen de periodos:', error);
+                throw error;
+            }
+            
+            console.log('📊 Resumen de periodos:', data);
+            return data;
+        } catch (error) {
+            console.error('Error en obtenerResumenPeriodosTarjeta:', error);
+            throw error;
+        }
+    };
+
+    /**
+     * Registra un pago de periodo de tarjeta de crédito
+     * Marca las cuotas MSI como pagadas y actualiza el crédito disponible
+     * @param {Object} pagoData - Datos del pago
+     * @param {string} pagoData.cuenta_tarjeta_id - ID de la tarjeta
+     * @param {number} pagoData.monto_pago - Monto del pago
+     * @param {string} pagoData.categoria_id - ID de la categoría
+     * @param {Date|string} pagoData.fecha_pago - Fecha del pago
+     * @param {string} pagoData.descripcion - Descripción opcional
+     * @param {string} pagoData.tipo_pago - 'manual' o 'transfer'
+     * @param {string} pagoData.cuenta_origen_id - ID de cuenta origen (si es transferencia)
+     * @returns {string} - ID de la transacción creada
+     */
+    const registrarPagoPeriodoTarjeta = async (pagoData, { toast } = {}) => {
+        try {
+            const fecha = pagoData.fecha_pago instanceof Date
+                ? pagoData.fecha_pago.toISOString().split('T')[0]
+                : pagoData.fecha_pago;
+            
+            const params = {
+                p_cuenta_tarjeta_id: pagoData.cuenta_tarjeta_id,
+                p_monto_pago: pagoData.monto_pago,
+                p_categoria_id: pagoData.categoria_id,
+                p_fecha_pago: fecha,
+                p_descripcion: pagoData.descripcion || null,
+                p_tipo_pago: pagoData.tipo_pago || 'manual',
+                p_cuenta_origen_id: pagoData.cuenta_origen_id || null
+            };
+            
+            console.log('📤 Parámetros enviados a registrar_pago_periodo_tarjeta:', params);
+            
+            const { data, error } = await supabase
+                .rpc('registrar_pago_periodo_tarjeta', params);
+            
+            if (error) {
+                console.error('Error registrando pago de periodo:', error);
+                handleError(error, { toast });
+                throw error;
+            }
+            
+            console.log('✅ Pago de periodo registrado:', data);
+            
+            if (toast) {
+                toast.add({
+                    severity: 'success',
+                    summary: 'Pago Registrado',
+                    detail: `Se registró el pago de ${new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(pagoData.monto_pago)}`,
+                    life: 3000
+                });
+            }
+            
+            // Refrescar cuentas
+            await fetchAccountsWithDetails({ toast, force: true });
+            
+            return data;
+        } catch (error) {
+            console.error('Error en registrarPagoPeriodoTarjeta:', error);
+            throw error;
+        }
+    };
+
     return {
         // Estados
         accounts,
@@ -656,6 +742,8 @@ export const useAccountsStore = defineStore('accounts', () => {
         obtenerTransaccionesPeriodo,
         calcularGastosPeriodoActual,
         obtenerInfoTarjetaCredito,
-        tarjetasConInfo
+        tarjetasConInfo,
+        obtenerResumenPeriodosTarjeta,
+        registrarPagoPeriodoTarjeta
     }
 })

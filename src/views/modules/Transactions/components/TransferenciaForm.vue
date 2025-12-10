@@ -3,7 +3,7 @@
         <!-- Cuenta Origen -->
         <div class="flex flex-col gap-2">
             <label for="cuenta_origen" class="font-semibold text-sm">Cuenta Origen *</label>
-            <Dropdown 
+            <Select 
                 id="cuenta_origen"
                 v-model="formData.cuenta_origen_id" 
                 :options="cuentas" 
@@ -55,14 +55,14 @@
                         </div>
                     </div>
                 </template>
-            </Dropdown>
+            </Select>
             <small v-if="errors.cuenta_origen_id" class="text-red-500">{{ errors.cuenta_origen_id }}</small>
         </div>
 
         <!-- Cuenta Destino -->
         <div class="flex flex-col gap-2">
             <label for="cuenta_destino" class="font-semibold text-sm">Cuenta Destino *</label>
-            <Dropdown 
+            <Select 
                 id="cuenta_destino"
                 v-model="formData.cuenta_destino_id" 
                 :options="cuentasDestino" 
@@ -109,7 +109,7 @@
                         </div>
                     </div>
                 </template>
-            </Dropdown>
+            </Select>
             <small v-if="errors.cuenta_destino_id" class="text-red-500">{{ errors.cuenta_destino_id }}</small>
         </div>
 
