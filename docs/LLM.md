@@ -858,8 +858,598 @@ const calcularGastosPeriodoActual = async (cuentaId) => {
 - Usar `CASCADE` en todos los `DROP` para evitar errores de dependencias
 - Mantener `sql/ROLLBACK_Y_RECREACION.md` actualizado con cualquier cambio estructural
 
+### Sistema de Periodos de Pago de Tarjetas de Crédito (Diciembre 2024)
+
+#### Arquitectura General
+
+El sistema gestiona los periodos de pago de tarjetas de crédito de forma **completamente automática** mediante triggers de base de datos, permitiendo:
+- **Saldo variable del periodo actual**: Se actualiza automáticamente con cada gasto, pago o MSI
+- Ver saldo en tiempo real (gastos entre corte anterior y corte actual)
+- Proyectar saldo del siguiente periodo (gastos futuros ya registrados)
+- Registrar pagos que descuentan del `saldo_periodo_actual`
+- Marcar automáticamente gastos y cuotas MSI como pagados
+- Mantener separación estricta entre periodos
+
+#### Campo `saldo_periodo_actual` en Tabla `cuentas`
+
+**Definición**:
+```sql
+saldo_periodo_actual NUMERIC(14,2) DEFAULT 0
+```
+
+**Comportamiento**:
+- **En fecha de corte**: Se recalcula sumando todos los gastos + MSI pendientes del nuevo periodo
+- **Al registrar gasto**: Aumenta automáticamente con el monto del gasto (vía trigger)
+- **Al crear MSI**: Aumenta con las cuotas que caen en el periodo actual (vía trigger)
+- **Al registrar pago**: Disminuye según el monto pagado
+- **Ventaja**: Un solo valor numérico actualizado en tiempo real, no requiere cálculos complejos
+
+**Triggers que lo actualizan automáticamente**:
+
+1. **`trigger_actualizar_saldo_periodo`** (en `transacciones`):
+   ```sql
+   CREATE TRIGGER trigger_actualizar_saldo_periodo
+       AFTER INSERT ON transacciones
+       FOR EACH ROW
+       EXECUTE FUNCTION actualizar_saldo_periodo_gasto();
+   ```
+   - Se ejecuta cuando se inserta un gasto
+   - Solo aplica si:
+     * `NEW.tipo = 'gasto'`
+     * Cuenta es `credit_card` con `dia_corte` configurado
+     * Fecha del gasto cae dentro del periodo actual
+   - **Acción**: `UPDATE cuentas SET saldo_periodo_actual = saldo_periodo_actual + NEW.monto`
+
+2. **`trigger_actualizar_saldo_periodo_ejecucion`** (en `ejecuciones_transacciones_periodicas`):
+   ```sql
+   CREATE TRIGGER trigger_actualizar_saldo_periodo_ejecucion
+       AFTER INSERT ON ejecuciones_transacciones_periodicas
+       FOR EACH ROW
+       EXECUTE FUNCTION actualizar_saldo_periodo_ejecucion_msi();
+   ```
+   - Se ejecuta cuando se crea una ejecución de MSI
+   - Solo aplica si:
+     * La transacción periódica tiene `es_msi = TRUE`
+     * La cuenta es `credit_card` con `dia_corte`
+     * `fecha_programada` cae dentro del periodo actual
+     * `estado IN ('pendiente', 'confirmada')`
+   - **Acción**: `UPDATE cuentas SET saldo_periodo_actual = saldo_periodo_actual + NEW.monto_programado`
+
+**Script de inicialización** (ejecutar una sola vez al migrar):
+```sql
+-- Inicializar saldo_periodo_actual para tarjetas existentes
+DO $$
+DECLARE
+    v_tarjeta RECORD;
+    v_fechas RECORD;
+    v_gastos_periodo NUMERIC;
+    v_msi_periodo NUMERIC;
+    v_total_periodo NUMERIC;
+BEGIN
+    FOR v_tarjeta IN 
+        SELECT id, nombre, dia_corte, dia_pago 
+        FROM cuentas 
+        WHERE tipo = 'credit_card' AND dia_corte IS NOT NULL
+    LOOP
+        -- Calcular fechas del periodo actual
+        SELECT * INTO v_fechas
+        FROM calcular_fechas_periodo_tarjeta(
+            v_tarjeta.dia_corte, v_tarjeta.dia_pago, CURRENT_DATE
+        );
+        
+        -- Sumar gastos directos del periodo
+        SELECT COALESCE(SUM(monto), 0) INTO v_gastos_periodo
+        FROM transacciones
+        WHERE cuenta_id = v_tarjeta.id
+            AND tipo = 'gasto'
+            AND fecha_ocurrencia >= v_fechas.periodo_actual_inicio
+            AND fecha_ocurrencia <= v_fechas.periodo_actual_fin
+            AND deleted_at IS NULL;
+        
+        -- Sumar cuotas MSI del periodo
+        SELECT COALESCE(SUM(e.monto_programado), 0) INTO v_msi_periodo
+        FROM ejecuciones_transacciones_periodicas e
+        INNER JOIN transacciones_periodicas tp ON e.transaccion_periodica_id = tp.id
+        WHERE tp.cuenta_id = v_tarjeta.id
+            AND tp.es_msi = TRUE
+            AND e.fecha_programada >= v_fechas.periodo_actual_inicio
+            AND e.fecha_programada <= v_fechas.periodo_actual_fin
+            AND e.estado IN ('pendiente', 'confirmada');
+        
+        -- Actualizar saldo_periodo_actual
+        v_total_periodo := v_gastos_periodo + v_msi_periodo;
+        UPDATE cuentas SET saldo_periodo_actual = v_total_periodo
+        WHERE id = v_tarjeta.id;
+        
+        RAISE NOTICE 'Tarjeta %: Gastos=$% + MSI=$% = Total=$%', 
+            v_tarjeta.nombre, v_gastos_periodo, v_msi_periodo, v_total_periodo;
+    END LOOP;
+END $$;
+```
+
+**Importante**: Este script solo se ejecuta **una vez** al migrar a la nueva arquitectura. Los triggers se encargan de mantener el saldo actualizado automáticamente a partir de ese momento.
+
+#### Funciones SQL del Sistema
+
+**1. `calcular_fechas_periodo_tarjeta(dia_corte, dia_pago, fecha_referencia)`**
+- **Propósito**: Calcular todas las fechas relevantes de dos periodos consecutivos
+- **Parámetros**:
+  - `dia_corte INTEGER`: Día del mes de corte (1-31)
+  - `dia_pago INTEGER`: Días después del corte para pagar (ej: 20)
+  - `fecha_referencia DATE`: Fecha base (DEFAULT: hoy)
+- **Retorna TABLE**:
+  ```sql
+  periodo_actual_inicio DATE,      -- Inicio del periodo (corte anterior + 1 día)
+  periodo_actual_fin DATE,         -- Fin del periodo (próximo corte)
+  periodo_siguiente_inicio DATE,   -- Inicio siguiente periodo
+  periodo_siguiente_fin DATE,      -- Fin siguiente periodo
+  fecha_corte_actual DATE,         -- Fecha de corte actual
+  fecha_pago_actual DATE,          -- Fecha límite de pago
+  fecha_corte_siguiente DATE,      -- Próximo corte
+  fecha_pago_siguiente DATE        -- Próximo pago
+  ```
+- **Lógica**:
+  - Si fecha_referencia > día_corte del mes → el corte ya pasó, usar mes siguiente
+  - Calcula corte anterior restando 1 mes
+  - Periodo actual = [corte_anterior + 1, corte_actual]
+  - Periodo siguiente = [corte_actual + 1, corte_siguiente]
+  - Fecha de pago = fecha_corte + dias_pago
+
+**2. `obtener_gastos_periodo_tarjeta(cuenta_id, fecha_inicio, fecha_fin)`**
+- **Propósito**: Obtener el total de gastos pendientes de un periodo específico
+- **Parámetros**:
+  - `cuenta_id UUID`: ID de la tarjeta de crédito
+  - `fecha_inicio DATE`: Inicio del periodo
+  - `fecha_fin DATE`: Fin del periodo
+- **Retorna TABLE**:
+  ```sql
+  total_gastos_normales NUMERIC,   -- Suma de gastos NO pagados del periodo
+  total_cuotas_msi NUMERIC,        -- Suma de cuotas MSI pendientes del periodo
+  total_periodo NUMERIC,           -- Total combinado
+  cuotas_msi JSONB                 -- Array con detalle de cada cuota MSI
+  ```
+- **Lógica**:
+  - **Gastos normales**: Solo cuenta gastos con:
+    - `tipo = 'gasto'`
+    - `fecha_ocurrencia` dentro del periodo
+    - `(metadatos->>'msi_id') IS NULL` (no son MSI)
+    - `(metadatos->>'pagado_en_periodo')::BOOLEAN = FALSE` (no pagados)
+    - `deleted_at IS NULL` (activos)
+  - **Cuotas MSI**: Solo cuenta ejecuciones con:
+    - `fecha_programada` dentro del periodo
+    - `estado IN ('pendiente', 'confirmada')` (no ejecutadas)
+    - Obtiene detalle completo en JSONB para mostrar en UI
+
+**3. `registrar_pago_periodo_tarjeta(cuenta_tarjeta_id, monto_pago, categoria_id, fecha_pago, descripcion, tipo_pago, cuenta_origen_id)`**
+- **Propósito**: Registrar un pago de tarjeta y reducir el `saldo_periodo_actual`
+- **Parámetros**:
+  - `cuenta_tarjeta_id UUID`: ID de la tarjeta
+  - `monto_pago NUMERIC`: Cantidad a pagar
+  - `categoria_id UUID`: Categoría del pago
+  - `fecha_pago DATE`: Fecha del pago
+  - `descripcion TEXT`: Descripción (opcional)
+  - `tipo_pago TEXT`: 'manual' o 'transfer'
+  - `cuenta_origen_id UUID`: Si es transferencia, cuenta origen
+- **Retorna**: `UUID` del ID de transacción creado
+- **Lógica completa**:
+
+  1. **Validaciones**:
+     ```sql
+     -- Usuario autenticado
+     v_usuario_id := auth.uid()
+     
+     -- Cuenta existe y pertenece al usuario
+     SELECT * FROM cuentas 
+     WHERE id = cuenta_tarjeta_id 
+       AND creada_por = v_usuario_id
+       AND tipo = 'credit_card'
+       AND deleted_at IS NULL
+     
+     -- Monto válido
+     IF monto_pago <= 0 THEN RAISE EXCEPTION
+     ```
+
+  2. **Crear transacción de pago**:
+     ```sql
+     INSERT INTO transacciones (
+       tipo = 'ingreso',
+       monto = p_monto_pago,
+       cuenta_id = cuenta_tarjeta_id,
+       metadatos = {
+         'tipo_pago': 'manual' o 'transfer',
+         'es_pago_periodo': true
+       }
+     ) RETURNING id
+     ```
+
+  3. **Si es transferencia**: Crear egreso en cuenta origen
+     ```sql
+     INSERT INTO transacciones (
+       tipo = 'gasto',
+       cuenta_id = cuenta_origen_id,
+       metadatos = {
+         'es_transferencia': true,
+         'cuenta_destino_id': cuenta_tarjeta_id,
+         'transaccion_relacionada_id': id_pago
+       }
+     )
+     
+     UPDATE cuentas 
+     SET saldo = saldo - monto_pago
+     WHERE id = cuenta_origen_id
+     ```
+
+  4. **Actualizar crédito disponible**:
+     ```sql
+     UPDATE cuentas
+     SET credito_disponible = LEAST(
+       credito_disponible + monto_pago,
+       limite_credito
+     )
+     WHERE id = cuenta_tarjeta_id
+     ```
+
+  5. **Reducir saldo_periodo_actual**:
+     ```sql
+     UPDATE cuentas
+     SET saldo_periodo_actual = GREATEST(0, saldo_periodo_actual - p_monto_pago),
+         fecha_actualizacion = NOW()
+     WHERE id = p_cuenta_tarjeta_id
+     ```
+     - Usa `GREATEST(0, ...)` para evitar valores negativos
+     - Se actualiza en tiempo real, visible inmediatamente en UI
+
+**4. `obtener_resumen_periodos_tarjeta(cuenta_id)`**
+- **Propósito**: Obtener resumen completo de ambos periodos usando `saldo_periodo_actual`
+- **Parámetros**: `cuenta_id UUID`
+- **Retorna**: `JSONB` con estructura completa
+  ```json
+  {
+    "cuenta_id": "uuid",
+    "limite_credito": 100000.00,
+    "credito_disponible": 95000.00,
+    "credito_utilizado": 5000.00,
+    "saldo_periodo_actual": 3091.00,  // ← Valor directo del campo
+    "fechas": {
+      "periodo_actual": {
+        "inicio": "2025-11-12",
+        "fin": "2025-12-11",
+        "fecha_corte": "2025-12-11",
+        "fecha_pago": "2026-01-01"
+      },
+      "periodo_siguiente": {
+        "inicio": "2025-12-12",
+        "fin": "2026-01-11",
+        "fecha_corte": "2026-01-11",
+        "fecha_pago": "2026-02-01"
+      }
+    },
+    "periodo_actual": {
+      "total": 3091.00,  // ← Toma directamente de cuentas.saldo_periodo_actual
+      "gastos_normales": 1000.00,  // ← Calculado para detalle
+      "cuotas_msi": 2091.00,  // ← Calculado para detalle
+      "cuotas_detalle": [...]
+    },
+    "periodo_siguiente": {
+      "total": 2591.00,  // ← Calculado sumando gastos futuros
+      "gastos_normales": 500.00,
+      "cuotas_msi": 2091.00,
+      "cuotas_detalle": [...]
+    }
+  }
+  ```
+- **Lógica mejorada**:
+  ```sql
+  -- Periodo actual: Usar directamente saldo_periodo_actual
+  periodo_actual := JSONB_BUILD_OBJECT(
+    'total', v_cuenta.saldo_periodo_actual,  -- No necesita cálculo
+    'gastos_normales', v_gastos_periodo.total_gastos_normales,
+    'cuotas_msi', v_gastos_periodo.total_cuotas_msi,
+    'cuotas_detalle', v_gastos_periodo.cuotas_msi
+  );
+  
+  -- Periodo siguiente: Calcular gastos futuros normalmente
+  SELECT * INTO v_gastos_siguiente
+  FROM obtener_gastos_periodo_tarjeta(
+    p_cuenta_id,
+    v_fechas.periodo_siguiente_inicio,
+    v_fechas.periodo_siguiente_fin
+  );
+  ```
+- **Ventaja**: El periodo actual siempre refleja el valor actualizado por triggers, garantizando consistencia
+
+**5. `recalcular_saldo_en_corte(cuenta_id)`**
+- **Propósito**: Recalcular `saldo_periodo_actual` en fecha de corte (ejecutar automáticamente o manualmente)
+- **Cuándo ejecutar**:
+  - Automáticamente cada día de corte (job programado recomendado)
+  - Manualmente al inicio de cada periodo
+- **Lógica**:
+  ```sql
+  -- 1. Calcular nuevo periodo
+  SELECT * INTO v_fechas FROM calcular_fechas_periodo_tarjeta(...)
+  
+  -- 2. Sumar gastos del nuevo periodo
+  SELECT SUM(monto) INTO v_gastos FROM transacciones
+  WHERE ... AND fecha_ocurrencia >= v_fechas.periodo_actual_inicio
+  
+  -- 3. Sumar MSI del nuevo periodo
+  SELECT SUM(monto_programado) INTO v_msi FROM ejecuciones...
+  WHERE ... AND fecha_programada >= v_fechas.periodo_actual_inicio
+  
+  -- 4. Actualizar saldo
+  UPDATE cuentas SET saldo_periodo_actual = v_gastos + v_msi
+  WHERE id = p_cuenta_id
+  ```
+
+#### Componentes de Interfaz
+
+**CreditCardInfo.vue**
+- Muestra información detallada de la tarjeta de crédito
+- **Uso de periodos**:
+  ```javascript
+  const resumenPeriodos = ref(null)
+  
+  const loadCardInfo = async () => {
+    const { data } = await accountsStore.obtenerResumenPeriodosTarjeta(props.account.id)
+    resumenPeriodos.value = data
+  }
+  ```
+- **UI del periodo actual** (caja verde):
+  - Título: "Saldo del periodo actual"
+  - Fechas: `{inicio} - {fin}`
+  - Total adeudado: `${total}`
+  - Detalle:
+    - Gastos normales: `${gastos_normales}`
+    - Cuotas MSI: `${cuotas_msi} ({cuotas_detalle.length} cuotas)`
+- **UI del periodo siguiente** (caja azul):
+  - Solo se muestra si `total > 0`
+  - Título: "Proyección periodo siguiente"
+  - Fechas: `{inicio} - {fin}`
+  - Total proyectado: `${total}`
+  - Nota: "Gastos futuros registrados"
+- **Botón "Realizar Pago"**:
+  - Abre `CreditCardPaymentModal`
+  - Pasa resumen de periodos como prop
+
+**CreditCardPaymentModal.vue**
+- Modal especializado para pagos de tarjetas
+- **Modos**:
+  1. **Manual**: Registra ingreso directo
+  2. **Transferencia**: Mueve dinero desde otra cuenta
+- **Botones de pago rápido**:
+  - Pago Mínimo: `limite * porcentaje_pago_minimo / 100`
+  - Pago Total: Usa `resumenPeriodos.periodo_actual.total`
+  - Personalizado: Usuario ingresa monto
+- **Función de registro**:
+  ```javascript
+  const handleSubmit = async () => {
+    await accountsStore.registrarPagoPeriodoTarjeta({
+      cuenta_tarjeta_id: props.account.id,
+      monto_pago: formData.amount,
+      categoria_id: formData.category,
+      fecha_pago: formData.date,
+      descripcion: formData.description,
+      tipo_pago: paymentMode.value, // 'manual' o 'transfer'
+      cuenta_origen_id: formData.sourceAccount || null
+    })
+  }
+  ```
+
+**Store: accounts.js**
+```javascript
+// Obtener resumen de periodos
+const obtenerResumenPeriodosTarjeta = async (cuentaId) => {
+  const { data, error } = await supabase
+    .rpc('obtener_resumen_periodos_tarjeta', { p_cuenta_id: cuentaId })
+  
+  if (error) throw error
+  return { data }
+}
+
+// Registrar pago de periodo
+const registrarPagoPeriodoTarjeta = async (pagoData) => {
+  const fecha = typeof pagoData.fecha_pago === 'string' 
+    ? pagoData.fecha_pago 
+    : pagoData.fecha_pago.toISOString().split('T')[0]
+  
+  const params = {
+    p_cuenta_tarjeta_id: pagoData.cuenta_tarjeta_id,
+    p_monto_pago: pagoData.monto_pago,
+    p_categoria_id: pagoData.categoria_id,
+    p_fecha_pago: fecha,
+    p_descripcion: pagoData.descripcion || null,
+    p_tipo_pago: pagoData.tipo_pago || 'manual',
+    p_cuenta_origen_id: pagoData.cuenta_origen_id || null
+  }
+  
+  const { data, error } = await supabase
+    .rpc('registrar_pago_periodo_tarjeta', params)
+  
+  if (error) throw error
+  
+  // Refrescar cuentas
+  await fetchAccountsWithDetails({ force: true })
+  
+  return data // UUID de la transacción creada
+}
+```
+
+#### Reglas de Negocio del Sistema
+
+**1. Separación estricta de periodos**:
+- Cada periodo solo considera transacciones dentro de sus fechas
+- Gastos del periodo siguiente NO afectan saldo del periodo actual
+- `saldo_periodo_actual` se recalcula completamente en cada fecha de corte
+
+**2. Actualización automática del saldo**:
+- **Al crear gasto**: Trigger aumenta `saldo_periodo_actual` inmediatamente
+- **Al crear MSI**: Trigger suma solo las cuotas del periodo actual
+- **Al registrar pago**: Función SQL resta del `saldo_periodo_actual`
+- **En fecha de corte**: Función `recalcular_saldo_en_corte()` reinicia el saldo
+- **Ventaja**: No hay necesidad de calcular suma de transacciones cada vez
+
+**3. Orden de actualización del saldo**:
+- Gastos normales y MSI incrementan el saldo en paralelo (no hay orden)
+- Pagos reducen el saldo directamente sin distribuir entre gastos específicos
+- Simplificación vs sistema anterior: No se rastrean gastos individuales pagados
+
+**4. Gastos futuros**:
+- Si registras un gasto con `fecha_ocurrencia` posterior al corte actual
+- El trigger verifica periodo y NO actualiza `saldo_periodo_actual`
+- Se contabiliza automáticamente en el **periodo siguiente**
+- Permite planificar y ver proyección de gastos futuros
+
+**5. Pago parcial**:
+- Si `monto_pago < saldo_periodo_actual`:
+  - Se resta el monto del saldo: `saldo = saldo - monto_pago`
+  - Saldo restante queda pendiente para próximo pago
+- Si `monto_pago >= saldo_periodo_actual`:
+  - Saldo queda en $0.00
+  - Periodo totalmente cubierto
+
+**6. Actualización de crédito disponible**:
+- `credito_disponible` se actualiza inmediatamente con todo el monto pagado
+- Independiente del `saldo_periodo_actual`
+- Fórmula: `LEAST(credito_disponible + monto_pago, limite_credito)`
+- Nunca excede el límite de crédito
+
+**7. Cálculo simplificado vs sistema anterior**:
+- **Antes**: Suma de transacciones + MSI en cada consulta (lento, complejo)
+- **Ahora**: Un solo campo `saldo_periodo_actual` actualizado por triggers (rápido, simple)
+- **Migración**: Script de inicialización ejecuta una sola vez para datos existentes
+
+#### Casos de Uso Comunes
+
+**Caso 1: Pago total del periodo**
+```javascript
+// Usuario ve: Saldo periodo actual = $7,090.94
+// Compuesto de:
+//   - $5,000.00 en gastos normales (5 transacciones)
+//   - $2,090.94 en MSI (1 cuota de iPhone)
+
+// Usuario paga exactamente $7,090.94
+await registrarPagoPeriodoTarjeta({
+  monto_pago: 7090.94,
+  tipo_pago: 'transfer',
+  cuenta_origen_id: 'cuenta-debito-uuid'
+})
+
+// Resultado:
+// - Los 5 gastos marcados con pagado_en_periodo: true
+// - La cuota MSI marcada como ejecutada
+// - Saldo del periodo = $0.00
+// - Crédito disponible aumenta $7,090.94
+```
+
+**Caso 2: Pago parcial (solo gastos normales)**
+```javascript
+// Saldo actual: $7,090.94
+// Usuario solo paga: $5,000.00
+
+await registrarPagoPeriodoTarjeta({
+  monto_pago: 5000.00,
+  tipo_pago: 'manual'
+})
+
+// Resultado:
+// - Los 5 gastos normales marcados como pagados
+// - La cuota MSI sigue pendiente
+// - Próxima consulta mostrará: Saldo = $2,090.94 (solo MSI)
+```
+
+**Caso 3: Gastos en periodo siguiente**
+```javascript
+// Hoy: 9 de diciembre 2025
+// Corte: 11 de diciembre 2025
+
+// Usuario registra gasto para el 15 de diciembre
+await createTransaction({
+  tipo: 'gasto',
+  monto: 1500.00,
+  fecha_ocurrencia: '2025-12-15', // Después del corte
+  cuenta_id: 'tarjeta-uuid'
+})
+
+// Resultado:
+// - Periodo actual (hasta 11 dic): NO cambia
+// - Periodo siguiente (12 dic - 11 ene): Aumenta +$1,500.00
+// - UI muestra proyección en caja azul
+```
+
+**Caso 4: Editar meses pagados de MSI**
+```javascript
+// MSI: iPhone 12 meses, 8 meses pagados
+// Cuota: $2,090.94/mes
+
+// Usuario actualiza a 10 meses pagados
+await updateMSIPaidMonths(msi_id, 10)
+
+// Resultado automático:
+// - Marca cuotas 9 y 10 como 'ejecutada'
+// - Si alguna cuota estaba en periodo actual, ya no aparece en saldo
+// - Solo quedan 2 cuotas futuras (meses 11 y 12)
+```
+
+#### Validaciones y Errores Comunes
+
+**Error: "column usuario_id does not exist"**
+- Causa: Tabla `cuentas` usa `creada_por`, no `usuario_id`
+- Solución: Actualizar función SQL:
+  ```sql
+  WHERE id = p_cuenta_tarjeta_id 
+    AND creada_por = v_usuario_id  -- No usuario_id
+    AND deleted_at IS NULL         -- No activa = TRUE
+  ```
+
+**Error: "column fecha_actualizacion does not exist"**
+- Causa: Tabla `transacciones_periodicas` usa `updated_at`
+- Solución: Usar nombre correcto:
+  ```sql
+  UPDATE transacciones_periodicas
+  SET meses_pagados = meses_pagados + 1,
+      updated_at = NOW()  -- No fecha_actualizacion
+  ```
+
+**Error: NaN en porcentaje de uso de crédito**
+- Causa: `credito_disponible` y `limite_credito` son strings desde Supabase
+- Solución: Parsear con `parseFloat()`:
+  ```javascript
+  const disponible = parseFloat(creditoDisponible) || 0
+  const limite = parseFloat(limiteCredito) || 1
+  ```
+
+**Error: Fecha muestra día incorrecto**
+- Causa: `new Date('2025-12-11')` se interpreta como UTC medianoche
+- Solución: Usar `formatDate()` de `lib/utils.js`:
+  ```javascript
+  import { formatDate } from '@/lib/utils.js'
+  
+  const fechaMostrar = formatDate('2025-12-11', 'largo')
+  // "11 de diciembre de 2025" (correcto)
+  ```
+
+#### Nombres de Columnas Correctos por Tabla
+
+```sql
+-- Tabla: cuentas
+creada_por UUID              -- NO usuario_id
+fecha_actualizacion TIMESTAMPTZ
+deleted_at TIMESTAMPTZ       -- NO activa BOOLEAN
+
+-- Tabla: transacciones_periodicas
+usuario_id UUID
+updated_at TIMESTAMP         -- NO fecha_actualizacion
+activa BOOLEAN               -- Para marcar si sigue vigente
+
+-- Tabla: transacciones
+usuario_id UUID
+fecha_actualizacion TIMESTAMPTZ
+deleted_at TIMESTAMPTZ
+```
+
 ---
 
 **Última actualización**: Diciembre 9, 2025  
 **Rama actual**: dev  
 **Repositorio**: github.com/iDylaan/Finah
+

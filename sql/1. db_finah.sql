@@ -318,6 +318,7 @@ CREATE TABLE cuentas (
   -- CAMPOS ESPECÍFICOS PARA TARJETAS DE CRÉDITO (null para otros tipos)
   limite_credito         NUMERIC(14,2),                              -- Límite máximo de crédito
   credito_disponible     NUMERIC(14,2),                              -- Crédito actualmente disponible
+  saldo_periodo_actual   NUMERIC(14,2)    DEFAULT 0,                 -- Saldo variable del periodo (se recalcula en corte)
   dia_pago               INT,                                        -- Día del mes para realizar el pago (1-31)
   dia_corte              INT,                                        -- Día de corte del estado de cuenta (1-31)
   tasa_interes           NUMERIC(5,2),                               -- Tasa de interés anual
@@ -359,6 +360,7 @@ CREATE INDEX ON cuentas(anualidad) WHERE anualidad > 0;                    -- Bu
 -- Comentarios explicativos para campos de tarjetas de crédito
 COMMENT ON COLUMN cuentas.limite_credito IS 'Límite máximo de crédito - Solo para credit_card';
 COMMENT ON COLUMN cuentas.credito_disponible IS 'Crédito actualmente disponible - Solo para credit_card';
+COMMENT ON COLUMN cuentas.saldo_periodo_actual IS 'Saldo variable del periodo de pago. Inicia en fecha de corte con gastos+MSI pendientes, aumenta con nuevos gastos, disminuye con pagos. Se recalcula cada corte.';
 COMMENT ON COLUMN cuentas.porcentaje_cat IS 'Costo Anual Total (CAT) en porcentaje - Incluye intereses, comisiones y seguros';
 COMMENT ON COLUMN cuentas.anualidad IS 'Costo anual por tener la tarjeta en pesos';
 COMMENT ON COLUMN cuentas.gasto_exencion_anualidad IS 'Compras anuales para no pagar anualidad';
@@ -765,6 +767,121 @@ END;
 $$;
 
 
+-- 7.5) Función para actualizar saldo_periodo_actual al registrar gastos
+CREATE OR REPLACE FUNCTION actualizar_saldo_periodo_gasto()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_cuenta RECORD;
+    v_fechas RECORD;
+BEGIN
+    -- Solo aplicar a gastos en tarjetas de crédito
+    IF NEW.tipo != 'gasto' THEN
+        RETURN NEW;
+    END IF;
+    
+    -- Obtener información de la cuenta
+    SELECT * INTO v_cuenta
+    FROM cuentas
+    WHERE id = NEW.cuenta_id
+        AND tipo = 'credit_card'
+        AND dia_corte IS NOT NULL;
+    
+    -- Si no es tarjeta de crédito o no tiene día de corte, no hacer nada
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+    
+    -- Calcular fechas del periodo
+    SELECT * INTO v_fechas
+    FROM calcular_fechas_periodo_tarjeta(
+        v_cuenta.dia_corte,
+        v_cuenta.dia_pago,
+        NEW.fecha_ocurrencia
+    );
+    
+    -- Solo aumentar saldo_periodo_actual si el gasto es del periodo actual
+    IF NEW.fecha_ocurrencia >= v_fechas.periodo_actual_inicio 
+       AND NEW.fecha_ocurrencia <= v_fechas.periodo_actual_fin THEN
+        UPDATE cuentas
+        SET saldo_periodo_actual = saldo_periodo_actual + NEW.monto,
+            fecha_actualizacion = NOW()
+        WHERE id = NEW.cuenta_id;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+-- Trigger para actualizar saldo_periodo_actual al insertar gastos
+DROP TRIGGER IF EXISTS trigger_actualizar_saldo_periodo ON transacciones;
+CREATE TRIGGER trigger_actualizar_saldo_periodo
+    AFTER INSERT ON transacciones
+    FOR EACH ROW
+    EXECUTE FUNCTION actualizar_saldo_periodo_gasto();
+
+
+-- 7.6) Función para recalcular saldo_periodo_actual en fecha de corte
+CREATE OR REPLACE FUNCTION recalcular_saldo_en_corte(
+    p_cuenta_id UUID
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_cuenta RECORD;
+    v_fechas RECORD;
+    v_gastos RECORD;
+    v_nuevo_saldo NUMERIC := 0;
+BEGIN
+    -- Obtener información de la cuenta
+    SELECT * INTO v_cuenta
+    FROM cuentas
+    WHERE id = p_cuenta_id
+        AND tipo = 'credit_card'
+        AND dia_corte IS NOT NULL;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Cuenta no encontrada o no es tarjeta de crédito';
+    END IF;
+    
+    -- Calcular fechas del periodo actual
+    SELECT * INTO v_fechas
+    FROM calcular_fechas_periodo_tarjeta(
+        v_cuenta.dia_corte,
+        v_cuenta.dia_pago,
+        CURRENT_DATE
+    );
+    
+    -- Obtener gastos y MSI del periodo
+    SELECT * INTO v_gastos
+    FROM obtener_gastos_periodo_tarjeta(
+        p_cuenta_id,
+        v_fechas.periodo_actual_inicio,
+        v_fechas.periodo_actual_fin
+    );
+    
+    -- El nuevo saldo es: gastos del periodo + MSI del periodo
+    v_nuevo_saldo := v_gastos.total_periodo;
+    
+    -- Actualizar saldo_periodo_actual
+    UPDATE cuentas
+    SET saldo_periodo_actual = v_nuevo_saldo,
+        proxima_fecha_corte = v_fechas.fecha_corte_siguiente,
+        proxima_fecha_pago = v_fechas.fecha_pago_siguiente,
+        fecha_actualizacion = NOW()
+    WHERE id = p_cuenta_id;
+END;
+$$;
+
+COMMENT ON FUNCTION recalcular_saldo_en_corte IS 'Recalcula el saldo_periodo_actual en la fecha de corte. Debe ejecutarse automáticamente cada día de corte o manualmente cuando sea necesario.';
+
+
 -- ==================================================================
 -- 8) Funciones para gestión de jerarquías personalizadas
 -- ==================================================================
@@ -1050,6 +1167,32 @@ COMMENT ON COLUMN transacciones_periodicas.numero_meses_total IS 'Total de meses
 COMMENT ON COLUMN transacciones_periodicas.meses_pagados IS 'Meses ya pagados (útil para registrar MSI en progreso)';
 COMMENT ON COLUMN transacciones_periodicas.monto_por_mes IS 'Monto mensual calculado (monto_total / numero_meses)';
 
+
+-- 7.5b) Función para actualizar saldo_periodo_actual al crear MSI
+-- NOTA: Esta función ya NO suma las ejecuciones directamente porque el trigger
+-- de ejecuciones_transacciones_periodicas lo hace automáticamente
+CREATE OR REPLACE FUNCTION actualizar_saldo_periodo_msi()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    -- Solo validar que es MSI, pero no hacer nada
+    -- El trigger de ejecuciones_transacciones_periodicas se encargará de actualizar el saldo
+    -- cuando se inserten las ejecuciones individuales
+    RETURN NEW;
+END;
+$$;
+
+-- Trigger para actualizar saldo_periodo_actual al crear MSI
+DROP TRIGGER IF EXISTS trigger_actualizar_saldo_periodo_msi ON transacciones_periodicas;
+CREATE TRIGGER trigger_actualizar_saldo_periodo_msi
+    AFTER INSERT ON transacciones_periodicas
+    FOR EACH ROW
+    EXECUTE FUNCTION actualizar_saldo_periodo_msi();
+
+
 -- 8.2) Tabla para ejecuciones de transacciones periódicas
 CREATE TABLE ejecuciones_transacciones_periodicas (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1091,6 +1234,73 @@ CREATE TRIGGER update_ejecuciones_periodicas_updated_at
     BEFORE UPDATE ON ejecuciones_transacciones_periodicas
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+
+
+-- 7.5c) Función para actualizar saldo_periodo_actual al crear ejecuciones de MSI
+CREATE OR REPLACE FUNCTION actualizar_saldo_periodo_ejecucion_msi()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_transaccion_periodica RECORD;
+    v_cuenta RECORD;
+    v_fechas RECORD;
+BEGIN
+    -- Obtener información de la transacción periódica
+    SELECT * INTO v_transaccion_periodica
+    FROM transacciones_periodicas
+    WHERE id = NEW.transaccion_periodica_id
+        AND es_msi = TRUE;
+    
+    -- Si no es MSI, no hacer nada
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+    
+    -- Obtener información de la cuenta
+    SELECT * INTO v_cuenta
+    FROM cuentas
+    WHERE id = v_transaccion_periodica.cuenta_id
+        AND tipo = 'credit_card'
+        AND dia_corte IS NOT NULL;
+    
+    -- Si no es tarjeta de crédito, no hacer nada
+    IF NOT FOUND THEN
+        RETURN NEW;
+    END IF;
+    
+    -- Calcular fechas del periodo actual
+    SELECT * INTO v_fechas
+    FROM calcular_fechas_periodo_tarjeta(
+        v_cuenta.dia_corte,
+        v_cuenta.dia_pago,
+        CURRENT_DATE
+    );
+    
+    -- Si la ejecución cae en el periodo actual, actualizar saldo
+    IF NEW.fecha_programada >= v_fechas.periodo_actual_inicio 
+       AND NEW.fecha_programada <= v_fechas.periodo_actual_fin
+       AND NEW.estado IN ('pendiente', 'confirmada') THEN
+        
+        UPDATE cuentas
+        SET saldo_periodo_actual = saldo_periodo_actual + NEW.monto_programado,
+            fecha_actualizacion = NOW()
+        WHERE id = v_transaccion_periodica.cuenta_id;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+-- Trigger para actualizar saldo_periodo_actual al crear ejecuciones de MSI
+DROP TRIGGER IF EXISTS trigger_actualizar_saldo_periodo_ejecucion ON ejecuciones_transacciones_periodicas;
+CREATE TRIGGER trigger_actualizar_saldo_periodo_ejecucion
+    AFTER INSERT ON ejecuciones_transacciones_periodicas
+    FOR EACH ROW
+    EXECUTE FUNCTION actualizar_saldo_periodo_ejecucion_msi();
+
 
 -- Comentarios para ejecuciones_transacciones_periodicas
 COMMENT ON TABLE ejecuciones_transacciones_periodicas IS 'Registro de cada ejecución individual de una transacción periódica';
@@ -1681,7 +1891,8 @@ DECLARE
     v_cuotas_msi NUMERIC := 0;
     v_cuotas_detalle JSONB;
 BEGIN
-    -- 1. Obtener gastos normales del periodo
+    -- 1. Obtener gastos normales del periodo actual SOLAMENTE
+    -- NO incluir gastos de periodos anteriores (se manejan con saldo_arrastre)
     SELECT COALESCE(SUM(monto), 0)
     INTO v_gastos_normales
     FROM transacciones
@@ -1690,10 +1901,9 @@ BEGIN
         AND fecha_ocurrencia >= p_fecha_inicio
         AND fecha_ocurrencia <= p_fecha_fin
         AND (metadatos->>'msi_id') IS NULL -- Excluir gastos que fueron convertidos a MSI
-        AND COALESCE((metadatos->>'pagado_en_periodo')::BOOLEAN, FALSE) = FALSE -- Solo gastos NO pagados
         AND deleted_at IS NULL;
     
-    -- 2. Obtener cuotas MSI del periodo
+    -- 2. Obtener cuotas MSI del periodo actual
     SELECT 
         COALESCE(SUM(e.monto_programado), 0),
         COALESCE(
@@ -1720,7 +1930,7 @@ BEGIN
         AND e.fecha_programada <= p_fecha_fin
         AND e.estado IN ('pendiente', 'confirmada'); -- Solo las que no han sido pagadas
     
-    -- 3. Retornar resultados
+    -- 3. Retornar resultados (solo gastos y MSI del periodo actual)
     RETURN QUERY
     SELECT 
         v_gastos_normales,
@@ -1730,7 +1940,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION obtener_gastos_periodo_tarjeta IS 'Obtiene el total de gastos pendientes (normales + MSI) de un periodo específico de tarjeta de crédito. Solo cuenta gastos no pagados y cuotas MSI pendientes.';
+COMMENT ON FUNCTION obtener_gastos_periodo_tarjeta IS 'Obtiene gastos y MSI del periodo específico. NO incluye arrastres, esos se manejan con saldo_arrastre en la tabla cuentas.';
 
 
 -- ==================================================================
@@ -1869,23 +2079,24 @@ BEGIN
             credito_disponible + p_monto_pago,
             limite_credito
         ),
+        saldo_periodo_actual = GREATEST(saldo_periodo_actual - p_monto_pago, 0),
         fecha_actualizacion = NOW()
     WHERE id = p_cuenta_tarjeta_id;
     
     -- ========================================
-    -- DISTRIBUCIÓN DEL PAGO
+    -- DISTRIBUCIÓN DEL PAGO (solo para tracking, no afecta saldo_periodo_actual)
     -- ========================================
-    -- 1. Primero marcar gastos normales del periodo como pagados
-    -- 2. Luego marcar cuotas MSI del periodo como pagadas
-    -- Solo se consideran transacciones del periodo actual
+    -- El saldo_periodo_actual ya se redujo arriba
+    -- Aquí solo marcamos transacciones individuales como pagadas para auditoría
     
     v_monto_restante := p_monto_pago;
     
-    -- PASO 1: Marcar gastos normales del periodo como pagados
+    -- PASO 1: Marcar gastos normales como pagados (del periodo actual solamente)
     FOR v_cuota IN (
         SELECT 
             id,
-            monto
+            monto,
+            fecha_ocurrencia
         FROM transacciones
         WHERE cuenta_id = p_cuenta_tarjeta_id
             AND tipo = 'gasto'
@@ -1894,7 +2105,7 @@ BEGIN
             AND (metadatos->>'msi_id') IS NULL -- Solo gastos normales
             AND COALESCE((metadatos->>'pagado_en_periodo')::BOOLEAN, FALSE) = FALSE -- No pagados aún
             AND deleted_at IS NULL
-        ORDER BY fecha_ocurrencia ASC
+        ORDER BY fecha_ocurrencia ASC  -- Más antiguos primero
     ) LOOP
         -- Si aún hay monto disponible, marcar el gasto como pagado
         IF v_monto_restante >= v_cuota.monto THEN
@@ -1975,7 +2186,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION registrar_pago_periodo_tarjeta IS 'Registra un pago de tarjeta de crédito por periodo. Distribuye el pago primero a gastos normales, luego a cuotas MSI. Marca transacciones como pagadas solo para el periodo actual, actualizando metadatos con información del pago.';
+COMMENT ON FUNCTION registrar_pago_periodo_tarjeta IS 'Registra un pago de tarjeta de crédito por periodo. Distribuye el pago priorizando gastos más antiguos primero (incluye gastos no pagados de periodos anteriores), luego cuotas MSI del periodo actual. Los gastos no cubiertos se arrastran automáticamente al siguiente periodo.';
 
 
 -- ==================================================================
@@ -1996,6 +2207,8 @@ DECLARE
     v_fechas RECORD;
     v_periodo_actual RECORD;
     v_periodo_siguiente RECORD;
+    v_credito_utilizado NUMERIC;
+    v_total_siguiente_ajustado NUMERIC;
     v_resultado JSONB;
 BEGIN
     -- Obtener información de la cuenta
@@ -2031,12 +2244,25 @@ BEGIN
         v_fechas.periodo_siguiente_fin
     );
     
+    -- Calcular crédito utilizado total
+    v_credito_utilizado := v_cuenta.limite_credito - v_cuenta.credito_disponible;
+    
+    -- Ajustar proyección del siguiente periodo si excede el total adeudado
+    -- La proyección no puede ser mayor que la deuda total
+    v_total_siguiente_ajustado := LEAST(
+        v_periodo_siguiente.total_periodo,
+        v_credito_utilizado
+    );
+    
     -- Construir JSON de respuesta
+    -- Para periodo_actual: usar saldo_periodo_actual (variable que aumenta con gastos y disminuye con pagos)
+    -- Para periodo_siguiente: calcular proyección basada en gastos futuros ya registrados
     v_resultado := JSONB_BUILD_OBJECT(
         'cuenta_id', p_cuenta_id,
         'limite_credito', v_cuenta.limite_credito,
         'credito_disponible', v_cuenta.credito_disponible,
-        'credito_utilizado', v_cuenta.limite_credito - v_cuenta.credito_disponible,
+        'credito_utilizado', v_credito_utilizado,
+        'saldo_periodo_actual', v_cuenta.saldo_periodo_actual,
         'fechas', JSONB_BUILD_OBJECT(
             'periodo_actual', JSONB_BUILD_OBJECT(
                 'inicio', v_fechas.periodo_actual_inicio,
@@ -2054,13 +2280,16 @@ BEGIN
         'periodo_actual', JSONB_BUILD_OBJECT(
             'gastos_normales', v_periodo_actual.total_gastos_normales,
             'cuotas_msi', v_periodo_actual.total_cuotas_msi,
-            'total', v_periodo_actual.total_periodo,
+            'total', v_cuenta.saldo_periodo_actual,
+            'total_calculado', v_periodo_actual.total_periodo,
             'cuotas_detalle', v_periodo_actual.cuotas_msi
         ),
         'periodo_siguiente', JSONB_BUILD_OBJECT(
             'gastos_normales', v_periodo_siguiente.total_gastos_normales,
             'cuotas_msi', v_periodo_siguiente.total_cuotas_msi,
-            'total', v_periodo_siguiente.total_periodo,
+            'total', v_total_siguiente_ajustado,
+            'total_original', v_periodo_siguiente.total_periodo,
+            'ajustado', v_periodo_siguiente.total_periodo > v_credito_utilizado,
             'cuotas_detalle', v_periodo_siguiente.cuotas_msi
         )
     );
@@ -2069,4 +2298,4 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION obtener_resumen_periodos_tarjeta IS 'Obtiene un resumen completo de los periodos actual y siguiente de una tarjeta de crédito, incluyendo gastos normales y cuotas MSI';
+COMMENT ON FUNCTION obtener_resumen_periodos_tarjeta IS 'Obtiene resumen completo de periodos de tarjeta. Periodo actual usa saldo_periodo_actual (variable), periodo siguiente es proyección de gastos futuros.';
