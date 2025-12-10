@@ -511,12 +511,16 @@ const handleSubmit = async () => {
         // Refrescar cuentas
         await accountsStore.fetchAccountsWithDetails({ toast, force: true });
         
+        // Emitir evento de pago registrado
         emit('payment-registered');
-        handleClose();
+        
+        // Cerrar el modal exitosamente
+        isLoading.value = false;
+        emit('update:visible', false);
+        resetForm();
         
     } catch (error) {
         console.error('Error registrando pago:', error);
-    } finally {
         isLoading.value = false;
     }
 };

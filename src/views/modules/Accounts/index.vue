@@ -203,6 +203,7 @@
                             class="bg-surface-100 dark:bg-surface-900 px-3 md:px-4 pb-3 md:pb-4 pt-3 overflow-hidden"
                             @click.stop>
                             <CreditCardInfo 
+                                :key="`credit-card-${account.id}-${creditCardInfoKey}`"
                                 :card="account" 
                                 @open-payment-modal="handleOpenPaymentModal(account.id)"
                                 @configure-msi="handleConfigureMSI(account)"
@@ -314,6 +315,9 @@ const accountMenuRefs = ref({});
 
 // Estado de expansión de tarjetas de crédito
 const expandedCards = ref({});
+
+// Key para forzar re-renderizado de CreditCardInfo después de pagos
+const creditCardInfoKey = ref(0);
 
 // MODAL STATE
 const showAccountModal = ref(false);
@@ -540,7 +544,8 @@ const handleOpenPaymentModal = (cardId) => {
 
 const handlePaymentRegistered = () => {
     console.log('✅ Pago registrado exitosamente');
-    // El modal ya refrescará las cuentas automáticamente
+    // Incrementar key para forzar re-renderizado de CreditCardInfo
+    creditCardInfoKey.value++;
 };
 
 const handleConfigureMSI = async (account) => {

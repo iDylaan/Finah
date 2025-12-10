@@ -34,7 +34,7 @@
         <div v-else-if="modalsStore.transactionModalType === 'ingreso'">
             <IngresoForm 
                 ref="ingresoFormRef"
-                :cuentas="cuentas"
+                :cuentas="cuentasParaIngresos"
                 :categoryGroups="categoryGroups"
                 :niveles="niveles"
             />
@@ -113,6 +113,12 @@ const isLoadingData = ref(false);
 
 // Datos
 const cuentas = computed(() => accountsStore.accounts);
+
+// Cuentas filtradas para ingresos (excluye tarjetas de crédito)
+const cuentasParaIngresos = computed(() => 
+    accountsStore.accounts.filter(cuenta => cuenta.tipo !== 'credit_card')
+);
+
 const categoryGroups = computed(() => categoriesStore.categoryGroups);
 const niveles = computed(() => levelsStore.levels);
 

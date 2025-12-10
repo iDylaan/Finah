@@ -1,5 +1,15 @@
 <template>
     <div class="flex flex-col gap-4">
+        <!-- Mensaje informativo -->
+        <Message severity="info" :closable="false">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-rounded text-lg">info</span>
+                <span class="text-sm">
+                    Para registrar pagos a tarjetas de crédito, usa el botón "Realizar Pago" desde la tarjeta correspondiente.
+                </span>
+            </div>
+        </Message>
+
         <!-- Cuenta -->
         <div class="flex flex-col gap-2">
             <label for="cuenta" class="font-semibold text-sm">Cuenta *</label>
