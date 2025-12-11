@@ -32,16 +32,11 @@
         <!-- Content -->
         <div v-else-if="accounts.length > 0" class="grid grid-cols-1 gap-3 md:gap-4">
             <div v-for="(account, index) in accounts" :key="account.id"
-                class="group rounded-xl overflow-hidden relative hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-surface-300 dark:hover:border-surface-600 animate__animated animate__fadeInLeft animate__faster"
+                class="rounded-xl overflow-hidden relative dark:border-surface-700 animate__animated animate__fadeInUp animate__faster"
                 :style="{ 
                     backgroundColor: hexToRgba(getAccountColor(account), 0.1),
                     animationDelay: `${index * 0.05}s`
                 }">
-
-                <!-- Fondo con gradiente sutil -->
-                <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                    :style="{ background: `linear-gradient(135deg, ${hexToRgba(getAccountColor(account), 0.15)} 0%, ${hexToRgba(getAccountColor(account), 0.05)} 100%)` }">
-                </div>
 
                 <!-- Contenido -->
                 <div class="relative">
@@ -104,7 +99,7 @@
 
                         <!-- Menú de acciones -->
                         <div class="flex-shrink-0">
-                            <button class="p-2 rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors opacity-0 group-hover:opacity-100"
+                            <button class="p-2 rounded-lg"
                                 @click.stop="toggleAccountMenu($event, account.id)">
                                 <i class="pi pi-ellipsis-v text-surface-600 dark:text-surface-400 text-sm"></i>
                             </button>
@@ -399,13 +394,24 @@ const getAccountMenuItems = (account) => {
             label: 'Ver movimientos',
             icon: 'pi pi-list',
             command: () => handleViewTransactions(account)
-        },
-        {
+        }
+    ];
+
+    // Si es tarjeta de crédito, mostrar opción de pago
+    if (account.tipo === 'credit_card') {
+        baseItems.push({
+            label: 'Realizar pago',
+            icon: 'pi pi-wallet',
+            command: () => handleOpenPaymentModal(account.id)
+        });
+    } else {
+        // Para otras cuentas, mostrar transferencia
+        baseItems.push({
             label: 'Realizar transferencia',
             icon: 'pi pi-arrow-right',
             command: () => handleTransferFromAccount(account)
-        }
-    ];
+        });
+    }
 
     // Si es tarjeta de crédito, agregar opciones de MSI
     if (account.tipo === 'tarjeta_credito') {

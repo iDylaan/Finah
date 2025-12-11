@@ -30,10 +30,11 @@
 
         <!-- Content -->
         <div v-else-if="categoryGroups.length > 0" class="flex flex-col gap-4">
-            <div v-for="group in categoryGroups" :key="group.id" 
-                class="bg-surface-0 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200">
+            <div v-for="(group, index) in categoryGroups" :key="group.id" 
+                class="bg-surface-0 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 animate__animated animate__fadeInUp animate__faster"
+                :style="{ animationDelay: `${index * 0.05}s` }">
                 <!-- Header del Grupo -->
-                <div class="flex items-center justify-between p-4 md:py-5 md:px-6 cursor-pointer gap-3 hover:bg-surface-50 dark:hover:bg-surface-700 transition-colors duration-200" 
+                <div class="flex items-center justify-between p-4 md:py-5 md:px-6 cursor-pointer gap-3 transition-colors duration-200" 
                     @click="toggleGroup(group.id)">
                     <div class="flex items-center gap-3 flex-1 min-w-0">
                         <!-- Icono del grupo -->
@@ -79,8 +80,13 @@
 
                         <!-- Lista de categorías en grid mobile -->
                         <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                            <div v-for="category in group.categories" :key="category.id" 
-                                class="flex items-center gap-3 py-3.5 px-3.5 border border-solid rounded-lg cursor-pointer transition-all duration-200 min-h-[64px] bg-surface-50 dark:bg-surface-700 border-surface-200 dark:border-surface-600 hover:bg-surface-100 dark:hover:bg-surface-600 hover:border-surface-300 dark:hover:border-surface-500 hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98]"
+                            <div v-for="(category, catIndex) in group.categories" :key="category.id" 
+                                class="flex items-center gap-3 py-3.5 px-3.5 border border-solid rounded-lg cursor-pointer transition-all duration-200 min-h-[64px] hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98] animate__animated animate__fadeIn animate__faster"
+                                :style="{ 
+                                    animationDelay: `${catIndex * 0.03}s`,
+                                    backgroundColor: hexToRgba(group.color || '#6366f1', 0.08),
+                                    borderColor: hexToRgba(group.color || '#6366f1', 0.2)
+                                }"
                                 @click="() => handleCategoryClick(category, group)">
                                 <!-- Icono de la categoría -->
                                 <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md" :style="{ backgroundColor: hexToRgba(group.color || '#6366f1', 0.65) }">

@@ -30,15 +30,16 @@
         <!-- Selector de iconos usando Dialog en lugar de Popover -->
         <Dialog v-model:visible="isPickerVisible" modal header="Seleccionar Icono"
             :style="{ width: '95vw', maxWidth: '56rem' }" :breakpoints="{ '768px': '100vw' }"
-            :contentStyle="{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }" class="mobile-fullscreen-dialog"
+            class="mobile-fullscreen-dialog icon-picker-dialog"
             :pt="{
                 root: { class: 'z-[9999]' },
-                mask: { class: 'z-[9998]' }
+                mask: { class: 'z-[9998]' },
+                content: { class: 'icon-picker-content flex flex-col p-0' }
             }"
             :dismissableMask="true">
-            <div class="rounded-lg">
-                <!-- Selector de librería -->
-                <div class="mb-4">
+            <div class="flex flex-col h-full md:h-auto">
+                <!-- Selector de librería (fijo) -->
+                <div class="flex-shrink-0 px-6 pt-6 pb-4">
                     <div class="flex gap-2">
                         <Button :label="`PrimeIcons (${primeIcons.length})`"
                             :severity="currentLibrary === ICONS.PRIMEVUE ? 'primary' : 'secondary'"
@@ -51,53 +52,57 @@
                     </div>
                 </div>
 
-                <!-- Buscador -->
-                <div class="mb-4">
+                <!-- Buscador (fijo) -->
+                <div class="flex-shrink-0 px-6 pb-4">
                     <InputText v-model="searchQuery" placeholder="Buscar icono..." class="w-full" />
                 </div>
 
-                <!-- Grid de iconos -->
-                <div class="icon-grid max-h-[40vh] w-full overflow-y-auto p-1">
-                    <div class="grid grid-cols-7 gap-2 p-1">
-                        <!-- PrimeIcons -->
-                        <template v-if="currentLibrary === ICONS.PRIMEVUE">
-                            <div v-for="icon in filteredPrimeIcons" :key="icon"
-                                class="icon-item w-10 h-10 rounded-md cursor-pointer border-2 border-transparent hover:border-primary-400 transition-all duration-150 flex items-center justify-center bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600"
-                                :class="{ 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900': tempSelectedPrimeIcon === icon }"
-                                @click="selectIcon(icon)" :title="icon">
-                                <i :class="icon" class="text-surface-700 dark:text-surface-300 text-sm"></i>
-                            </div>
-                        </template>
+                <!-- Grid de iconos (scrolleable) -->
+                <div class="icon-grid-container relative flex-1 md:flex-none overflow-hidden">
+                    <div class="icon-grid w-full h-full md:h-auto md:max-h-[40vh] overflow-y-auto pb-20">
+                        <div class="grid grid-cols-5 pt-2 px-6 md:grid-cols-7 gap-2 md:gap-2">
+                            <!-- PrimeIcons -->
+                            <template v-if="currentLibrary === ICONS.PRIMEVUE">
+                                <div v-for="icon in filteredPrimeIcons" :key="icon"
+                                    class="icon-item w-full aspect-square rounded-md cursor-pointer border-2 border-transparent hover:border-primary-400 transition-all duration-150 flex items-center justify-center bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600"
+                                    :class="{ 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900': tempSelectedPrimeIcon === icon }"
+                                    @click="selectIcon(icon)" :title="icon">
+                                    <i :class="icon" class="text-surface-700 dark:text-surface-300 prime-icon-size"></i>
+                                </div>
+                            </template>
 
-                        <!-- Material Symbols -->
-                        <template v-else-if="currentLibrary === ICONS.MATERIAL">
-                            <div v-for="icon in filteredMaterialIcons" :key="icon"
-                                class="icon-item w-10 h-10 rounded-md cursor-pointer border-2 border-transparent hover:border-primary-400 transition-all duration-150 flex items-center justify-center bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600"
-                                :class="{ 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900': tempSelectedMaterialIcon === icon }"
-                                @click="selectIcon(icon)" :title="icon">
-                                <span
-                                    class="material-symbols-rounded text-surface-700 dark:text-surface-300 icon-grid-item">
-                                    {{ icon }}
-                                </span>
-                            </div>
-                        </template>
+                            <!-- Material Symbols -->
+                            <template v-else-if="currentLibrary === ICONS.MATERIAL">
+                                <div v-for="icon in filteredMaterialIcons" :key="icon"
+                                    class="icon-item w-full aspect-square rounded-md cursor-pointer border-2 border-transparent hover:border-primary-400 transition-all duration-150 flex items-center justify-center bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600"
+                                    :class="{ 'ring-2 ring-primary-500 bg-primary-50 dark:bg-primary-900': tempSelectedMaterialIcon === icon }"
+                                    @click="selectIcon(icon)" :title="icon">
+                                    <span
+                                        class="material-symbols-rounded text-surface-700 dark:text-surface-300 material-icon-size">
+                                        {{ icon }}
+                                    </span>
+                                </div>
+                            </template>
+                        </div>
+                        <!-- No results -->
+                        <div v-if="filteredIcons.length === 0" class="text-center py-8 text-surface-500">
+                            <i class="pi pi-search text-2xl mb-2 block"></i>
+                            <p>No se encontraron iconos</p>
+                            <small>Intenta con otro término de búsqueda</small>
+                        </div>
                     </div>
-
-                    <!-- No results -->
-                    <div v-if="filteredIcons.length === 0" class="text-center py-8 text-surface-500">
-                        <i class="pi pi-search text-2xl mb-2 block"></i>
-                        <p>No se encontraron iconos</p>
-                        <small>Intenta con otro término de búsqueda</small>
-                    </div>
+                    <!-- Efecto de difuminado inferior -->
+                    <div class="icon-grid-fade absolute bottom-0 left-0 right-0 h-16 pointer-events-none"></div>
                 </div>
 
-                <!-- Info del icono seleccionado -->
-                <div v-if="tempFinalIcon" class="mt-3 p-3 bg-surface-100 dark:bg-surface-700 rounded text-sm">
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="font-medium">Icono:</span>
-                            <code class="text-xs bg-surface-200 dark:bg-surface-600 px-2 py-1 rounded">{{ tempFinalIcon
-                        }}</code>
+                <!-- Info del icono seleccionado (fijo) -->
+                <div v-if="tempFinalIcon" class="flex-shrink-0 px-6 pb-6 pt-3">
+                    <div class="p-3 bg-surface-100 dark:bg-surface-700 rounded text-sm">
+                        <div class="space-y-2">
+                            <div class="flex justify-between items-center">
+                                <span class="font-medium">Icono:</span>
+                                <code class="text-xs bg-surface-200 dark:bg-surface-600 px-2 py-1 rounded">{{ tempFinalIcon }}</code>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -336,9 +341,15 @@ detectLibrary(props.modelValue);
 
 <style scoped>
 /* Estilos para la cuadrícula de iconos */
+.icon-grid-container {
+    min-height: 0;
+}
+
 .icon-grid {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
+    overscroll-behavior: contain;
+    overflow-y: auto;
 }
 
 .icon-grid::-webkit-scrollbar {
@@ -358,16 +369,35 @@ detectLibrary(props.modelValue);
     background-color: #94a3b8;
 }
 
-.icon-item {
-    aspect-ratio: 1;
-}
-
 .icon-item:hover {
     transform: scale(1.05);
 }
 
-.icon-grid-item {
-    font-size: 18px;
+/* Tamaños de iconos responsive */
+.prime-icon-size {
+    font-size: 1.5rem;
+}
+
+.material-icon-size {
+    font-size: 2rem;
+}
+
+@media (min-width: 768px) {
+    .prime-icon-size {
+        font-size: 2.4rem;
+    }
+    
+    .material-icon-size {
+        font-size: 3rem;
+    }
+}
+
+/* Efecto de difuminado inferior */
+.icon-grid-fade {
+    background: linear-gradient(to top, 
+        var(--p-content-background) 0%, 
+        var(--p-content-background) 20%,
+        transparent 100%);
 }
 
 /* Asegurarse que el modal se superponga a otros modales */
@@ -377,5 +407,25 @@ detectLibrary(props.modelValue);
 
 :deep(.p-dialog-mask.z-\[9998\]) {
     z-index: 9998 !important;
+}
+
+/* Modal de altura completa en mobile */
+@media (max-width: 768px) {
+    :deep(.icon-picker-dialog .p-dialog) {
+        height: 100vh;
+        max-height: 100vh;
+        margin: 0;
+        border-radius: 0;
+    }
+
+    :deep(.icon-picker-dialog .p-dialog-content) {
+        overflow: hidden !important;
+        padding: 0 !important;
+    }
+}
+
+/* Asegurar que el contenido del dialog use flexbox */
+:deep(.icon-picker-dialog .p-dialog-content) {
+    overflow: hidden;
 }
 </style>
