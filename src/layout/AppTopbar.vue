@@ -131,8 +131,8 @@ onUnmounted(() => {
             <router-link to="/" class="layout-topbar-logo">
                 <!-- Logo con gradiente para Ocean Breeze -->
                 <template v-if="isOceanBreeze">
-                    <img v-if="!uiStore.darkMode" src="/imgs/logo-light.svg" alt="Finah" class="h-9 w-9" />
-                    <img v-else src="/imgs/logo-dark.svg" alt="Finah" class="h-9 w-9" />
+                    <img v-if="!uiStore.darkMode" src="/imgs/logo-light.svg" alt="Finah" class="h-9 w-9 ml-[5px] mr-[6px]" />
+                    <img v-else src="/imgs/logo-dark.svg" alt="Finah" class="h-9 w-9 ml-[5px] mr-[6px]" />
                 </template>
                 <!-- Logo con color primario dinámico para otros temas -->
                 <template v-else>

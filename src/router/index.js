@@ -4,6 +4,14 @@ import { useSessionStore } from '@/stores/session.js';
 
 const router = createRouter({
     history: createWebHistory(),
+    scrollBehavior(to, from, savedPosition) {
+        // Si hay una posición guardada (navegación con botones atrás/adelante), usarla
+        if (savedPosition) {
+            return savedPosition;
+        }
+        // Para navegaciones normales, ir al inicio
+        return { top: 0, behavior: 'smooth' };
+    },
     routes: [
         // Rutas protegidas con layout
         {
