@@ -25,15 +25,18 @@
         </template>
 
         <!-- Loading State -->
-        <div v-if="accountsStore.loading && accounts.length === 0" class="flex justify-center items-center py-12">
+        <div v-if="accountsStore.loading" class="flex justify-center items-center py-12">
             <ProgressSpinner />
         </div>
 
         <!-- Content -->
         <div v-else-if="accounts.length > 0" class="grid grid-cols-1 gap-3 md:gap-4">
-            <div v-for="account in accounts" :key="account.id"
-                class="group rounded-xl overflow-hidden relative hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-surface-300 dark:hover:border-surface-600"
-                :style="{ backgroundColor: hexToRgba(getAccountColor(account), 0.1) }">
+            <div v-for="(account, index) in accounts" :key="account.id"
+                class="group rounded-xl overflow-hidden relative hover:shadow-lg hover:-translate-y-1 transition-all duration-300 border border-transparent hover:border-surface-300 dark:hover:border-surface-600 animate__animated animate__fadeInLeft animate__faster"
+                :style="{ 
+                    backgroundColor: hexToRgba(getAccountColor(account), 0.1),
+                    animationDelay: `${index * 0.05}s`
+                }">
 
                 <!-- Fondo con gradiente sutil -->
                 <div class="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
