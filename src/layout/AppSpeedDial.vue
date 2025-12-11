@@ -1,6 +1,6 @@
 <template>
     <SpeedDial :model="items" direction="up" :transitionDelay="80" mask
-        :style="{ position: 'fixed', right: '2.5rem', bottom: '2rem', zIndex: 100 }"
+        :style="{ position: 'fixed', right: uiStore.isMobile ? '1rem' : '2.5rem', bottom: uiStore.isMobile ? '1rem' : '2rem', zIndex: 100 }"
         :tooltipOptions="{ position: 'left' }" @show="onShow" @hide="onHide" :pt="{
             root: {
                 style: `align-items: flex-end;`
@@ -54,6 +54,9 @@
 <script setup>
 import { ref } from 'vue'
 import { useModalsStore } from '@/stores/ui-modals.js'
+
+import { useUIStore } from '@/stores/ui.js'
+const uiStore = useUIStore();
 
 const modalsStore = useModalsStore()
 const isOpen = ref(false)
