@@ -10,6 +10,7 @@ import { useUIStore } from '@/stores/ui.js'
 import { useSessionStore } from '@/stores/session.js'
 
 import Aura from '@primeuix/themes/aura';
+import { definePreset } from '@primeuix/themes';
 import PrimeVue from 'primevue/config';
 import Tooltip from 'primevue/tooltip';
 import Ripple from 'primevue/ripple';
@@ -18,6 +19,55 @@ import ConfirmationService from 'primevue/confirmationservice';
 
 // Importar localización
 import { esLocale } from '@/locale/es.js';
+
+// Preset personalizado con colores Ocean Breeze (paleta del logo)
+const FinahPreset = definePreset(Aura, {
+    semantic: {
+        primary: {
+            50: '{sky.50}',
+            100: '{sky.100}',
+            200: '{sky.200}',
+            300: '{sky.300}',
+            400: '{sky.400}',
+            500: '{sky.500}',
+            600: '{sky.600}',
+            700: '{sky.700}',
+            800: '{sky.800}',
+            900: '{sky.900}',
+            950: '{sky.950}'
+        },
+        colorScheme: {
+            light: {
+                primary: {
+                    color: '#00B4D8',
+                    contrastColor: '#ffffff',
+                    hoverColor: '#0096C7',
+                    activeColor: '#0077B6'
+                },
+                highlight: {
+                    background: '#00B4D8',
+                    focusBackground: '#0096C7',
+                    color: '#ffffff',
+                    focusColor: '#ffffff'
+                }
+            },
+            dark: {
+                primary: {
+                    color: '#48CAE4',
+                    contrastColor: '#03045E',
+                    hoverColor: '#90E0EF',
+                    activeColor: '#ADE8F4'
+                },
+                highlight: {
+                    background: '#00B4D8',
+                    focusBackground: '#48CAE4',
+                    color: '#03045E',
+                    focusColor: '#03045E'
+                }
+            }
+        }
+    }
+});
 
 import { registerSW } from 'virtual:pwa-register'
 
@@ -32,9 +82,10 @@ app.use(pinia)
 
 app.use(PrimeVue, {
     theme: {
-        preset: Aura,
+        preset: FinahPreset,
         options: {
             darkModeSelector: '.app-dark',
+            cssLayer: false
         }
     },
     ripple: true,

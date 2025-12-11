@@ -92,7 +92,7 @@ export const useUIStore = defineStore('ui', () => {
     // Estados del layout migrados desde layout.js
     const layoutConfig = ref({
         preset: 'Aura', // Tema fijo - no modificable
-        primary: 'emerald',
+        primary: 'ocean-breeze',
         surface: null,
         darkTheme: false,
         menuMode: 'static'
@@ -163,6 +163,14 @@ export const useUIStore = defineStore('ui', () => {
             if (isLoaded) {
                 layoutConfig.value.darkTheme = darkMode.value;
                 document.documentElement.classList.toggle('app-dark', darkMode.value);
+                
+                // Disparar evento para actualizar favicons
+                if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('themeChanged', {
+                        detail: { isDark: darkMode.value }
+                    }));
+                }
+                
                 saveUIConfig();
             }
         }
