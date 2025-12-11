@@ -14,6 +14,17 @@ function toggleMode() {
 // Computed para detectar si es móvil
 const isMobile = computed(() => uiStore.isMobile);
 
+// Computed para detectar si se usa la paleta Ocean Breeze
+const isOceanBreeze = computed(() => uiStore.layoutConfig.primary === 'ocean-breeze');
+
+// Computed para las clases del texto Finah
+const finahTextClass = computed(() => {
+    if (isOceanBreeze.value) {
+        return 'bg-gradient-to-r from-[#0077B6] via-[#00B4D8] to-[#00B4D8] bg-clip-text text-transparent dark:from-[#00B4D8] dark:via-[#48CAE4] dark:to-[#90E0EF]';
+    }
+    return 'text-surface-0 dark:text-surface-0';
+});
+
 // Función para cambiar el tema
 const toggleTheme = () => {
     uiStore.executeDarkModeToggle();
@@ -27,16 +38,20 @@ const toggleTheme = () => {
         <!-- Header Mobile -->
         <div class="bg-surface-0 dark:bg-surface-900 border-b border-surface-200 dark:border-surface-700 px-4 py-4">
             <div class="flex items-center justify-between">
-                <div class="flex items-center">
-                    <svg id="Capa_2" data-name="Capa 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 549.85 494.46" class="w-10 h-10">
-                        <g id="Capa_4" data-name="Capa 4">
-                            <polygon fill="var(--p-primary-color)" points="399.96 90.35 267.57 222.72 267.57 0 399.96 0 399.96 90.35" />
-                            <polygon fill="var(--p-primary-color)" points="0 453.61 132.4 321.21 132.4 494.46 0 494.46 0 453.61" />
-                            <polygon fill="var(--p-primary-color)" points="267.57 355.95 399.96 223.57 399.96 494.46 267.57 494.46 267.57 355.95" />
-                            <polygon fill="var(--p-primary-color)" points="549.85 0 549.85 108.04 515.37 73.54 265.32 323.6 182.58 240.86 0 423.44 0 359.01 185.65 173.52 266.31 254.19 483.17 37.33 445.83 0 549.85 0" />
-                            <polygon fill="var(--p-primary-color)" points="132.4 187.97 0 320.37 0 0 132.4 0 132.4 187.97" />
-                        </g>
-                    </svg>
+                <div class="flex items-center gap-2">
+                    <!-- Logo con gradiente para Ocean Breeze -->
+                    <template v-if="isOceanBreeze">
+                        <img v-if="!uiStore.darkMode" src="/imgs/logo-light.svg" alt="Finah Logo" class="h-12 w-12" />
+                        <img v-else src="/imgs/logo-dark.svg" alt="Finah Logo" class="h-12 w-12" />
+                    </template>
+                    <!-- Logo con color primario dinámico para otros temas -->
+                    <template v-else>
+                        <svg viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" class="h-12 w-12" :style="{ fill: 'var(--p-primary-color)' }">
+                            <path d="M166.11,290.37s16.04-33,58.6-32.46c25,.31,128.89.26,210.35.16,57.1-.07,103.34-46.38,103.34-103.48h0s-254.83,0-254.83,0c-26.72,0-52.96,8.22-74.31,24.28-9.16,6.89-18.58,15.46-26.31,26.85-21.06,31.04-21.13,77.16-16.84,84.65Z"/>
+                            <path d="M80.98,475.87s.99-2.35,3.04-6.26c22.97-43.69,68.49-70.82,117.85-70.82h59.68c57.36,0,103.85-46.5,103.85-103.85h0s-142.52,0-142.52,0c-27.47,0-54.53,7.75-77.28,23.13-10.07,6.81-20.2,15.6-29.3,26.91-36.4,45.25-43.18,99.85-35.33,130.9Z"/>
+                        </svg>
+                    </template>
+                    <span class="text-2xl font-extrabold" :class="finahTextClass">Finah</span>
                 </div>
 
                 <!-- Botón de tema -->
@@ -97,60 +112,82 @@ const toggleTheme = () => {
                 severity="secondary" size="large" v-tooltip.left="uiStore.darkMode ? 'Modo claro' : 'Modo oscuro'" />
         </div>
 
-        <div class="flex flex-col items-center justify-center w-full max-w-[48em] px-4">
+        <div class="flex items-center justify-center w-full max-w-[90rem] px-8">
             <div style="border-radius: 56px; padding: 0.3rem; background: linear-gradient(180deg, var(--p-primary-color) 10%, rgba(33, 150, 243, 0) 30%)"
                 class="w-full shadow-2xl">
-                <div class="w-full bg-surface-0 dark:bg-surface-900 py-12 px-8 sm:py-16 sm:px-24"
+                <div class="w-full bg-surface-0 dark:bg-surface-900 py-12 px-12"
                     style="border-radius: 53px">
-                    <!-- Logo y Título Desktop -->
-                    <div class="text-center mb-10">
-                        <div class="flex items-center justify-center mx-auto mb-6 gap-1">
-                            <span class="text-[6rem] font-bold text-surface-900 dark:text-surface-0">Fina</span>
-                            <svg id="Capa_2" data-name="Capa 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 549.85 494.46" class="w-auto h-20">
-                                <g id="Capa_4" data-name="Capa 4">
-                                    <polygon fill="var(--p-primary-color)" points="399.96 90.35 267.57 222.72 267.57 0 399.96 0 399.96 90.35" />
-                                    <polygon fill="var(--p-primary-color)" points="0 453.61 132.4 321.21 132.4 494.46 0 494.46 0 453.61" />
-                                    <polygon fill="var(--p-primary-color)" points="267.57 355.95 399.96 223.57 399.96 494.46 267.57 494.46 267.57 355.95" />
-                                    <polygon fill="var(--p-primary-color)" points="549.85 0 549.85 108.04 515.37 73.54 265.32 323.6 182.58 240.86 0 423.44 0 359.01 185.65 173.52 266.31 254.19 483.17 37.33 445.83 0 549.85 0" />
-                                    <polygon fill="var(--p-primary-color)" points="132.4 187.97 0 320.37 0 0 132.4 0 132.4 187.97" />
-                                </g>
-                            </svg>
+                    
+                    <!-- Layout Horizontal -->
+                    <div class="grid grid-cols-2 gap-16 items-center">
+                        <!-- Columna Izquierda: Logo y Branding -->
+                        <div class="flex flex-col items-center justify-center">
+                            <div class="flex items-center justify-center mb-8">
+                                <!-- Logo con gradiente para Ocean Breeze -->
+                                <template v-if="isOceanBreeze">
+                                    <img v-if="!uiStore.darkMode" src="/imgs/logo-light.svg" alt="Finah Logo" class="h-48 w-48" />
+                                    <img v-else src="/imgs/logo-dark.svg" alt="Finah Logo" class="h-48 w-48" />
+                                </template>
+                                <!-- Logo con color primario dinámico para otros temas -->
+                                <template v-else>
+                                    <svg viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg" class="h-48 w-48" :style="{ fill: 'var(--p-primary-color)' }">
+                                        <path d="M166.11,290.37s16.04-33,58.6-32.46c25,.31,128.89.26,210.35.16,57.1-.07,103.34-46.38,103.34-103.48h0s-254.83,0-254.83,0c-26.72,0-52.96,8.22-74.31,24.28-9.16,6.89-18.58,15.46-26.31,26.85-21.06,31.04-21.13,77.16-16.84,84.65Z"/>
+                                        <path d="M80.98,475.87s.99-2.35,3.04-6.26c22.97-43.69,68.49-70.82,117.85-70.82h59.68c57.36,0,103.85-46.5,103.85-103.85h0s-142.52,0-142.52,0c-27.47,0-54.53,7.75-77.28,23.13-10.07,6.81-20.2,15.6-29.3,26.91-36.4,45.25-43.18,99.85-35.33,130.9Z"/>
+                                    </svg>
+                                </template>
+                            </div>
+                            <h1 class="text-6xl font-extrabold mb-3">
+                                <span :class="finahTextClass">
+                                    Finah
+                                </span>
+                            </h1>
+                            <p class="text-surface-600 dark:text-surface-400 text-lg font-medium text-center">
+                                Gestión Financiera Personal
+                            </p>
+                            <p class="text-surface-500 dark:text-surface-500 text-sm mt-4 text-center max-w-xs">
+                                Controla tus finanzas de manera inteligente y alcanza tus metas económicas
+                            </p>
                         </div>
 
-                        <div class="text-surface-900 dark:text-surface-0 text-4xl font-bold mb-3">
-                            {{ isLoginMode ? 'Bienvenido' : 'Únete' }}
+                        <!-- Columna Derecha: Formularios -->
+                        <div class="flex flex-col">
+                            <div class="mb-8">
+                                <h2 class="text-surface-900 dark:text-surface-0 text-3xl font-bold mb-2">
+                                    {{ isLoginMode ? '¡Bienvenido de vuelta!' : '¡Únete a Finah!' }}
+                                </h2>
+                                <p class="text-surface-600 dark:text-surface-400 text-base">
+                                    {{ isLoginMode ? 'Inicia sesión para continuar' : 'Crea tu cuenta para comenzar' }}
+                                </p>
+                            </div>
+
+                            <!-- Tabs -->
+                            <div class="flex mb-8 p-1 bg-surface-100/50 dark:bg-surface-800/50 rounded-xl">
+                                <button @click="isLoginMode = true" :class="[
+                                    'flex-1 py-3 px-6 text-sm font-semibold rounded-lg transition-all duration-200',
+                                    isLoginMode
+                                        ? 'bg-surface-0 dark:bg-surface-900 text-primary shadow-sm'
+                                        : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200'
+                                ]">
+                                    Iniciar Sesión
+                                </button>
+                                <button @click="isLoginMode = false" :class="[
+                                    'flex-1 py-3 px-6 text-sm font-semibold rounded-lg transition-all duration-200',
+                                    !isLoginMode
+                                        ? 'bg-surface-0 dark:bg-surface-900 text-primary shadow-sm'
+                                        : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200'
+                                ]">
+                                    Registrarse
+                                </button>
+                            </div>
+
+                            <!-- Forms -->
+                            <div class="min-h-[450px]">
+                                <Transition name="fade" mode="out-in">
+                                    <Signin v-if="isLoginMode" @toggle-mode="toggleMode" />
+                                    <Signup v-else @toggle-mode="toggleMode" />
+                                </Transition>
+                            </div>
                         </div>
-                        <span class="text-muted-color font-medium text-lg">
-                            {{ isLoginMode ? 'Inicia sesión para continuar' : 'Crea tu cuenta para comenzar' }}
-                        </span>
-                    </div>
-
-                    <!-- Tabs Desktop -->
-                    <div class="flex mb-8 p-1 bg-surface-100/50 dark:bg-surface-800/50 rounded-xl">
-                        <button @click="isLoginMode = true" :class="[
-                            'flex-1 py-3 px-6 text-sm font-semibold rounded-lg transition-all duration-200',
-                            isLoginMode
-                                ? 'bg-surface-0 dark:bg-surface-900 text-primary shadow-sm'
-                                : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200'
-                        ]">
-                            Iniciar Sesión
-                        </button>
-                        <button @click="isLoginMode = false" :class="[
-                            'flex-1 py-3 px-6 text-sm font-semibold rounded-lg transition-all duration-200',
-                            !isLoginMode
-                                ? 'bg-surface-0 dark:bg-surface-900 text-primary shadow-sm'
-                                : 'text-surface-600 dark:text-surface-400 hover:text-surface-900 dark:hover:text-surface-200'
-                        ]">
-                            Registrarse
-                        </button>
-                    </div>
-
-                    <!-- Forms Desktop -->
-                    <div class="min-h-[500px]">
-                        <Transition name="fade" mode="out-in">
-                            <Signin v-if="isLoginMode" @toggle-mode="toggleMode" />
-                            <Signup v-else @toggle-mode="toggleMode" />
-                        </Transition>
                     </div>
                 </div>
             </div>

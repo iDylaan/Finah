@@ -2,18 +2,103 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#10b981" />
+    <meta name="theme-color" content="#0096C7" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#03045E" media="(prefers-color-scheme: dark)" />
     <meta name="description" content="Aplicación de gestión financiera personal" />
     
-    <!-- PWA Meta Tags -->
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- Favicon (Light Mode) -->
+    <link rel="icon" id="favicon-svg" type="image/svg+xml" href="/w_icon.svg" />
+    <link rel="shortcut icon" id="favicon-ico" href="/w_favicon.ico" />
+    <link rel="apple-touch-icon" id="apple-icon" sizes="180x180" href="/w_apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-title" content="Finah" />
+    <link rel="manifest" id="app-manifest" href="/site-light.webmanifest" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="mobile-web-app-capable" content="yes">
     
     <title>Finah - Gestión Financiera</title>
+    
+    <!-- Favicon Theme Switcher Script -->
+    <script>
+      (function() {
+        // Función para actualizar los favicons según el tema
+        function updateFavicons(isDark) {
+          const prefix = isDark ? 'b_' : 'w_';
+          const manifestFile = isDark ? 'site-dark.webmanifest' : 'site-light.webmanifest';
+          
+          // Actualizar SVG favicon
+          const svgIcon = document.getElementById('favicon-svg');
+          if (svgIcon) svgIcon.href = '/' + prefix + 'icon.svg';
+          
+          // Actualizar ICO favicon
+          const icoIcon = document.getElementById('favicon-ico');
+          if (icoIcon) icoIcon.href = '/' + prefix + 'favicon.ico';
+          
+          // Actualizar Apple Touch Icon
+          const appleIcon = document.getElementById('apple-icon');
+          if (appleIcon) appleIcon.href = '/' + prefix + 'apple-touch-icon.png';
+          
+          // Actualizar Web App Manifest
+          const manifestLink = document.getElementById('app-manifest');
+          if (manifestLink) manifestLink.href = '/' + manifestFile;
+        }
+        
+        // Detectar tema inicial
+        function getInitialTheme() {
+          // Intentar obtener de localStorage primero
+          try {
+            const stored = localStorage.getItem('finheal_ui');
+            if (stored) {
+              const config = JSON.parse(stored);
+              return config.darkMode;
+            }
+          } catch (e) {}
+          
+          // Fallback a preferencia del sistema
+          return window.matchMedia('(prefers-color-scheme: dark)').matches;
+        }
+        
+        // Aplicar tema inicial
+        const isDark = getInitialTheme();
+        updateFavicons(isDark);
+        
+        // Escuchar cambios del sistema
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        mediaQuery.addEventListener('change', function(e) {
+          // Solo aplicar si no hay preferencia guardada
+          try {
+            const stored = localStorage.getItem('finheal_ui');
+            if (!stored) {
+              updateFavicons(e.matches);
+            }
+          } catch (err) {
+            updateFavicons(e.matches);
+          }
+        });
+        
+        // Escuchar cambios del tema de la app
+        window.addEventListener('themeChanged', function(e) {
+          updateFavicons(e.detail.isDark);
+        });
+        
+        // También escuchar cambios en la clase del documento
+        const observer = new MutationObserver(function(mutations) {
+          mutations.forEach(function(mutation) {
+            if (mutation.attributeName === 'class') {
+              const isDark = document.documentElement.classList.contains('app-dark');
+              updateFavicons(isDark);
+            }
+          });
+        });
+        
+        // Observar cambios en el documento cuando esté listo
+        if (document.documentElement) {
+          observer.observe(document.documentElement, { attributes: true });
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

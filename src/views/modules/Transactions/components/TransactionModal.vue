@@ -52,7 +52,7 @@
         <div v-else-if="modalsStore.transactionModalType === 'transferencia'">
             <TransferenciaForm 
                 ref="transferenciaFormRef"
-                :cuentas="cuentas"
+                :cuentas="cuentasParaTransferencias"
                 :categoryGroups="categoryGroups"
                 :preselectedAccountId="modalsStore.preselectedAccountId"
             />
@@ -116,6 +116,11 @@ const cuentas = computed(() => accountsStore.accounts);
 
 // Cuentas filtradas para ingresos (excluye tarjetas de crédito)
 const cuentasParaIngresos = computed(() => 
+    accountsStore.accounts.filter(cuenta => cuenta.tipo !== 'credit_card')
+);
+
+// Cuentas filtradas para transferencias (excluye tarjetas de crédito)
+const cuentasParaTransferencias = computed(() => 
     accountsStore.accounts.filter(cuenta => cuenta.tipo !== 'credit_card')
 );
 

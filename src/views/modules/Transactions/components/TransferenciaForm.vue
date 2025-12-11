@@ -1,5 +1,15 @@
 <template>
     <div class="flex flex-col gap-4">
+        <!-- Mensaje informativo -->
+        <Message severity="info" :closable="false">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-rounded text-lg">info</span>
+                <span class="text-sm">
+                    Las transferencias solo están disponibles entre cuentas regulares. Para pagos de tarjetas de crédito, usa el botón "Realizar Pago".
+                </span>
+            </div>
+        </Message>
+
         <!-- Cuenta Origen -->
         <div class="flex flex-col gap-2">
             <label for="cuenta_origen" class="font-semibold text-sm">Cuenta Origen *</label>
