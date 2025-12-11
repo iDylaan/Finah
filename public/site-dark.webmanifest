@@ -2,6 +2,7 @@
   "name": "Finah - Finanzas Personales",
   "short_name": "Finah",
   "description": "Aplicación de gestión financiera personal",
+  "version": "1.0.0",
   "icons": [
     {
       "src": "/b_android-chrome-192x192.png",
