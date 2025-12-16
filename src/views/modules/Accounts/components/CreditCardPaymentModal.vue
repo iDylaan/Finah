@@ -235,7 +235,7 @@
                 />
                 <small v-if="errors.monto" class="text-red-500">{{ errors.monto }}</small>
                 <small v-else class="text-surface-500">
-                    Máximo a pagar: {{ formatCurrency(saldoPendiente) }}
+                    Saldo pendiente: {{ formatCurrency(saldoPendiente) }}
                 </small>
             </div>
 
@@ -243,6 +243,7 @@
             <CategoryPicker 
                 v-model="formData.categoria_id"
                 :categoryGroups="categoryGroups"
+                tipo="ingreso"
                 label="Categoría"
                 :required="true"
                 :error="errors.categoria_id"
@@ -451,10 +452,6 @@ const validate = () => {
     
     if (!formData.value.monto || formData.value.monto <= 0) {
         errors.value.monto = 'El monto debe ser mayor a 0';
-    }
-    
-    if (formData.value.monto > saldoPendiente.value) {
-        errors.value.monto = 'El monto no puede ser mayor al saldo pendiente';
     }
     
     if (paymentType.value === 'transfer' && formData.value.cuenta_origen_id) {

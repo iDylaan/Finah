@@ -31,98 +31,147 @@ VALUES
 -- ===================================================
 -- 3) Grupos de categorías - Organizadores principales
 -- ===================================================
-INSERT INTO grupos_categoria (nombre, es_publico, color, biblioteca_iconos, nombre_icono)
+INSERT INTO grupos_categoria (nombre, tipo, es_publico, color, biblioteca_iconos, nombre_icono)
 VALUES
-  ('Hogar',           TRUE, '#3F51B5', 'material', 'home'),
-  ('Transporte',      TRUE, '#009688', 'material', 'directions_car'),
-  ('Alimentación',    TRUE, '#FF5722', 'material', 'restaurant'),
-  ('Salud',           TRUE, '#4CAF50', 'material', 'local_hospital'),
-  ('Educación',       TRUE, '#673AB7', 'material', 'school'),
-  ('Entretenimiento', TRUE, '#E91E63', 'material', 'movie'),
-  ('Servicios',       TRUE, '#795548', 'material', 'build'),
-  ('Ingresos',        TRUE, '#4CAF50', 'material', 'attach_money'),
-  ('Ahorros',         TRUE, '#2196F3', 'material', 'savings'),
-  ('Otros',            TRUE, '#575757', 'material', 'adjust');
+  -- GRUPOS DE GASTO --
+  ('Hogar',           'gasto',   TRUE, '#3F51B5', 'material', 'home'),
+  ('Transporte',      'gasto',   TRUE, '#009688', 'material', 'directions_car'),
+  ('Alimentación',    'gasto',   TRUE, '#FF5722', 'material', 'restaurant'),
+  ('Salud',           'gasto',   TRUE, '#4CAF50', 'material', 'local_hospital'),
+  ('Educación',       'gasto',   TRUE, '#673AB7', 'material', 'school'),
+  ('Entretenimiento', 'gasto',   TRUE, '#E91E63', 'material', 'movie'),
+  ('Servicios',       'gasto',   TRUE, '#795548', 'material', 'build'),
+  
+  -- GRUPOS DE INGRESO --
+  ('Ahorros',         'ingreso',   TRUE, '#2196F3', 'material', 'savings'),
+  ('Ingresos',        'ingreso', TRUE, '#4CAF50', 'material', 'attach_money'),
+  
+  -- GRUPOS DE GASTO (OTROS) --
+  ('Otros gastos',    'gasto',   TRUE, '#757575', 'material', 'more_horiz'),
+  
+  -- GRUPOS DE INGRESO (OTROS) --
+  ('Otros ingresos',  'ingreso', TRUE, '#9E9E9E', 'material', 'more_horiz'),
+  
+  -- GRUPOS ESPECIALES (TRANSFERENCIAS) --
+  ('Transferencias',  'transferencia', TRUE, '#607D8B', 'material', 'swap_horiz');
 
 -- ===================================================
 -- 4) Categorías específicas por grupo
 -- ===================================================
-INSERT INTO categorias (nombre, grupo_id, es_publico, biblioteca_iconos, nombre_icono)
+INSERT INTO categorias (nombre, tipo, grupo_id, es_publico, biblioteca_iconos, nombre_icono)
 VALUES
-  -- Hogar
-  ('Hogar',           (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'home'),
-  ('Renta',           (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'meeting_room'),
-  ('Luz',             (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'wb_sunny'),
-  ('Agua',            (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'water_damage'),
-  ('Gas',             (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'local_gas_station'),
-  ('Internet',        (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'wifi'),
-  ('Telefono',        (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'phone'),
-  ('Mantenimiento',   (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'home_repair_service'),
+  -- CATEGORÍAS DE GASTO --
+  
+  -- Hogar (gastos)
+  ('Hogar',           'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'home'),
+  ('Renta',           'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'meeting_room'),
+  ('Luz',             'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'wb_sunny'),
+  ('Agua',            'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'water_damage'),
+  ('Gas',             'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'local_gas_station'),
+  ('Internet',        'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'wifi'),
+  ('Telefono',        'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'phone'),
+  ('Mantenimiento',   'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Hogar'), TRUE, 'material', 'home_repair_service'),
 
-  -- Transporte
-  ('Transporte',       (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'directions_car'),
-  ('Gasolina',        (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'local_gas_station'),
-  ('Transporte publico', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'commute'),
-  ('Mantenimiento vehiculo', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'build'),
-  ('Estacionamiento', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'local_parking'),
-  ('Seguro vehiculo', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'security'),
+  -- Transporte (gastos)
+  ('Transporte',       'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'directions_car'),
+  ('Gasolina',        'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'local_gas_station'),
+  ('Transporte publico', 'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'commute'),
+  ('Mantenimiento vehiculo', 'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'build'),
+  ('Estacionamiento', 'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'local_parking'),
+  ('Seguro vehiculo', 'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Transporte'), TRUE, 'material', 'security'),
 
-  -- Alimentación
-  ('Alimentación',    (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'local_grocery_store'),
-  ('Supermercado',    (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'local_grocery_store'),
-  ('Restaurantes',    (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'restaurant_menu'),
-  ('Comida rapida',   (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'fastfood'),
-  ('Bebidas',         (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'local_bar'),
-  ('Comida diaria',   (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'cookie'),
+  -- Alimentación (gastos)
+  ('Alimentación',    'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'local_grocery_store'),
+  ('Supermercado',    'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'local_grocery_store'),
+  ('Restaurantes',    'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'restaurant_menu'),
+  ('Comida rapida',   'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'fastfood'),
+  ('Bebidas',         'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'local_bar'),
+  ('Comida diaria',   'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Alimentación'), TRUE, 'material', 'cookie'),
 
-  -- Salud
-  ('Salud',        (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'local_hospital'),
-  ('Farmacia',        (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'local_pharmacy'),
-  ('Clinica',         (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'healing'),
-  ('Dentista',        (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'medical_services'),
-  ('Seguro medico',   (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'health_and_safety'),
-  ('Examenes',        (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'biotech'),
-  ('Cita médica',     (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'clinical_notes'),
+  -- Salud (gastos)
+  ('Salud',        'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'local_hospital'),
+  ('Farmacia',        'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'local_pharmacy'),
+  ('Clinica',         'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'healing'),
+  ('Dentista',        'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'medical_services'),
+  ('Seguro medico',   'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'health_and_safety'),
+  ('Examenes',        'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'biotech'),
+  ('Cita médica',     'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Salud'), TRUE, 'material', 'clinical_notes'),
 
-  -- Educación
-  ('Educación',    (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'school'),
-  ('Colegiaturas',    (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'school'),
-  ('Libros',          (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'book'),
-  ('Cursos',          (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'psychology'),
-  ('Material escolar', (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'edit'),
+  -- Educación (gastos)
+  ('Educación',    'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'school'),
+  ('Colegiaturas',    'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'school'),
+  ('Libros',          'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'book'),
+  ('Cursos',          'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'psychology'),
+  ('Material escolar', 'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Educación'), TRUE, 'material', 'edit'),
 
-  -- Entretenimiento
-  ('Entretenimiento', (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'movie'),
-  ('Cine',            (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'movie'),
-  ('Conciertos',      (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'music_note'),
-  ('Deportes',        (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'sports_soccer'),
-  ('Juegos',          (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'sports_esports'),
-  ('Suscripciones',   (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'subscriptions'),
+  -- Entretenimiento (gastos)
+  ('Entretenimiento', 'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'movie'),
+  ('Cine',            'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'movie'),
+  ('Conciertos',      'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'music_note'),
+  ('Deportes',        'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'sports_soccer'),
+  ('Juegos',          'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'sports_esports'),
+  ('Suscripciones',   'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Entretenimiento'), TRUE, 'material', 'subscriptions'),
 
-  -- Servicios
-  ('Banca',           (SELECT id FROM grupos_categoria WHERE nombre='Servicios'), TRUE, 'material', 'account_balance'),
-  ('Seguros',         (SELECT id FROM grupos_categoria WHERE nombre='Servicios'), TRUE, 'material', 'security'),
-  ('Profesionales',   (SELECT id FROM grupos_categoria WHERE nombre='Servicios'), TRUE, 'material', 'work'),
-  ('Gobierno',        (SELECT id FROM grupos_categoria WHERE nombre='Servicios'), TRUE, 'material', 'account_balance'),
+  -- Servicios (gastos)
+  ('Banca',           'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Servicios'), TRUE, 'material', 'account_balance'),
+  ('Seguros',         'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Servicios'), TRUE, 'material', 'security'),
+  ('Profesionales',   'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Servicios'), TRUE, 'material', 'work'),
+  ('Gobierno',        'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Servicios'), TRUE, 'material', 'account_balance'),
+  ('Impuestos',       'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Servicios'), TRUE, 'material', 'receipt_long'),
+  ('Asesoria legal',  'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Servicios'), TRUE, 'material', 'gavel'),
+  ('Contador',        'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Servicios'), TRUE, 'material', 'calculate'),
 
-  -- Ingresos
-  ('Salario',         (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'work'),
-  ('Ventas',          (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'point_of_sale'),
-  ('Freelance',       (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'laptop_mac'),
-  ('Inversiones',     (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'trending_up'),
-  ('Bonos',           (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'card_giftcard'),
+  -- CATEGORÍAS DE INGRESO --
+  
+  ('Salario',         'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'work'),
+  ('Nomina',          'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'badge'),
+  ('Aguinaldo',       'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'celebration'),
+  ('Comisiones',      'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'trending_up'),
+  ('Propinas',        'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'volunteer_activism'),
+  ('Ventas',          'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'point_of_sale'),
+  ('Freelance',       'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'laptop_mac'),
+  ('Negocio propio',  'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'storefront'),
+  ('Consultoria',     'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'business_center'),
+  ('Inversiones',     'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'trending_up'),
+  ('Dividendos',      'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'account_balance_wallet'),
+  ('Intereses',       'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'percent'),
+  ('Rentas',          'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'home_work'),
+  ('Arrendamiento',   'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'real_estate_agent'),
+  ('Bonos',           'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'card_giftcard'),
+  ('Prima vacacional','ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'beach_access'),
+  ('Utilidades',      'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'account_balance'),
+  ('Reembolsos',      'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'payments'),
+  ('Devoluciones',    'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'keyboard_return'),
+  ('Regalos',         'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'redeem'),
+  ('Prestamos recibidos', 'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'handshake'),
+  ('Herencias',       'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'family_restroom'),
+  ('Becas',           'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'school'),
+  ('Subsidios',       'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'support'),
+  ('Pension',         'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'elderly'),
+  ('Ingreso general', 'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'attach_money'),
+  ('Otros ingresos',  'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ingresos'), TRUE, 'material', 'more_horiz'),
 
-  -- Ahorros
-  ('Emergencias',     (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'emergency'),
-  ('Vacaciones',      (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'flight'),
-  ('Compras grandes', (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'shopping_cart'),
-  ('Jubilacion',      (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'elderly'),
-  ('Ahorro',          (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'savings'),
-  ('Fondo de emergencia',      (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'e911_emergency'),
+  -- CATEGORÍAS DE AHORRO (para depositar en cuentas de ahorro - tipo ingreso) --
+  
+  ('Emergencias',     'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'emergency'),
+  ('Vacaciones',      'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'flight'),
+  ('Compras grandes', 'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'shopping_cart'),
+  ('Jubilacion',      'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'elderly'),
+  ('Ahorro',          'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'savings'),
+  ('Fondo de emergencia', 'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Ahorros'), TRUE, 'material', 'e911_emergency'),
 
-  -- Otros
-  ('Transferencia',     (SELECT id FROM grupos_categoria WHERE nombre='Otros'), TRUE, 'material', 'arrow_forward'),
-  ('Otro',              (SELECT id FROM grupos_categoria WHERE nombre='Otros'), TRUE, 'material', 'adjust');
+  -- CATEGORÍAS ESPECIALES --
+  
+  -- Otros gastos
+  ('Otro gasto',      'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Otros gastos'), TRUE, 'material', 'more_horiz'),
+  ('Gasto general',   'gasto', (SELECT id FROM grupos_categoria WHERE nombre='Otros gastos'), TRUE, 'material', 'payments'),
+  
+  -- Otros ingresos
+  ('Otro ingreso',    'ingreso', (SELECT id FROM grupos_categoria WHERE nombre='Otros ingresos'), TRUE, 'material', 'more_horiz'),
+  
+  -- Transferencias
+  ('Transferencia',   'transferencia', (SELECT id FROM grupos_categoria WHERE nombre='Transferencias'), TRUE, 'material', 'swap_horiz'),
+  ('Traspaso entre cuentas', 'transferencia', (SELECT id FROM grupos_categoria WHERE nombre='Transferencias'), TRUE, 'material', 'sync_alt');
 
 -- ===================================================
 -- 5) Bancos más utilizados en México
@@ -139,7 +188,7 @@ VALUES
   ('BanCoppel',       TRUE, '#FFD700', 'material', 'account_balance'),
   ('Banco Azteca',    TRUE, '#D71921', 'material', 'account_balance'),
   ('Banco del Bienestar', TRUE, '#8BC34A', 'material', 'account_balance'),
-  ('Nu',              TRUE, '#8A05BE', 'material', 'account_balance'),
+  ('NU',              TRUE, '#8A05BE', 'material', 'account_balance'),
   ('Mercado Pago',    TRUE, '#009EE3', 'material', 'payment'),
   ('Rappi Pay',       TRUE, '#FF441F', 'material', 'payment'),
   ('Clip',            TRUE, '#6B46C1', 'material', 'payment'),
@@ -156,6 +205,7 @@ VALUES
 -- - Lujo: gastos completamente opcionales para indulgencias
 
 -- Las categorías están organizadas por grupos lógicos para facilitar el análisis:
+-- GRUPOS DE GASTO:
 -- - Hogar: todo relacionado con vivienda y servicios básicos
 -- - Transporte: movilidad y vehículos
 -- - Alimentación: comida y bebidas
@@ -163,8 +213,13 @@ VALUES
 -- - Educación: formación y desarrollo
 -- - Entretenimiento: ocio y diversión
 -- - Servicios: financieros, legales, profesionales
--- - Ingresos: todas las fuentes de dinero que entra
--- - Ahorros: diferentes propósitos de ahorro
+-- - Otros gastos: gastos generales no clasificados
+-- GRUPOS DE INGRESO:
+-- - Ingresos: todas las fuentes de dinero que entra (salarios, ventas, etc.)
+-- - Ahorros: diferentes propósitos de ahorro e inversiones
+-- - Otros ingresos: ingresos generales no clasificados
+-- GRUPOS ESPECIALES:
+-- - Transferencias: movimientos entre cuentas propias
 
 -- Los bancos incluyen tanto instituciones tradicionales como fintech modernas:
 -- - Bancos tradicionales: BBVA, Banorte, Santander, etc.

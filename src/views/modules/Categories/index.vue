@@ -47,7 +47,14 @@
 
                         <!-- Nombre y descripción -->
                         <div class="flex-1 min-w-0">
-                            <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-0 m-0 mb-1 truncate">{{ group.nombre }}</h3>
+                            <div class="flex items-center gap-2 mb-1">
+                                <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-0 m-0 truncate">{{ group.nombre }}</h3>
+                                <Badge 
+                                    :value="getTipoLabel(group.tipo)" 
+                                    :severity="getTipoSeverity(group.tipo)" 
+                                    size="small" 
+                                />
+                            </div>
                             <p v-if="group.descripcion" class="text-sm text-surface-600 dark:text-surface-400 m-0 mt-[-8px] mb-0 truncate">{{ group.descripcion }}</p>
                             <span class="text-xs text-surface-500 font-medium">{{ group.categories.length }} {{ group.categories.length === 1 ? 'categoría' : 'categorías' }}</span>
                         </div>
@@ -182,6 +189,26 @@ const hexToRgba = (hex, opacity = 1) => {
     const b = parseInt(hex.substring(4, 6), 16);
     
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+};
+
+// FUNCTIONS - Helper para obtener label del tipo
+const getTipoLabel = (tipo) => {
+    const labels = {
+        'gasto': 'Gasto',
+        'ingreso': 'Ingreso',
+        'transferencia': 'Transferencia'
+    };
+    return labels[tipo] || tipo;
+};
+
+// FUNCTIONS - Helper para obtener severity del tipo
+const getTipoSeverity = (tipo) => {
+    const severities = {
+        'gasto': 'danger',
+        'ingreso': 'success',
+        'transferencia': 'info'
+    };
+    return severities[tipo] || 'secondary';
 };
 
 // FUNCTIONS - Toggle group collapse

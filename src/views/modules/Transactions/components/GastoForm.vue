@@ -1,62 +1,25 @@
 <template>
     <div class="flex flex-col gap-4">
         <!-- Cuenta -->
-        <div class="flex flex-col gap-2">
-            <label for="cuenta" class="font-semibold text-sm">Cuenta *</label>
-            <Select 
-                id="cuenta"
-                v-model="formData.cuenta_id" 
-                :options="cuentas" 
-                optionLabel="nombre"
-                optionValue="id"
-                placeholder="Selecciona una cuenta"
-                :class="{ 'p-invalid': errors.cuenta_id }"
-                class="w-full"
-            >
-                <template #value="slotProps">
-                    <div v-if="slotProps.value" class="flex items-center gap-2">
-                        <div class="w-8 h-8 rounded flex items-center justify-center text-white text-sm"
-                            :style="{ backgroundColor: getAccountColor(getCuentaById(slotProps.value)) }">
-                            <i v-if="getCuentaById(slotProps.value)?.banco?.libreria_icono === 'primevue'"
-                                :class="getCuentaById(slotProps.value)?.banco?.nombre_icono"></i>
-                            <span v-else-if="getCuentaById(slotProps.value)?.banco?.libreria_icono === 'material'"
-                                class="material-symbols-rounded text-base">
-                                {{ getCuentaById(slotProps.value)?.banco?.nombre_icono }}
-                            </span>
-                            <i v-else :class="getAccountIcon(getCuentaById(slotProps.value))"></i>
-                        </div>
-                        <span>{{ getCuentaById(slotProps.value)?.nombre }}</span>
-                    </div>
-                    <span v-else>{{ slotProps.placeholder }}</span>
-                </template>
-                <template #option="slotProps">
-                    <div class="flex items-center gap-2">
-                        <div class="w-8 h-8 rounded flex items-center justify-center text-white text-sm"
-                            :style="{ backgroundColor: getAccountColor(slotProps.option) }">
-                            <i v-if="slotProps.option.banco?.libreria_icono === 'primevue'"
-                                :class="slotProps.option.banco.nombre_icono"></i>
-                            <span v-else-if="slotProps.option.banco?.libreria_icono === 'material'"
-                                class="material-symbols-rounded text-base">
-                                {{ slotProps.option.banco.nombre_icono }}
-                            </span>
-                            <i v-else :class="getAccountIcon(slotProps.option)"></i>
-                        </div>
-                        <div class="flex-1">
-                            <div class="font-medium">{{ slotProps.option.nombre }}</div>
-                            <div class="text-xs text-surface-500">
-                                {{ getAccountTypeLabel(slotProps.option.tipo) }}
-                            </div>
-                        </div>
-                    </div>
-                </template>
-            </Select>
-            <small v-if="errors.cuenta_id" class="text-red-500">{{ errors.cuenta_id }}</small>
-        </div>
+        <AccountPicker
+            v-model="formData.cuenta_id"
+            :accounts="cuentas"
+            label="Cuenta"
+            placeholder="Selecciona una cuenta"
+            inputId="cuenta-gasto"
+            :required="true"
+            :error="errors.cuenta_id"
+            :showBalance="true"
+            :showCreditCardInfo="true"
+            :requiredAmount="formData.monto"
+            enableFilter
+        />
 
         <!-- Categoría -->
         <CategoryPicker 
             v-model="formData.categoria_id"
             :categoryGroups="categoryGroups"
+            tipo="gasto"
             label="Categoría"
             :required="true"
             :error="errors.categoria_id"
@@ -274,6 +237,20 @@
                     </small>
                 </div>
 
+                <!-- Opción para iniciar en el siguiente periodo -->
+                <div class="flex items-center justify-between p-3 bg-surface-50 dark:bg-surface-800 rounded-lg">
+                    <div class="flex flex-col gap-1">
+                        <label for="iniciarSiguientePeriodo" class="font-semibold text-sm">Iniciar en el siguiente periodo</label>
+                        <small class="text-surface-600 dark:text-surface-400">
+                            Si está activado, el primer pago será después de la próxima fecha de corte
+                        </small>
+                    </div>
+                    <InputSwitch 
+                        id="iniciarSiguientePeriodo"
+                        v-model="formData.iniciarSiguientePeriodo" 
+                    />
+                </div>
+
                 <div class="flex flex-col gap-2">
                     <label for="nombreMSI" class="font-semibold text-sm">Nombre del pago diferido</label>
                     <InputText
@@ -294,6 +271,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import CategoryPicker from '@/components/CategoryPicker.vue';
+import AccountPicker from '@/components/AccountPicker.vue';
 
 // Props
 const props = defineProps({
@@ -329,7 +307,8 @@ const formData = ref({
     mesesYaPagados: 0,
     nombreMSI: '',
     tipoMonto: 'automatico', // 'automatico', 'redondeado', 'manual'
-    montoPorMes: null
+    montoPorMes: null,
+    iniciarSiguientePeriodo: false // Si true, primera cuota es en el siguiente periodo
 });
 
 // Errors
@@ -478,7 +457,10 @@ defineExpose({
             numeroMeses: null,
             mesesPersonalizados: null,
             mesesYaPagados: 0,
-            nombreMSI: ''
+            nombreMSI: '',
+            tipoMonto: 'automatico',
+            montoPorMes: null,
+            iniciarSiguientePeriodo: false
         };
         errors.value = {};
     }

@@ -492,6 +492,7 @@ export const useCategoriesStore = defineStore('categories', () => {
             const insertData = {
                 nombre: groupData.name,
                 descripcion: groupData.description || null,
+                tipo: groupData.tipo || 'gasto',
                 nombre_icono: groupData.icon_name || 'pi pi-folder',
                 biblioteca_iconos: groupData.icon_type || 'primeicons',
                 color: groupData.color || '#6366f1',
@@ -566,6 +567,7 @@ export const useCategoriesStore = defineStore('categories', () => {
             const updateData = {
                 nombre: groupData.name,
                 descripcion: groupData.description || null,
+                tipo: groupData.tipo || 'gasto',
                 nombre_icono: groupData.icon_name || 'pi pi-folder',
                 biblioteca_iconos: groupData.icon_type || 'primeicons',
                 color: groupData.color || '#6366f1'

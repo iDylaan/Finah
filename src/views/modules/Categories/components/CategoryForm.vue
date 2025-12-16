@@ -33,9 +33,17 @@
 
                 <!-- Nombre -->
                 <div>
-                    <label for="categoryName" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-0">
-                        Nombre <span class="text-red-500">*</span>
-                    </label>
+                    <div class="flex items-center justify-between mb-1">
+                        <label for="categoryName" class="text-sm font-medium text-surface-700 dark:text-surface-300 m-0">
+                            Nombre <span class="text-red-500">*</span>
+                        </label>
+                        <div v-if="selectedGroup" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                            :class="getTipoClasses(selectedGroup?.tipo)">
+                            <i :class="getTipoIcon(selectedGroup?.tipo)" class="text-sm"></i>
+                            <span>{{ getTipoLabel(selectedGroup?.tipo) }}</span>
+                        </div>
+                    </div>
+                    <small v-if="selectedGroup" class="text-xs text-surface-500 -mt-1 block">Las categorías heredan el tipo del grupo: {{ getTipoLabel(selectedGroup?.tipo) }}</small>
                     <InputText 
                         id="categoryName" 
                         v-model="categoryForm.name"
@@ -80,10 +88,17 @@
 
                 <!-- Detalles -->
                 <div class="space-y-3">
-                    <!-- Nombre -->
+                    <!-- Nombre y Tipo -->
                     <div>
-                        <h4 class="text-sm font-medium text-surface-600 dark:text-surface-400 mb-0">Nombre</h4>
-                        <p class="text-lg font-semibold text-surface-900 dark:text-surface-100">{{ categoryForm.name }}</p>
+                        <h4 class="text-sm font-medium text-surface-600 dark:text-surface-400 mb-1">Nombre</h4>
+                        <div class="flex items-center gap-2">
+                            <p class="text-lg font-semibold text-surface-900 dark:text-surface-100 m-0">{{ categoryForm.name }}</p>
+                            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                                :class="getTipoClasses(loadedCategoryData?.tipo)">
+                                <i :class="getTipoIcon(loadedCategoryData?.tipo)" class="text-sm"></i>
+                                <span>{{ getTipoLabel(loadedCategoryData?.tipo) }}</span>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Descripción -->
@@ -442,6 +457,34 @@ const submitCategory = async () => {
     } finally {
         isSubmitting.value = false;
     }
+};
+
+// FUNCTIONS - Helpers para tipo de categoría
+const getTipoLabel = (tipo) => {
+    const labels = {
+        'gasto': 'Gasto',
+        'ingreso': 'Ingreso',
+        'transferencia': 'Transferencia'
+    };
+    return labels[tipo] || tipo;
+};
+
+const getTipoIcon = (tipo) => {
+    const icons = {
+        'gasto': 'pi pi-arrow-down',
+        'ingreso': 'pi pi-arrow-up',
+        'transferencia': 'pi pi-arrows-h'
+    };
+    return icons[tipo] || 'pi pi-circle';
+};
+
+const getTipoClasses = (tipo) => {
+    const classes = {
+        'gasto': 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400',
+        'ingreso': 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400',
+        'transferencia': 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+    };
+    return classes[tipo] || 'bg-surface-100 dark:bg-surface-700 text-surface-700 dark:text-surface-300';
 };
 
 // HOOKS

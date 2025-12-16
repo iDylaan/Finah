@@ -64,6 +64,40 @@
                     :disabled="isSubmitting" />
                 <small v-if="formErrors.description" class="p-error">{{ formErrors.description }}</small>
             </div>
+
+            <!-- Tipo -->
+            <div>
+                <label for="categoryType" class="block text-sm font-medium text-surface-700 dark:text-surface-300 mb-1">
+                    Tipo <span class="text-red-500">*</span>
+                </label>
+                <Select
+                    id="categoryType"
+                    v-model="categoryForm.tipo"
+                    :options="tipoOptions"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="Selecciona el tipo"
+                    class="w-full"
+                    :class="{ 'p-invalid': formErrors.tipo }"
+                    :disabled="isSubmitting"
+                >
+                    <template #value="slotProps">
+                        <div v-if="slotProps.value" class="flex items-center gap-2">
+                            <i :class="getTipoIcon(slotProps.value)" class="text-sm"></i>
+                            <span>{{ getTipoLabel(slotProps.value) }}</span>
+                        </div>
+                        <span v-else>{{ slotProps.placeholder }}</span>
+                    </template>
+                    <template #option="slotProps">
+                        <div class="flex items-center gap-2">
+                            <i :class="getTipoIcon(slotProps.option.value)" class="text-sm"></i>
+                            <span>{{ slotProps.option.label }}</span>
+                        </div>
+                    </template>
+                </Select>
+                <small class="text-surface-500">Las categorías de este grupo serán de tipo {{ getTipoLabel(categoryForm.tipo) || 'seleccionado' }}</small>
+                <small v-if="formErrors.tipo" class="p-error block mt-1">{{ formErrors.tipo }}</small>
+            </div>
         </form>
 
         <template #footer>
@@ -149,10 +183,30 @@ const isFormValid = computed(() => {
            Object.keys(formErrors.value).length === 0;
 });
 
+// OPCIONES DE TIPO
+const tipoOptions = [
+    { label: 'Gasto', value: 'gasto' },
+    { label: 'Ingreso', value: 'ingreso' }
+];
+
+const getTipoLabel = (tipo) => {
+    const option = tipoOptions.find(opt => opt.value === tipo);
+    return option?.label || '';
+};
+
+const getTipoIcon = (tipo) => {
+    const icons = {
+        'gasto': 'pi pi-arrow-down text-red-500',
+        'ingreso': 'pi pi-arrow-up text-green-500'
+    };
+    return icons[tipo] || 'pi pi-circle';
+};
+
 // FORM DATA
 const categoryForm = ref({
     name: '',
     description: '',
+    tipo: 'gasto', // Valor por defecto
     icon_name: 'pi pi-folder',
     icon_type: ICONS.PRIMEVUE,
     color: '#6366f1',
@@ -176,6 +230,10 @@ const validateForm = () => {
 
     if (categoryForm.value.description && categoryForm.value.description.length > 500) {
         errors.description = 'La descripción no puede exceder 500 caracteres';
+    }
+
+    if (!categoryForm.value.tipo) {
+        errors.tipo = 'El tipo es requerido';
     }
 
     formErrors.value = errors;
@@ -248,6 +306,7 @@ const loadGroupForEdit = async (groupId) => {
         categoryForm.value = {
             name: group.nombre || '',
             description: group.descripcion || '',
+            tipo: group.tipo || 'gasto',
             icon_name: group.nombre_icono || 'pi pi-folder',
             icon_type: group.icon_type || group.biblioteca_iconos || ICONS.PRIMEVUE, // Manejo de ambos nombres
             color: group.color || '#6366f1',
@@ -274,6 +333,7 @@ const resetForm = () => {
     categoryForm.value = {
         name: '',
         description: '',
+        tipo: 'gasto',
         icon_name: 'pi pi-folder',
         icon_type: ICONS.PRIMEVUE,
         color: '#6366f1',
@@ -303,6 +363,7 @@ const submitCategory = async () => {
         const categoryData = {
             name: categoryForm.value.name.trim(),
             description: categoryForm.value.description?.trim() || null,
+            tipo: categoryForm.value.tipo || 'gasto',
             icon_name: categoryForm.value.icon_name || 'pi pi-folder',
             icon_type: categoryForm.value.icon_type || ICONS.PRIMEVUE,
             color: categoryForm.value.color || '#6366f1',
