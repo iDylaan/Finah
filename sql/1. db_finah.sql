@@ -180,6 +180,7 @@ CREATE TABLE grupos_categoria (
   id               UUID             DEFAULT gen_random_uuid() PRIMARY KEY,
   nombre           TEXT             NOT NULL,                           -- Nombre del grupo (ej: "Hogar", "Transporte")
   descripcion      TEXT,                                               -- Descripción opcional
+  tipo             tipo_transaccion NOT NULL DEFAULT 'gasto',          -- Tipo: 'gasto', 'ingreso', 'transferencia'
   es_publico       BOOLEAN          NOT NULL DEFAULT FALSE,            -- Si está disponible para todos los usuarios
   usuario_id       UUID             REFERENCES profiles(id),           -- Propietario si es privado individual
   grupo_usuario_id UUID             REFERENCES grupos_usuario(id),     -- Grupo propietario si es compartido
@@ -198,6 +199,7 @@ CREATE TABLE grupos_categoria (
 -- Índices para mejorar consultas
 CREATE INDEX ON grupos_categoria(usuario_id);
 CREATE INDEX ON grupos_categoria(grupo_usuario_id);
+CREATE INDEX ON grupos_categoria(tipo);
 
 
 -- 4.3) Categorías específicas dentro de cada grupo
@@ -205,6 +207,7 @@ CREATE TABLE categorias (
   id               UUID             DEFAULT gen_random_uuid() PRIMARY KEY,
   nombre           TEXT             NOT NULL,                           -- Nombre de la categoría (ej: "Gasolina", "Supermercado")
   descripcion      TEXT,                                               -- Descripción opcional
+  tipo             tipo_transaccion NOT NULL DEFAULT 'gasto',          -- Tipo: 'gasto', 'ingreso', 'transferencia'
   grupo_id         UUID             NOT NULL REFERENCES grupos_categoria(id), -- Grupo al que pertenece
   es_publico       BOOLEAN          NOT NULL DEFAULT FALSE,            -- Si está disponible para todos
   usuario_id       UUID             REFERENCES profiles(id),           -- Propietario si es privado individual
@@ -319,6 +322,7 @@ CREATE TABLE cuentas (
   limite_credito         NUMERIC(14,2),                              -- Límite máximo de crédito
   credito_disponible     NUMERIC(14,2),                              -- Crédito actualmente disponible
   saldo_periodo_actual   NUMERIC(14,2)    DEFAULT 0,                 -- Saldo variable del periodo (se recalcula en corte)
+  saldo_arrastre         NUMERIC(14,2)    DEFAULT 0,                 -- Deuda no pagada de periodos anteriores
   dia_pago               INT,                                        -- Día del mes para realizar el pago (1-31)
   dia_corte              INT,                                        -- Día de corte del estado de cuenta (1-31)
   tasa_interes           NUMERIC(5,2),                               -- Tasa de interés anual
@@ -361,6 +365,7 @@ CREATE INDEX ON cuentas(anualidad) WHERE anualidad > 0;                    -- Bu
 COMMENT ON COLUMN cuentas.limite_credito IS 'Límite máximo de crédito - Solo para credit_card';
 COMMENT ON COLUMN cuentas.credito_disponible IS 'Crédito actualmente disponible - Solo para credit_card';
 COMMENT ON COLUMN cuentas.saldo_periodo_actual IS 'Saldo variable del periodo de pago. Inicia en fecha de corte con gastos+MSI pendientes, aumenta con nuevos gastos, disminuye con pagos. Se recalcula cada corte.';
+COMMENT ON COLUMN cuentas.saldo_arrastre IS 'Deuda no pagada que se arrastra de periodos anteriores. Se acumula cuando no se paga el total en la fecha límite.';
 COMMENT ON COLUMN cuentas.porcentaje_cat IS 'Costo Anual Total (CAT) en porcentaje - Incluye intereses, comisiones y seguros';
 COMMENT ON COLUMN cuentas.anualidad IS 'Costo anual por tener la tarjeta en pesos';
 COMMENT ON COLUMN cuentas.gasto_exencion_anualidad IS 'Compras anuales para no pagar anualidad';
@@ -417,6 +422,12 @@ CREATE TABLE transacciones (
   descripcion      TEXT,                                                  -- Descripción opcional
   url_recibo       TEXT,                                                  -- URL del comprobante/recibo
   metadatos        JSONB,                                                 -- Datos adicionales (ID de deuda, cuota, etc.)
+  -- Campos para MSI (Meses Sin Intereses) - Foreign key se agrega después
+  es_cuota_msi      BOOLEAN           DEFAULT FALSE,                     -- TRUE si es una cuota de MSI
+  msi_id            UUID,                                                -- Referencia al MSI padre (constraint se agrega después)
+  numero_cuota_msi  INTEGER,                                             -- Número de cuota (1, 2, 3, etc.)
+  estado_msi        VARCHAR(20)       DEFAULT 'programada'               -- Estado: 'programada', 'pendiente_pago', 'pagada', 'vencida'
+                    CHECK (estado_msi IN ('programada', 'pendiente_pago', 'pagada', 'vencida', NULL)),
   fecha_creacion   TIMESTAMPTZ       NOT NULL DEFAULT now(),             -- Cuándo se registró
   fecha_actualizacion TIMESTAMPTZ    NOT NULL DEFAULT now(),              -- Última modificación
   deleted_at       TIMESTAMPTZ                                            -- Baja lógica: NULL = activa, con fecha = eliminada
@@ -426,6 +437,15 @@ CREATE INDEX ON transacciones(usuario_id, fecha_ocurrencia); -- Buscar por usuar
 CREATE INDEX ON transacciones(cuenta_id);                    -- Buscar por cuenta
 CREATE INDEX ON transacciones(categoria_id);                 -- Buscar por categoría
 CREATE INDEX ON transacciones(severidad);                    -- Buscar por severidad
+CREATE INDEX ON transacciones(msi_id) WHERE es_cuota_msi = TRUE; -- Buscar cuotas de un MSI
+CREATE INDEX ON transacciones(cuenta_id, fecha_ocurrencia, es_cuota_msi); -- Queries por periodo
+CREATE INDEX ON transacciones(estado_msi) WHERE es_cuota_msi = TRUE; -- Buscar por estado MSI
+
+-- Comentarios para campos MSI
+COMMENT ON COLUMN transacciones.es_cuota_msi IS 'TRUE si esta transacción es una cuota de pago diferido (MSI)';
+COMMENT ON COLUMN transacciones.msi_id IS 'ID del MSI padre en transacciones_periodicas';
+COMMENT ON COLUMN transacciones.numero_cuota_msi IS 'Número de cuota dentro del plan MSI (1, 2, 3, etc.)';
+COMMENT ON COLUMN transacciones.estado_msi IS 'Estado de la cuota MSI: programada (futura), pendiente_pago (en periodo actual), pagada (ya se pagó el periodo), vencida (no se pagó a tiempo)';
 
 
 -- 4.10) División de gastos grupales entre miembros
@@ -768,6 +788,7 @@ $$;
 
 
 -- 7.5) Función para actualizar saldo_periodo_actual al registrar gastos
+-- NUEVA LÓGICA: Ya no filtrar por periodo, sino usar Total Usado - Total MSI
 CREATE OR REPLACE FUNCTION actualizar_saldo_periodo_gasto()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -776,10 +797,11 @@ SET search_path = public
 AS $$
 DECLARE
     v_cuenta RECORD;
-    v_fechas RECORD;
+    v_deuda_total NUMERIC;
+    v_deuda_msi NUMERIC;
 BEGIN
-    -- Solo aplicar a gastos en tarjetas de crédito
-    IF NEW.tipo != 'gasto' THEN
+    -- Solo procesar gastos normales (no MSI) en tarjetas de crédito
+    IF NEW.tipo != 'gasto' OR (NEW.metadatos->>'msi_id') IS NOT NULL THEN
         RETURN NEW;
     END IF;
     
@@ -790,27 +812,17 @@ BEGIN
         AND tipo = 'credit_card'
         AND dia_corte IS NOT NULL;
     
-    -- Si no es tarjeta de crédito o no tiene día de corte, no hacer nada
+    -- Si no es tarjeta de crédito, no hacer nada
     IF NOT FOUND THEN
         RETURN NEW;
     END IF;
     
-    -- Calcular fechas del periodo
-    SELECT * INTO v_fechas
-    FROM calcular_fechas_periodo_tarjeta(
-        v_cuenta.dia_corte,
-        v_cuenta.dia_pago,
-        NEW.fecha_ocurrencia
-    );
+    -- Recalcular usando la nueva lógica: (Total Usado - Total MSI) + Cuota MSI del periodo
+    v_deuda_total := v_cuenta.limite_credito - v_cuenta.credito_disponible;
+    v_deuda_msi := calcular_total_msi_pendiente(NEW.cuenta_id);
     
-    -- Solo aumentar saldo_periodo_actual si el gasto es del periodo actual
-    IF NEW.fecha_ocurrencia >= v_fechas.periodo_actual_inicio 
-       AND NEW.fecha_ocurrencia <= v_fechas.periodo_actual_fin THEN
-        UPDATE cuentas
-        SET saldo_periodo_actual = saldo_periodo_actual + NEW.monto,
-            fecha_actualizacion = NOW()
-        WHERE id = NEW.cuenta_id;
-    END IF;
+    -- Calcular solo para recalcular completamente el saldo
+    PERFORM recalcular_saldo_en_corte(NEW.cuenta_id);
     
     RETURN NEW;
 END;
@@ -824,7 +836,48 @@ CREATE TRIGGER trigger_actualizar_saldo_periodo
     EXECUTE FUNCTION actualizar_saldo_periodo_gasto();
 
 
+-- 7.5d) Función auxiliar para calcular total de MSI (completo, no solo pendiente)
+DROP FUNCTION IF EXISTS calcular_total_msi_pendiente(UUID);
+CREATE OR REPLACE FUNCTION calcular_total_msi_pendiente(
+    p_cuenta_id UUID
+)
+RETURNS NUMERIC
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+SET row_security = OFF
+AS $$
+DECLARE
+    v_total_msi NUMERIC := 0;
+    v_msi_record RECORD;
+    v_saldo_msi NUMERIC := 0;
+BEGIN
+    -- Sumar el saldo PENDIENTE de cada MSI activo
+    -- Saldo pendiente = monto_total_msi - (meses_pagados * monto_por_mes)
+    FOR v_msi_record IN
+        SELECT 
+            monto_total_msi,
+            meses_pagados,
+            monto_por_mes
+        FROM transacciones_periodicas
+        WHERE cuenta_id = p_cuenta_id
+            AND es_msi = TRUE
+            AND activa = TRUE
+    LOOP
+        -- Calcular saldo pendiente de este MSI
+        v_saldo_msi := v_msi_record.monto_total_msi - (v_msi_record.meses_pagados * v_msi_record.monto_por_mes);
+        v_total_msi := v_total_msi + GREATEST(v_saldo_msi, 0);
+    END LOOP;
+    
+    RETURN v_total_msi;
+END;
+$$;
+
+COMMENT ON FUNCTION calcular_total_msi_pendiente IS 'Calcula el saldo PENDIENTE de todos los MSI activos (monto_total - meses_pagados * cuota). Este es el monto que aún falta por pagar de todos los MSI.';
+
+
 -- 7.6) Función para recalcular saldo_periodo_actual en fecha de corte
+-- NUEVA LÓGICA: saldo_periodo_actual = (Total Usado - Total MSI) + Cuota MSI del periodo
 CREATE OR REPLACE FUNCTION recalcular_saldo_en_corte(
     p_cuenta_id UUID
 )
@@ -836,8 +889,14 @@ AS $$
 DECLARE
     v_cuenta RECORD;
     v_fechas RECORD;
-    v_gastos RECORD;
-    v_nuevo_saldo NUMERIC := 0;
+    v_deuda_total NUMERIC := 0;
+    v_deuda_msi NUMERIC := 0;
+    v_cuotas_msi_periodo NUMERIC := 0;
+    v_cuotas_msi_futuras NUMERIC := 0;
+    v_nuevo_saldo_periodo NUMERIC := 0;
+    v_msi RECORD;
+    v_saldo_pendiente_msi NUMERIC;
+    v_cuota_este_periodo NUMERIC;
 BEGIN
     -- Obtener información de la cuenta
     SELECT * INTO v_cuenta
@@ -850,7 +909,7 @@ BEGIN
         RAISE EXCEPTION 'Cuenta no encontrada o no es tarjeta de crédito';
     END IF;
     
-    -- Calcular fechas del periodo actual
+    -- Calcular fechas del periodo actual (para actualizar proxima_fecha_corte y proxima_fecha_pago)
     SELECT * INTO v_fechas
     FROM calcular_fechas_periodo_tarjeta(
         v_cuenta.dia_corte,
@@ -858,20 +917,42 @@ BEGIN
         CURRENT_DATE
     );
     
-    -- Obtener gastos y MSI del periodo
-    SELECT * INTO v_gastos
-    FROM obtener_gastos_periodo_tarjeta(
-        p_cuenta_id,
-        v_fechas.periodo_actual_inicio,
-        v_fechas.periodo_actual_fin
-    );
+    -- LÓGICA CORREGIDA: Calcular deuda total usada
+    v_deuda_total := v_cuenta.limite_credito - v_cuenta.credito_disponible;
     
-    -- El nuevo saldo es: gastos del periodo + MSI del periodo
-    v_nuevo_saldo := v_gastos.total_periodo;
+    -- Calcular total de MSI (monto total de todos los MSI activos)
+    v_deuda_msi := calcular_total_msi_pendiente(p_cuenta_id);
     
-    -- Actualizar saldo_periodo_actual
+    -- OPCIÓN 1 (HÍBRIDO): Consultar transacciones reales para cuotas MSI
+    
+    -- Calcular cuotas MSI FUTURAS (después del periodo actual)
+    SELECT COALESCE(SUM(monto), 0)
+    INTO v_cuotas_msi_futuras
+    FROM transacciones
+    WHERE cuenta_id = p_cuenta_id
+        AND es_cuota_msi = TRUE
+        AND fecha_ocurrencia > v_fechas.periodo_actual_fin
+        AND estado_msi IN ('programada', 'pendiente_pago')
+        AND deleted_at IS NULL;
+    
+    -- Calcular cuota MSI del periodo ACTUAL
+    SELECT COALESCE(SUM(monto), 0)
+    INTO v_cuotas_msi_periodo
+    FROM transacciones
+    WHERE cuenta_id = p_cuenta_id
+        AND es_cuota_msi = TRUE
+        AND fecha_ocurrencia >= v_fechas.periodo_actual_inicio
+        AND fecha_ocurrencia <= v_fechas.periodo_actual_fin
+        AND estado_msi IN ('programada', 'pendiente_pago')
+        AND deleted_at IS NULL;
+    
+    -- El saldo del periodo actual es: (Deuda Total - Total MSI) + Cuota MSI del Periodo
+    -- Esto da: deuda no diferida + cuota del periodo actual únicamente
+    v_nuevo_saldo_periodo := GREATEST((v_deuda_total - v_deuda_msi) + v_cuotas_msi_periodo, 0);
+    
+    -- Actualizar saldo_periodo_actual con la nueva lógica
     UPDATE cuentas
-    SET saldo_periodo_actual = v_nuevo_saldo,
+    SET saldo_periodo_actual = v_nuevo_saldo_periodo,
         proxima_fecha_corte = v_fechas.fecha_corte_siguiente,
         proxima_fecha_pago = v_fechas.fecha_pago_siguiente,
         fecha_actualizacion = NOW()
@@ -879,7 +960,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION recalcular_saldo_en_corte IS 'Recalcula el saldo_periodo_actual en la fecha de corte. Debe ejecutarse automáticamente cada día de corte o manualmente cuando sea necesario.';
+COMMENT ON FUNCTION recalcular_saldo_en_corte IS 'Recalcula el saldo_periodo_actual usando la fórmula: (Deuda Total - Total MSI) + Cuota MSI Periodo Actual. Esto muestra solo la deuda no diferida más la cuota del mes actual, sin incluir cuotas futuras.';
 
 
 -- ==================================================================
@@ -997,6 +1078,60 @@ BEGIN
   ORDER BY ju.jerarquia_personalizada;
 END;
 $$;
+
+
+-- ==================================================================
+-- 7.7) Función auxiliar para recalcular TODAS las tarjetas manualmente
+-- ==================================================================
+CREATE OR REPLACE FUNCTION recalcular_todas_tarjetas()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_tarjeta RECORD;
+BEGIN
+    FOR v_tarjeta IN (
+        SELECT id 
+        FROM cuentas 
+        WHERE tipo = 'credit_card' 
+            AND deleted_at IS NULL
+            AND dia_corte IS NOT NULL
+    ) LOOP
+        PERFORM recalcular_saldo_en_corte(v_tarjeta.id);
+    END LOOP;
+END;
+$$;
+
+COMMENT ON FUNCTION recalcular_todas_tarjetas IS 'Recalcula el saldo_periodo_actual de todas las tarjetas de crédito activas usando la nueva lógica: (Total Usado - MSI Pendiente) = Periodo Actual';
+
+
+-- 7.8) Trigger para calcular saldo_periodo_actual al crear tarjeta de crédito
+CREATE OR REPLACE FUNCTION inicializar_saldo_periodo_tarjeta()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+    -- Solo aplicar a tarjetas de crédito con día de corte
+    IF NEW.tipo = 'credit_card' AND NEW.dia_corte IS NOT NULL THEN
+        -- Calcular el saldo del periodo actual al crear la tarjeta
+        PERFORM recalcular_saldo_en_corte(NEW.id);
+    END IF;
+    
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trigger_inicializar_saldo_periodo ON cuentas;
+CREATE TRIGGER trigger_inicializar_saldo_periodo
+    AFTER INSERT ON cuentas
+    FOR EACH ROW
+    EXECUTE FUNCTION inicializar_saldo_periodo_tarjeta();
+
+COMMENT ON FUNCTION inicializar_saldo_periodo_tarjeta IS 'Inicializa el saldo_periodo_actual al crear una tarjeta de crédito';
 
 
 -- ==================================================================
@@ -1167,6 +1302,13 @@ COMMENT ON COLUMN transacciones_periodicas.numero_meses_total IS 'Total de meses
 COMMENT ON COLUMN transacciones_periodicas.meses_pagados IS 'Meses ya pagados (útil para registrar MSI en progreso)';
 COMMENT ON COLUMN transacciones_periodicas.monto_por_mes IS 'Monto mensual calculado (monto_total / numero_meses)';
 
+-- Agregar foreign key constraint para transacciones.msi_id (ahora que transacciones_periodicas existe)
+ALTER TABLE transacciones 
+ADD CONSTRAINT fk_transacciones_msi_id 
+FOREIGN KEY (msi_id) REFERENCES transacciones_periodicas(id) ON DELETE CASCADE;
+
+COMMENT ON CONSTRAINT fk_transacciones_msi_id ON transacciones IS 'Foreign key a transacciones_periodicas para cuotas MSI';
+
 
 -- 7.5b) Función para actualizar saldo_periodo_actual al crear MSI
 -- NOTA: Esta función ya NO suma las ejecuciones directamente porque el trigger
@@ -1236,7 +1378,12 @@ CREATE TRIGGER update_ejecuciones_periodicas_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 
--- 7.5c) Función para actualizar saldo_periodo_actual al crear ejecuciones de MSI
+-- 7.5c) [DEPRECADO - OPCIÓN 1 HÍBRIDO] Trigger para ejecuciones MSI
+-- Este trigger ya NO es necesario con el enfoque híbrido (transacciones reales)
+-- Ahora usamos recalcular_saldo_en_corte() que consulta directamente transacciones
+-- Mantenido comentado para referencia histórica
+
+/*
 CREATE OR REPLACE FUNCTION actualizar_saldo_periodo_ejecucion_msi()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -1248,58 +1395,15 @@ DECLARE
     v_cuenta RECORD;
     v_fechas RECORD;
 BEGIN
-    -- Obtener información de la transacción periódica
-    SELECT * INTO v_transaccion_periodica
-    FROM transacciones_periodicas
-    WHERE id = NEW.transaccion_periodica_id
-        AND es_msi = TRUE;
-    
-    -- Si no es MSI, no hacer nada
-    IF NOT FOUND THEN
-        RETURN NEW;
-    END IF;
-    
-    -- Obtener información de la cuenta
-    SELECT * INTO v_cuenta
-    FROM cuentas
-    WHERE id = v_transaccion_periodica.cuenta_id
-        AND tipo = 'credit_card'
-        AND dia_corte IS NOT NULL;
-    
-    -- Si no es tarjeta de crédito, no hacer nada
-    IF NOT FOUND THEN
-        RETURN NEW;
-    END IF;
-    
-    -- Calcular fechas del periodo actual
-    SELECT * INTO v_fechas
-    FROM calcular_fechas_periodo_tarjeta(
-        v_cuenta.dia_corte,
-        v_cuenta.dia_pago,
-        CURRENT_DATE
-    );
-    
-    -- Si la ejecución cae en el periodo actual, actualizar saldo
-    IF NEW.fecha_programada >= v_fechas.periodo_actual_inicio 
-       AND NEW.fecha_programada <= v_fechas.periodo_actual_fin
-       AND NEW.estado IN ('pendiente', 'confirmada') THEN
-        
-        UPDATE cuentas
-        SET saldo_periodo_actual = saldo_periodo_actual + NEW.monto_programado,
-            fecha_actualizacion = NOW()
-        WHERE id = v_transaccion_periodica.cuenta_id;
-    END IF;
-    
+    -- [DEPRECADO] Este trigger operaba sobre ejecuciones_transacciones_periodicas
+    -- Ahora las cuotas MSI son transacciones reales en la tabla 'transacciones'
+    -- El cálculo se hace con queries simples por fecha_ocurrencia
     RETURN NEW;
 END;
 $$;
 
--- Trigger para actualizar saldo_periodo_actual al crear ejecuciones de MSI
 DROP TRIGGER IF EXISTS trigger_actualizar_saldo_periodo_ejecucion ON ejecuciones_transacciones_periodicas;
-CREATE TRIGGER trigger_actualizar_saldo_periodo_ejecucion
-    AFTER INSERT ON ejecuciones_transacciones_periodicas
-    FOR EACH ROW
-    EXECUTE FUNCTION actualizar_saldo_periodo_ejecucion_msi();
+*/
 
 
 -- Comentarios para ejecuciones_transacciones_periodicas
@@ -1467,7 +1571,8 @@ CREATE OR REPLACE FUNCTION crear_msi_tarjeta_credito(
     p_monto_total DECIMAL,
     p_numero_meses INTEGER,
     p_meses_ya_pagados INTEGER DEFAULT 0,
-    p_monto_personalizado_por_mes DECIMAL DEFAULT NULL
+    p_monto_personalizado_por_mes DECIMAL DEFAULT NULL,
+    p_iniciar_siguiente_periodo BOOLEAN DEFAULT FALSE
 )
 RETURNS UUID
 LANGUAGE plpgsql
@@ -1478,6 +1583,8 @@ DECLARE
     v_monto_mensual DECIMAL;
     v_saldo_pendiente DECIMAL;
     v_fecha_corte INTEGER;
+    v_dia_pago INTEGER;
+    v_fechas RECORD;
     v_proxima_fecha_corte DATE;
     v_meses_restantes INTEGER;
     v_fecha_ejecucion DATE;
@@ -1510,24 +1617,43 @@ BEGIN
     
     v_meses_restantes := p_numero_meses - p_meses_ya_pagados;
     
-    -- Calcular saldo pendiente basado en el monto total original
-    -- No usar v_monto_mensual * v_meses_restantes porque puede diferir si hay redondeo
+    -- REGLA DE NEGOCIO: Saldo pendiente = monto total - (meses ya pagados * cuota)
+    -- Ejemplo: $1,000 a 10 meses = $100/mes
+    -- Si ya pagué 3 meses: $1,000 - ($100 * 3) = $700 a descontar del crédito
     v_saldo_pendiente := p_monto_total - (p_meses_ya_pagados * v_monto_mensual);
     
-    -- Calcular próxima fecha de corte
-    v_proxima_fecha_corte := (
-        SELECT proxima_fecha_corte::DATE 
-        FROM cuentas 
-        WHERE id = p_cuenta_id
-    );
+    RAISE NOTICE '💰 Cálculo de deuda:';
+    RAISE NOTICE '  Monto total: $%, Cuota: $%, Meses totales: %', p_monto_total, v_monto_mensual, p_numero_meses;
+    RAISE NOTICE '  Meses ya pagados: %, Meses restantes: %', p_meses_ya_pagados, v_meses_restantes;
+    RAISE NOTICE '  Saldo pendiente a descontar: $%', v_saldo_pendiente;
     
-    IF v_proxima_fecha_corte IS NULL THEN
-        -- Calcular manualmente si no existe
-        IF v_fecha_corte <= EXTRACT(DAY FROM CURRENT_DATE) THEN
-            v_proxima_fecha_corte := (DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month' + (v_fecha_corte - 1 || ' days')::INTERVAL)::DATE;
-        ELSE
-            v_proxima_fecha_corte := (DATE_TRUNC('month', CURRENT_DATE) + (v_fecha_corte - 1 || ' days')::INTERVAL)::DATE;
-        END IF;
+    -- Obtener día de pago de la tarjeta
+    SELECT dia_pago INTO v_dia_pago
+    FROM cuentas
+    WHERE id = p_cuenta_id;
+    
+    -- Calcular fechas usando la función correcta
+    SELECT * INTO v_fechas
+    FROM calcular_fechas_periodo_tarjeta(v_fecha_corte, v_dia_pago, CURRENT_DATE);
+    
+    RAISE NOTICE 'DEBUG crear_msi_tarjeta_credito:';
+    RAISE NOTICE '  Fecha actual: %', CURRENT_DATE;
+    RAISE NOTICE '  Dia corte: %, Dia pago: %', v_fecha_corte, v_dia_pago;
+    RAISE NOTICE '  Periodo actual: % → %', v_fechas.periodo_actual_inicio, v_fechas.periodo_actual_fin;
+    RAISE NOTICE '  Fecha corte actual: %', v_fechas.fecha_corte_actual;
+    RAISE NOTICE '  Fecha corte siguiente: %', v_fechas.fecha_corte_siguiente;
+    RAISE NOTICE '  Iniciar siguiente periodo: %', p_iniciar_siguiente_periodo;
+    
+    -- Determinar la fecha de inicio según si inicia en periodo actual o siguiente
+    IF p_iniciar_siguiente_periodo THEN
+        -- Iniciar en el siguiente periodo: usar fecha_corte_actual (próximo corte)
+        v_proxima_fecha_corte := v_fechas.fecha_corte_actual;
+        RAISE NOTICE '  ✅ Primera cuota para siguiente periodo: %', v_proxima_fecha_corte;
+    ELSE
+        -- Iniciar en el periodo actual: usar una fecha DENTRO del periodo actual
+        -- Usamos periodo_actual_inicio que es el inicio del periodo que transcurre
+        v_proxima_fecha_corte := v_fechas.periodo_actual_inicio;
+        RAISE NOTICE '  ✅ Primera cuota para periodo actual: %', v_proxima_fecha_corte;
     END IF;
     
     -- Crear transacción periódica
@@ -1579,58 +1705,186 @@ BEGIN
         TRUE   -- Se ejecuta automáticamente
     ) RETURNING id INTO v_transaccion_periodica_id;
     
-    -- Crear ejecuciones para TODOS los meses (ya pagados + restantes)
-    v_fecha_ejecucion := v_proxima_fecha_corte;
+    -- NUEVO ENFOQUE: Crear transacciones reales para cada cuota MSI
+    -- Esto permite queries simples por periodo y mejor trazabilidad
+    DECLARE
+        v_fecha_primera_cuota_no_pagada DATE;
+        v_fecha_cuota DATE;
+        v_estado_cuota VARCHAR(20);
+        v_transaccion_id UUID;
+    BEGIN
+        -- Calcular la fecha de la primera cuota NO pagada
+        IF p_iniciar_siguiente_periodo THEN
+            -- Si inicia en siguiente periodo, la primera cuota no pagada es en fecha_corte_actual
+            v_fecha_primera_cuota_no_pagada := v_fechas.fecha_corte_actual;
+        ELSE
+            -- Si inicia en periodo actual, la primera cuota no pagada es HOY (o inicio del periodo)
+            v_fecha_primera_cuota_no_pagada := v_fechas.periodo_actual_inicio;
+        END IF;
+        
+        RAISE NOTICE '  Primera cuota no pagada será: %', v_fecha_primera_cuota_no_pagada;
+        
+        FOR i IN 1..p_numero_meses LOOP
+            -- Calcular fecha de esta cuota
+            IF i <= p_meses_ya_pagados THEN
+                -- Cuotas ya pagadas: colocar en el PASADO (meses antes de la primera no pagada)
+                v_fecha_cuota := v_fecha_primera_cuota_no_pagada - ((p_meses_ya_pagados - i + 1) || ' months')::INTERVAL;
+                v_estado_cuota := 'pagada';
+            ELSE
+                -- Cuotas no pagadas: calcular desde la primera cuota no pagada
+                -- (i - p_meses_ya_pagados - 1) da: 0 para la primera, 1 para la segunda, etc.
+                v_fecha_cuota := v_fecha_primera_cuota_no_pagada + ((i - p_meses_ya_pagados - 1) || ' months')::INTERVAL;
+                
+                -- Determinar el estado según el periodo
+                IF v_fecha_cuota >= v_fechas.periodo_actual_inicio AND v_fecha_cuota <= v_fechas.periodo_actual_fin THEN
+                    v_estado_cuota := 'pendiente_pago';
+                ELSE
+                    v_estado_cuota := 'programada';
+                END IF;
+            END IF;
+            
+            -- Crear transacción real para esta cuota MSI
+            INSERT INTO transacciones (
+                usuario_id,
+                tipo,
+                monto,
+                fecha_ocurrencia,
+                descripcion,
+                cuenta_id,
+                categoria_id,
+                es_cuota_msi,
+                msi_id,
+                numero_cuota_msi,
+                estado_msi
+            ) VALUES (
+                p_usuario_id,
+                'gasto',
+                v_monto_mensual,
+                v_fecha_cuota,
+                p_nombre || ' - Cuota ' || i || '/' || p_numero_meses,
+                p_cuenta_id,
+                p_categoria_id,
+                TRUE,
+                v_transaccion_periodica_id,
+                i,
+                v_estado_cuota
+            ) RETURNING id INTO v_transaccion_id;
+            
+            RAISE NOTICE '  💳 Cuota % creada: fecha=%, estado=%, transaccion_id=%', 
+                i, v_fecha_cuota, v_estado_cuota, v_transaccion_id;
+        END LOOP;
+    END;
     
-    -- Retroceder a la fecha del primer mes si hay meses ya pagados
+    -- Actualizar contador de meses pagados si hay cuotas ya pagadas
     IF p_meses_ya_pagados > 0 THEN
-        v_fecha_ejecucion := v_fecha_ejecucion - (p_meses_ya_pagados || ' months')::INTERVAL;
+        UPDATE transacciones_periodicas
+        SET meses_pagados = p_meses_ya_pagados,
+            repeticiones_completadas = p_meses_ya_pagados
+        WHERE id = v_transaccion_periodica_id;
+        
+        RAISE NOTICE '  ✅ MSI actualizado: meses_pagados=%', p_meses_ya_pagados;
     END IF;
     
-    FOR i IN 1..p_numero_meses LOOP
-        INSERT INTO ejecuciones_transacciones_periodicas (
-            transaccion_periodica_id,
-            estado,
-            fecha_programada,
-            monto_programado,
-            numero_cuota,
-            fecha_ejecutada,
-            monto_ejecutado
-        ) VALUES (
-            v_transaccion_periodica_id,
-            CASE 
-                WHEN i <= p_meses_ya_pagados THEN 'ejecutada'
-                ELSE 'pendiente'
-            END,
-            v_fecha_ejecucion,
-            v_monto_mensual,
-            i,
-            CASE 
-                WHEN i <= p_meses_ya_pagados THEN v_fecha_ejecucion::TIMESTAMP
-                ELSE NULL
-            END,
-            CASE 
-                WHEN i <= p_meses_ya_pagados THEN v_monto_mensual
-                ELSE NULL
-            END
-        );
-        
-        -- Calcular siguiente fecha de corte (próximo mes)
-        v_fecha_ejecucion := (DATE_TRUNC('month', v_fecha_ejecucion) + INTERVAL '1 month' + (v_fecha_corte - 1 || ' days')::INTERVAL)::DATE;
-    END LOOP;
-    
     -- Actualizar el crédito disponible de la tarjeta
-    -- Descontar el saldo pendiente total (monto_total - lo ya pagado)
+    -- REGLA DE NEGOCIO: Descontar solo el saldo pendiente (monto total - meses pagados)
+    -- Ejemplo: $1,000 total, 3 meses pagados de $100 = descontar $700
     UPDATE cuentas
     SET credito_disponible = credito_disponible - v_saldo_pendiente,
         fecha_actualizacion = NOW()
     WHERE id = p_cuenta_id;
     
+    RAISE NOTICE '  ✅ Crédito disponible reducido: -$% (saldo pendiente)', v_saldo_pendiente;
+    
+    -- Recalcular el saldo del periodo actual para incluir la cuota de este mes
+    PERFORM recalcular_saldo_en_corte(p_cuenta_id);
+    
     RETURN v_transaccion_periodica_id;
 END;
 $$;
 
-COMMENT ON FUNCTION crear_msi_tarjeta_credito IS 'Crea un MSI con todas sus cuotas programadas, soporta monto personalizado por mes y registra cuotas ya pagadas como ejecutadas. Descuenta del crédito disponible solo el saldo pendiente (meses restantes)';
+COMMENT ON FUNCTION crear_msi_tarjeta_credito IS 'OPCIÓN 1 HÍBRIDO: Crea un MSI con transacciones reales para cada cuota en la tabla transacciones. Descuenta del crédito disponible solo el saldo pendiente (monto total - meses pagados * cuota). Soporta iniciar en periodo actual o siguiente, y meses ya pagados.';
+
+
+-- ==================================================================
+-- 9b) Función para eliminar MSI correctamente
+-- ==================================================================
+DROP FUNCTION IF EXISTS eliminar_msi_tarjeta_credito(UUID, UUID);
+CREATE OR REPLACE FUNCTION eliminar_msi_tarjeta_credito(
+    p_usuario_id UUID,
+    p_transaccion_periodica_id UUID
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_msi RECORD;
+BEGIN
+    -- Obtener información del MSI
+    SELECT 
+        tp.*,
+        c.id as cuenta_id,
+        c.tipo as tipo_cuenta
+    INTO v_msi
+    FROM transacciones_periodicas tp
+    INNER JOIN cuentas c ON c.id = tp.cuenta_id
+    WHERE tp.id = p_transaccion_periodica_id
+        AND tp.usuario_id = p_usuario_id
+        AND tp.es_msi = TRUE;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'MSI no encontrado o no tienes permisos para eliminarlo';
+    END IF;
+    
+    IF v_msi.tipo_cuenta != 'credit_card' THEN
+        RAISE EXCEPTION 'El MSI debe estar asociado a una tarjeta de crédito';
+    END IF;
+    
+    -- Calcular saldo pendiente del MSI
+    DECLARE
+        v_saldo_pendiente_msi NUMERIC;
+    BEGIN
+        v_saldo_pendiente_msi := v_msi.monto_total_msi - (v_msi.meses_pagados * v_msi.monto_por_mes);
+        
+        RAISE NOTICE 'Eliminando MSI: %', v_msi.nombre;
+        RAISE NOTICE '  Monto total: $%, Cuota: $%', v_msi.monto_total_msi, v_msi.monto_por_mes;
+        RAISE NOTICE '  Meses totales: %, Meses pagados: %', v_msi.numero_meses_total, v_msi.meses_pagados;
+        RAISE NOTICE '  Saldo pendiente calculado: $%', v_saldo_pendiente_msi;
+        
+        -- Restaurar el crédito disponible
+        -- REGLA DE NEGOCIO: Restaurar solo el saldo pendiente (no el monto total)
+        -- Ejemplo: $1,000 total, 3 meses pagados de $100 = restaurar $700
+        UPDATE cuentas
+        SET credito_disponible = credito_disponible + v_saldo_pendiente_msi,
+            fecha_actualizacion = NOW()
+        WHERE id = v_msi.cuenta_id;
+        
+        RAISE NOTICE '  ✅ Crédito disponible restaurado: +$%', v_saldo_pendiente_msi;
+    END;
+    
+    -- OPCIÓN 1 (HÍBRIDO): Eliminar transacciones reales de las cuotas MSI
+    -- Solo eliminamos las que NO están pagadas (programadas o pendientes)
+    DELETE FROM transacciones
+    WHERE msi_id = p_transaccion_periodica_id
+        AND es_cuota_msi = TRUE
+        AND estado_msi IN ('programada', 'pendiente_pago');
+    
+    RAISE NOTICE '  ✅ Transacciones MSI pendientes eliminadas';
+    
+    -- Eliminar la transacción periódica (control maestro)
+    DELETE FROM transacciones_periodicas
+    WHERE id = p_transaccion_periodica_id;
+    
+    -- Recalcular el saldo del periodo actual
+    PERFORM recalcular_saldo_en_corte(v_msi.cuenta_id);
+    
+    RAISE NOTICE '✅ MSI eliminado correctamente';
+    
+    RETURN TRUE;
+END;
+$$;
+
+COMMENT ON FUNCTION eliminar_msi_tarjeta_credito IS 'Elimina un MSI y restaura el crédito disponible de la tarjeta. Restaura solo el saldo pendiente (monto total - meses pagados * cuota). Elimina las transacciones reales de las cuotas pendientes.';
 
 
 -- ==================================================================
@@ -1660,6 +1914,7 @@ COMMENT ON COLUMN grupos_usuario.descripcion IS 'Descripción opcional del prop�
 
 -- Comentarios para grupos de categorías  
 COMMENT ON TABLE grupos_categoria IS 'Agrupadores principales de categorías de gastos (Hogar, Transporte, Alimentación, etc.)';
+COMMENT ON COLUMN grupos_categoria.tipo IS 'Tipo de transacción del grupo: gasto, ingreso, transferencia. Las categorías del grupo heredan este tipo para filtrado contextual';
 COMMENT ON COLUMN grupos_categoria.es_publico IS 'Si TRUE: disponible para todos los usuarios. Si FALSE: privado del usuario/grupo';
 COMMENT ON COLUMN grupos_categoria.color IS 'Color representativo en formato hexadecimal (#FF5722) para la interfaz';
 COMMENT ON COLUMN grupos_categoria.biblioteca_iconos IS 'Librería de iconos a usar: primevue o material';
@@ -1796,7 +2051,119 @@ CREATE INDEX ON historial_saldos(fecha DESC);
 -- 1. Calcular fechas de periodo actual y siguiente
 -- 2. Obtener gastos y MSI por periodo
 -- 3. Registrar pagos que descuenten del periodo actual
+-- 4. Procesar arrastre de deuda al llegar fecha de corte
 -- ==================================================================
+
+-- ==================================================================
+-- 0) Función para procesar arrastre de deuda en fecha de corte
+-- ==================================================================
+DROP FUNCTION IF EXISTS procesar_corte_tarjeta(UUID);
+CREATE OR REPLACE FUNCTION procesar_corte_tarjeta(
+    p_cuenta_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_cuenta RECORD;
+    v_fechas RECORD;
+    v_saldo_actual NUMERIC;
+    v_saldo_arrastre_anterior NUMERIC;
+    v_nuevo_saldo_arrastre NUMERIC;
+    v_resultado JSONB;
+BEGIN
+    -- Obtener información de la cuenta
+    SELECT * INTO v_cuenta
+    FROM cuentas
+    WHERE id = p_cuenta_id
+        AND tipo = 'credit_card'
+        AND dia_corte IS NOT NULL;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Cuenta no encontrada o no es tarjeta de crédito';
+    END IF;
+    
+    -- Verificar que HOY sea fecha de corte
+    SELECT * INTO v_fechas
+    FROM calcular_fechas_periodo_tarjeta(
+        v_cuenta.dia_corte,
+        v_cuenta.dia_pago,
+        CURRENT_DATE
+    );
+    
+    -- Solo procesar si HOY es fecha de corte
+    IF v_fechas.fecha_corte_actual != CURRENT_DATE THEN
+        RETURN JSONB_BUILD_OBJECT(
+            'procesado', false,
+            'mensaje', 'Hoy no es fecha de corte',
+            'fecha_corte_actual', v_fechas.fecha_corte_actual
+        );
+    END IF;
+    
+    v_saldo_actual := v_cuenta.saldo_periodo_actual;
+    v_saldo_arrastre_anterior := v_cuenta.saldo_arrastre;
+    
+    -- REGLA DE NEGOCIO: Al corte, la deuda no pagada se arrastra
+    -- saldo_arrastre += saldo_periodo_actual
+    v_nuevo_saldo_arrastre := v_saldo_arrastre_anterior + v_saldo_actual;
+    
+    RAISE NOTICE '📅 PROCESO DE CORTE - Cuenta: %', v_cuenta.nombre;
+    RAISE NOTICE '  Fecha de corte: %', CURRENT_DATE;
+    RAISE NOTICE '  Saldo periodo que cierra: $%', v_saldo_actual;
+    RAISE NOTICE '  Arrastre anterior: $%', v_saldo_arrastre_anterior;
+    RAISE NOTICE '  Nuevo arrastre total: $%', v_nuevo_saldo_arrastre;
+    
+    -- Actualizar la cuenta
+    UPDATE cuentas
+    SET saldo_arrastre = v_nuevo_saldo_arrastre,
+        saldo_periodo_actual = 0, -- Reiniciar periodo
+        proxima_fecha_corte = v_fechas.fecha_corte_siguiente,
+        proxima_fecha_pago = v_fechas.fecha_pago_siguiente,
+        fecha_actualizacion = NOW()
+    WHERE id = p_cuenta_id;
+    
+    -- Recalcular saldo del nuevo periodo (cuotas MSI del nuevo periodo)
+    PERFORM recalcular_saldo_en_corte(p_cuenta_id);
+    
+    -- Registrar en historial
+    INSERT INTO historial_saldos (
+        cuenta_id,
+        saldo_anterior,
+        saldo_nuevo,
+        diferencia,
+        fecha,
+        tipo_cambio,
+        notas
+    ) VALUES (
+        p_cuenta_id,
+        v_saldo_arrastre_anterior,
+        v_nuevo_saldo_arrastre,
+        v_saldo_actual,
+        NOW(),
+        'corte_mensual',
+        'Deuda no pagada arrastrada del periodo anterior'
+    );
+    
+    v_resultado := JSONB_BUILD_OBJECT(
+        'procesado', true,
+        'fecha_corte', CURRENT_DATE,
+        'saldo_arrastrado', v_saldo_actual,
+        'arrastre_anterior', v_saldo_arrastre_anterior,
+        'arrastre_total', v_nuevo_saldo_arrastre,
+        'nuevo_periodo_inicio', v_fechas.periodo_siguiente_inicio,
+        'nuevo_periodo_fin', v_fechas.periodo_siguiente_fin
+    );
+    
+    RAISE NOTICE '  ✅ Arrastre procesado correctamente';
+    
+    RETURN v_resultado;
+END;
+$$;
+
+COMMENT ON FUNCTION procesar_corte_tarjeta IS 'Procesa el cierre de periodo en fecha de corte: arrastra la deuda no pagada, reinicia el periodo actual, y recalcula el nuevo periodo. Debe ejecutarse automáticamente en fecha de corte (job programado) o manualmente.';
+
 
 -- ==================================================================
 -- 1) Función para calcular fechas de periodo de tarjeta
@@ -1822,42 +2189,67 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-    v_fecha_corte_actual DATE;
-    v_fecha_pago_actual DATE;
-    v_fecha_corte_anterior DATE;
+    v_corte_mes_actual DATE;
+    v_corte_mes_anterior DATE;
+    v_corte_mes_siguiente DATE;
+    v_fecha_corte_inicio_periodo DATE;
+    v_fecha_corte_fin_periodo DATE;
+    v_fecha_pago_periodo DATE;
     v_fecha_corte_siguiente DATE;
     v_fecha_pago_siguiente DATE;
+    v_dias_diferencia INTEGER;
 BEGIN
-    -- Calcular fecha de corte del mes actual
-    v_fecha_corte_actual := DATE_TRUNC('month', p_fecha_referencia)::DATE + (p_dia_corte - 1);
+    -- Calcular corte del mes actual (mes de la fecha de referencia)
+    v_corte_mes_actual := DATE_TRUNC('month', p_fecha_referencia)::DATE + (p_dia_corte - 1);
     
-    -- Si la fecha de referencia es mayor al día de corte, el corte actual ya pasó
-    IF p_fecha_referencia > v_fecha_corte_actual THEN
-        -- El corte actual es el del próximo mes
-        v_fecha_corte_actual := (DATE_TRUNC('month', v_fecha_corte_actual) + INTERVAL '1 month')::DATE + (p_dia_corte - 1);
+    -- Calcular corte del mes anterior
+    v_corte_mes_anterior := (DATE_TRUNC('month', p_fecha_referencia) - INTERVAL '1 month')::DATE + (p_dia_corte - 1);
+    
+    -- Calcular corte del mes siguiente
+    v_corte_mes_siguiente := (DATE_TRUNC('month', p_fecha_referencia) + INTERVAL '1 month')::DATE + (p_dia_corte - 1);
+    
+    -- Determinar en qué periodo estamos
+    -- Si ya pasó el corte del mes actual, estamos en el periodo que va de corte_actual → corte_siguiente
+    -- Si NO ha pasado, estamos en el periodo que va de corte_anterior → corte_actual
+    IF EXTRACT(DAY FROM p_fecha_referencia) >= p_dia_corte THEN
+        -- Ya pasó el corte: periodo actual va del corte de este mes al corte del siguiente mes
+        v_fecha_corte_inicio_periodo := v_corte_mes_actual;
+        v_fecha_corte_fin_periodo := v_corte_mes_siguiente;
+        v_fecha_corte_siguiente := (DATE_TRUNC('month', p_fecha_referencia) + INTERVAL '2 months')::DATE + (p_dia_corte - 1);
+    ELSE
+        -- NO ha pasado el corte: periodo actual va del corte del mes anterior al corte de este mes
+        v_fecha_corte_inicio_periodo := v_corte_mes_anterior;
+        v_fecha_corte_fin_periodo := v_corte_mes_actual;
+        v_fecha_corte_siguiente := v_corte_mes_siguiente;
     END IF;
     
-    -- Calcular corte anterior (inicio del periodo actual)
-    v_fecha_corte_anterior := (DATE_TRUNC('month', v_fecha_corte_actual) - INTERVAL '1 month')::DATE + (p_dia_corte - 1);
+    -- Calcular fecha de pago del periodo actual
+    -- La fecha de pago puede estar en el mismo mes o en el siguiente, dependiendo del día
+    IF p_dia_pago >= p_dia_corte THEN
+        -- Pago en el mismo mes del corte
+        v_fecha_pago_periodo := DATE_TRUNC('month', v_fecha_corte_fin_periodo)::DATE + (p_dia_pago - 1);
+    ELSE
+        -- Pago en el mes siguiente al corte
+        v_fecha_pago_periodo := (DATE_TRUNC('month', v_fecha_corte_fin_periodo) + INTERVAL '1 month')::DATE + (p_dia_pago - 1);
+    END IF;
     
-    -- Calcular corte siguiente
-    v_fecha_corte_siguiente := (DATE_TRUNC('month', v_fecha_corte_actual) + INTERVAL '1 month')::DATE + (p_dia_corte - 1);
-    
-    -- Calcular fecha de pago actual (días después del corte)
-    v_fecha_pago_actual := v_fecha_corte_actual + p_dia_pago;
-    
-    -- Calcular fecha de pago siguiente
-    v_fecha_pago_siguiente := v_fecha_corte_siguiente + p_dia_pago;
+    -- Calcular fecha de pago del siguiente periodo
+    IF p_dia_pago >= p_dia_corte THEN
+        v_fecha_pago_siguiente := DATE_TRUNC('month', v_fecha_corte_siguiente)::DATE + (p_dia_pago - 1);
+    ELSE
+        v_fecha_pago_siguiente := (DATE_TRUNC('month', v_fecha_corte_siguiente) + INTERVAL '1 month')::DATE + (p_dia_pago - 1);
+    END IF;
     
     -- Retornar todas las fechas
+    -- Periodo actual: desde el día DESPUÉS del corte inicio hasta el día del corte fin
     RETURN QUERY
     SELECT 
-        v_fecha_corte_anterior + 1 AS periodo_actual_inicio,
-        v_fecha_corte_actual AS periodo_actual_fin,
-        v_fecha_corte_actual + 1 AS periodo_siguiente_inicio,
-        v_fecha_corte_siguiente AS periodo_siguiente_fin,
-        v_fecha_corte_actual AS fecha_corte_actual,
-        v_fecha_pago_actual AS fecha_pago_actual,
+        v_fecha_corte_inicio_periodo AS periodo_actual_inicio,
+        (v_fecha_corte_fin_periodo - INTERVAL '1 day')::DATE AS periodo_actual_fin,
+        v_fecha_corte_fin_periodo AS periodo_siguiente_inicio,
+        (v_fecha_corte_siguiente - INTERVAL '1 day')::DATE AS periodo_siguiente_fin,
+        v_fecha_corte_fin_periodo AS fecha_corte_actual,
+        v_fecha_pago_periodo AS fecha_pago_actual,
         v_fecha_corte_siguiente AS fecha_corte_siguiente,
         v_fecha_pago_siguiente AS fecha_pago_siguiente;
 END;
@@ -1891,8 +2283,10 @@ DECLARE
     v_cuotas_msi NUMERIC := 0;
     v_cuotas_detalle JSONB;
 BEGIN
-    -- 1. Obtener gastos normales del periodo actual SOLAMENTE
-    -- NO incluir gastos de periodos anteriores (se manejan con saldo_arrastre)
+    -- NUEVO ENFOQUE SIMPLIFICADO: Consultar directamente transacciones
+    -- Ahora es una simple query por fecha_ocurrencia en el periodo
+    
+    -- 1. Obtener gastos normales (NO MSI) del periodo
     SELECT COALESCE(SUM(monto), 0)
     INTO v_gastos_normales
     FROM transacciones
@@ -1900,35 +2294,36 @@ BEGIN
         AND tipo = 'gasto'
         AND fecha_ocurrencia >= p_fecha_inicio
         AND fecha_ocurrencia <= p_fecha_fin
-        AND (metadatos->>'msi_id') IS NULL -- Excluir gastos que fueron convertidos a MSI
+        AND (es_cuota_msi = FALSE OR es_cuota_msi IS NULL) -- Solo gastos normales
         AND deleted_at IS NULL;
     
-    -- 2. Obtener cuotas MSI del periodo actual
+    -- 2. Obtener cuotas MSI del periodo
     SELECT 
-        COALESCE(SUM(e.monto_programado), 0),
+        COALESCE(SUM(t.monto), 0),
         COALESCE(
             JSONB_AGG(
                 JSONB_BUILD_OBJECT(
-                    'id', e.id,
-                    'msi_id', tp.id,
+                    'id', t.id,
+                    'msi_id', t.msi_id,
                     'msi_nombre', tp.nombre,
-                    'monto', e.monto_programado,
-                    'fecha_programada', e.fecha_programada,
-                    'numero_cuota', e.numero_cuota,
-                    'estado', e.estado
+                    'monto', t.monto,
+                    'fecha', t.fecha_ocurrencia,
+                    'numero_cuota', t.numero_cuota_msi,
+                    'estado', t.estado_msi,
+                    'total_cuotas', tp.numero_meses_total
                 )
-            ) FILTER (WHERE e.id IS NOT NULL),
+            ) FILTER (WHERE t.id IS NOT NULL),
             '[]'::JSONB
         )
     INTO v_cuotas_msi, v_cuotas_detalle
-    FROM ejecuciones_transacciones_periodicas e
-    INNER JOIN transacciones_periodicas tp ON e.transaccion_periodica_id = tp.id
-    WHERE tp.cuenta_id = p_cuenta_id
-        AND tp.es_msi = TRUE
-        AND tp.activa = TRUE
-        AND e.fecha_programada >= p_fecha_inicio
-        AND e.fecha_programada <= p_fecha_fin
-        AND e.estado IN ('pendiente', 'confirmada'); -- Solo las que no han sido pagadas
+    FROM transacciones t
+    LEFT JOIN transacciones_periodicas tp ON t.msi_id = tp.id
+    WHERE t.cuenta_id = p_cuenta_id
+        AND t.tipo = 'gasto'
+        AND t.fecha_ocurrencia >= p_fecha_inicio
+        AND t.fecha_ocurrencia <= p_fecha_fin
+        AND t.es_cuota_msi = TRUE -- Solo cuotas MSI
+        AND t.deleted_at IS NULL;
     
     -- 3. Retornar resultados (solo gastos y MSI del periodo actual)
     RETURN QUERY
@@ -2073,15 +2468,39 @@ BEGIN
         WHERE id = p_cuenta_origen_id;
     END IF;
     
-    -- Actualizar crédito disponible de la tarjeta
-    UPDATE cuentas
-    SET credito_disponible = LEAST(
-            credito_disponible + p_monto_pago,
-            limite_credito
-        ),
-        saldo_periodo_actual = GREATEST(saldo_periodo_actual - p_monto_pago, 0),
-        fecha_actualizacion = NOW()
-    WHERE id = p_cuenta_tarjeta_id;
+    -- Actualizar crédito disponible y descontar del arrastre PRIMERO
+    DECLARE
+        v_pago_a_arrastre NUMERIC := 0;
+        v_pago_a_periodo_actual NUMERIC := 0;
+        v_saldo_arrastre_actual NUMERIC;
+    BEGIN
+        v_saldo_arrastre_actual := v_cuenta_tarjeta.saldo_arrastre;
+        
+        -- PRIORIDAD 1: Descontar del arrastre primero
+        IF v_saldo_arrastre_actual > 0 THEN
+            v_pago_a_arrastre := LEAST(p_monto_pago, v_saldo_arrastre_actual);
+            v_pago_a_periodo_actual := p_monto_pago - v_pago_a_arrastre;
+            
+            RAISE NOTICE '💳 Distribución del pago:';
+            RAISE NOTICE '  Total a pagar: $%', p_monto_pago;
+            RAISE NOTICE '  Aplicado a arrastre: $%', v_pago_a_arrastre;
+            RAISE NOTICE '  Aplicado a periodo actual: $%', v_pago_a_periodo_actual;
+        ELSE
+            -- No hay arrastre, todo va al periodo actual
+            v_pago_a_periodo_actual := p_monto_pago;
+        END IF;
+        
+        -- Actualizar cuenta
+        UPDATE cuentas
+        SET credito_disponible = LEAST(
+                credito_disponible + p_monto_pago,
+                limite_credito
+            ),
+            saldo_arrastre = GREATEST(saldo_arrastre - v_pago_a_arrastre, 0),
+            saldo_periodo_actual = GREATEST(saldo_periodo_actual - v_pago_a_periodo_actual, 0),
+            fecha_actualizacion = NOW()
+        WHERE id = p_cuenta_tarjeta_id;
+    END;
     
     -- ========================================
     -- DISTRIBUCIÓN DEL PAGO (solo para tracking, no afecta saldo_periodo_actual)
@@ -2208,6 +2627,16 @@ DECLARE
     v_periodo_actual RECORD;
     v_periodo_siguiente RECORD;
     v_credito_utilizado NUMERIC;
+    v_total_msi NUMERIC := 0;
+    v_deuda_no_diferida NUMERIC := 0;
+    v_cuota_msi_actual NUMERIC := 0;
+    v_cuota_msi_siguiente NUMERIC := 0;
+    v_msi RECORD;
+    v_msi_sig RECORD;
+    v_saldo_pendiente_msi NUMERIC;
+    v_saldo_pendiente_msi_sig NUMERIC;
+    v_cuota_este_periodo NUMERIC;
+    v_cuota_siguiente_periodo NUMERIC;
     v_total_siguiente_ajustado NUMERIC;
     v_resultado JSONB;
 BEGIN
@@ -2247,6 +2676,39 @@ BEGIN
     -- Calcular crédito utilizado total
     v_credito_utilizado := v_cuenta.limite_credito - v_cuenta.credito_disponible;
     
+    -- Calcular total de MSI (completo, todas las cuotas)
+    v_total_msi := calcular_total_msi_pendiente(p_cuenta_id);
+    
+    -- Calcular deuda no diferida
+    -- Es la deuda total menos TODO el MSI (porque el MSI se paga poco a poco)
+    v_deuda_no_diferida := v_credito_utilizado - v_total_msi;
+    
+    -- OPCIÓN 1 HÍBRIDO: Calcular cuota MSI del periodo ACTUAL desde transacciones reales
+    -- Ya no necesitamos el loop complejo, es una simple suma
+    SELECT COALESCE(SUM(monto), 0)
+    INTO v_cuota_msi_actual
+    FROM transacciones
+    WHERE cuenta_id = p_cuenta_id
+        AND es_cuota_msi = TRUE
+        AND fecha_ocurrencia >= v_fechas.periodo_actual_inicio
+        AND fecha_ocurrencia <= v_fechas.periodo_actual_fin
+        AND estado_msi IN ('programada', 'pendiente_pago')
+        AND deleted_at IS NULL;
+    
+    -- OPCIÓN 1 HÍBRIDO: Calcular cuota MSI del periodo SIGUIENTE desde transacciones reales
+    SELECT COALESCE(SUM(monto), 0)
+    INTO v_cuota_msi_siguiente
+    FROM transacciones
+    WHERE cuenta_id = p_cuenta_id
+        AND es_cuota_msi = TRUE
+        AND fecha_ocurrencia >= v_fechas.periodo_siguiente_inicio
+        AND fecha_ocurrencia <= v_fechas.periodo_siguiente_fin
+        AND estado_msi IN ('programada', 'pendiente_pago')
+        AND deleted_at IS NULL;
+    
+    RAISE NOTICE 'DEBUG Periodo Siguiente: Inicio=%, Fin=%, Cuotas MSI=%', 
+        v_fechas.periodo_siguiente_inicio, v_fechas.periodo_siguiente_fin, v_cuota_msi_siguiente;
+    
     -- Ajustar proyección del siguiente periodo si excede el total adeudado
     -- La proyección no puede ser mayor que la deuda total
     v_total_siguiente_ajustado := LEAST(
@@ -2254,7 +2716,7 @@ BEGIN
         v_credito_utilizado
     );
     
-    -- Construir JSON de respuesta
+    -- Construir JSON de respuesta con desglose completo
     -- Para periodo_actual: usar saldo_periodo_actual (variable que aumenta con gastos y disminuye con pagos)
     -- Para periodo_siguiente: calcular proyección basada en gastos futuros ya registrados
     v_resultado := JSONB_BUILD_OBJECT(
@@ -2263,6 +2725,23 @@ BEGIN
         'credito_disponible', v_cuenta.credito_disponible,
         'credito_utilizado', v_credito_utilizado,
         'saldo_periodo_actual', v_cuenta.saldo_periodo_actual,
+        'saldo_arrastre', v_cuenta.saldo_arrastre,
+        -- Desglose del periodo ACTUAL
+        'desglose_deuda', JSONB_BUILD_OBJECT(
+            'deuda_total', v_credito_utilizado,
+            'deuda_no_diferida', v_deuda_no_diferida,
+            'cuota_msi_periodo', v_cuota_msi_actual,
+            'total_msi_pendiente', v_total_msi,
+            'saldo_arrastre', v_cuenta.saldo_arrastre,
+            'saldo_periodo_actual', v_cuenta.saldo_periodo_actual,
+            'total_a_pagar', v_cuenta.saldo_arrastre + v_cuenta.saldo_periodo_actual
+        ),
+        -- Desglose del periodo SIGUIENTE (proyección)
+        'desglose_siguiente_periodo', JSONB_BUILD_OBJECT(
+            'cuota_msi_periodo', v_cuota_msi_siguiente,
+            'gastos_futuros_registrados', v_periodo_siguiente.total_gastos_normales,
+            'proyeccion_total', v_cuota_msi_siguiente + COALESCE(v_periodo_siguiente.total_gastos_normales, 0)
+        ),
         'fechas', JSONB_BUILD_OBJECT(
             'periodo_actual', JSONB_BUILD_OBJECT(
                 'inicio', v_fechas.periodo_actual_inicio,

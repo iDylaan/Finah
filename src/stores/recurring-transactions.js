@@ -95,7 +95,8 @@ export const useRecurringTransactionsStore = defineStore('recurringTransactions'
                 p_descripcion: msiData.descripcion || null,
                 p_monto_total: msiData.monto_total,
                 p_numero_meses: msiData.numero_meses,
-                p_meses_ya_pagados: msiData.meses_ya_pagados || 0
+                p_meses_ya_pagados: msiData.meses_ya_pagados || 0,
+                p_iniciar_siguiente_periodo: msiData.iniciar_siguiente_periodo || false
             }
 
             // Agregar monto personalizado si existe
@@ -252,14 +253,26 @@ export const useRecurringTransactionsStore = defineStore('recurringTransactions'
         error.value = null
 
         try {
-            // TODO: Cambiar a soft delete después de migración
-            const { error: deleteError } = await supabase
-                .from('transacciones_periodicas')
-                .delete()
-                .eq('id', id)
-                // .is('deleted_at', null)
+            // Verificar si es un MSI para usar la función especializada
+            const transaction = recurringTransactions.value.find(t => t.id === id)
+            
+            if (transaction?.es_msi) {
+                // Usar función RPC para MSI que restaura el crédito
+                const { error: deleteError } = await supabase.rpc('eliminar_msi_tarjeta_credito', {
+                    p_usuario_id: (await supabase.auth.getUser()).data.user.id,
+                    p_transaccion_periodica_id: id
+                })
 
-            if (deleteError) throw deleteError
+                if (deleteError) throw deleteError
+            } else {
+                // Para transacciones periódicas normales, usar DELETE directo
+                const { error: deleteError } = await supabase
+                    .from('transacciones_periodicas')
+                    .delete()
+                    .eq('id', id)
+
+                if (deleteError) throw deleteError
+            }
 
             // Remover del store
             recurringTransactions.value = recurringTransactions.value.filter(t => t.id !== id)
@@ -268,7 +281,7 @@ export const useRecurringTransactionsStore = defineStore('recurringTransactions'
                 toast.add({
                     severity: 'success',
                     summary: 'Eliminado',
-                    detail: 'Transacción periódica eliminada',
+                    detail: transaction?.es_msi ? 'Pago diferido eliminado correctamente' : 'Transacción periódica eliminada',
                     life: 3000
                 })
             }
@@ -282,7 +295,7 @@ export const useRecurringTransactionsStore = defineStore('recurringTransactions'
                 toast.add({
                     severity: 'error',
                     summary: 'Error',
-                    detail: 'No se pudo eliminar la transacción',
+                    detail: err.message || 'No se pudo eliminar la transacción',
                     life: 5000
                 })
             }

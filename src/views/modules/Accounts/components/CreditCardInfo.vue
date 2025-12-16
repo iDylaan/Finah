@@ -22,6 +22,19 @@
 
         <!-- Información del periodo y pagos -->
         <div v-if="!loading" class="space-y-2">
+            <!-- Periodo actual con fechas -->
+            <div v-if="fechasPeriodo" class="p-2 bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-lg">
+                <div class="flex items-center justify-between mb-1">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined text-lg text-primary">calendar_month</span>
+                        <span class="text-xs font-semibold text-primary-700 dark:text-primary-400">Periodo Actual</span>
+                    </div>
+                </div>
+                <div class="text-xs text-primary-600 dark:text-primary-300">
+                    {{ formatDate(fechasPeriodo.periodo_actual.inicio) }} - {{ formatDate(fechasPeriodo.periodo_actual.fin) }}
+                </div>
+            </div>
+
             <!-- Gastos del periodo actual -->
             <div class="flex items-center justify-between p-2 bg-surface-50 dark:bg-surface-800/50 rounded-lg">
                 <div class="flex items-center gap-2">
@@ -60,25 +73,100 @@
                 </span>
             </div>
 
-            <!-- Información de pagos del periodo actual -->
-            <div class="p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
-                <div class="text-xs text-green-700 dark:text-green-400 mb-1">Saldo del periodo actual</div>
-                <div class="text-sm font-bold text-green-800 dark:text-green-300">
-                    {{ formatCurrency(info?.gastosPeriodo || 0) }}
+            <!-- Alerta de deuda arrastrada (si existe) -->
+            <div v-if="desglose?.saldo_arrastre > 0" 
+                 class="p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-1.5">
+                        <span class="material-symbols-outlined text-lg text-red-600 dark:text-red-400">warning</span>
+                        <span class="text-xs font-semibold text-red-700 dark:text-red-300">Deuda arrastrada</span>
+                    </div>
+                    <span class="text-sm font-bold text-red-800 dark:text-red-200">
+                        {{ formatCurrency(desglose.saldo_arrastre) }}
+                    </span>
                 </div>
-                <div class="text-xs text-green-600 dark:text-green-500 mt-1">
-                    Total adeudado: {{ formatCurrency(montoUtilizado || 0) }}
+                <p class="text-xs text-red-600 dark:text-red-400 mt-1">
+                    No pagaste el total del periodo anterior
+                </p>
+            </div>
+
+            <!-- Información de pagos del periodo actual con desglose -->
+            <div class="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg space-y-2">
+                <div class="text-xs text-green-700 dark:text-green-400 font-semibold">
+                    {{ desglose?.saldo_arrastre > 0 ? 'Total a pagar' : 'Saldo del periodo actual' }}
+                </div>
+                <div class="text-lg font-bold text-green-800 dark:text-green-300">
+                    {{ formatCurrency(desglose?.total_a_pagar || desglose?.saldo_periodo_actual || 0) }}
+                </div>
+                
+                <!-- Desglose detallado -->
+                <div class="pt-2 border-t border-green-200 dark:border-green-800 space-y-1.5">
+                    <!-- Mostrar arrastre si existe -->
+                    <div v-if="desglose?.saldo_arrastre > 0" class="flex justify-between items-center text-xs">
+                        <span class="text-red-600 dark:text-red-400 font-semibold">Deuda arrastrada:</span>
+                        <span class="font-semibold text-red-700 dark:text-red-300">
+                            {{ formatCurrency(desglose.saldo_arrastre) }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-green-600 dark:text-green-400">Gastos periodo actual:</span>
+                        <span class="font-semibold text-green-700 dark:text-green-300">
+                            {{ formatCurrency(desglose?.saldo_periodo_actual || 0) }}
+                        </span>
+                    </div>
+                    <div v-if="desglose?.saldo_arrastre > 0" class="flex justify-between items-center text-xs pt-1.5 border-t border-green-200 dark:border-green-800">
+                        <span class="text-green-700 dark:text-green-300 font-bold">Total a pagar:</span>
+                        <span class="font-bold text-green-800 dark:text-green-200">
+                            {{ formatCurrency(desglose.total_a_pagar) }}
+                        </span>
+                    </div>
+                    <div class="pt-1 border-t border-green-200 dark:border-green-800">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-green-600 dark:text-green-400">Deuda no diferida:</span>
+                            <span class="font-semibold text-green-700 dark:text-green-300">
+                                {{ formatCurrency(desglose?.deuda_no_diferida || 0) }}
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs mt-1">
+                            <span class="text-green-600 dark:text-green-400">Cuota MSI este periodo:</span>
+                            <span class="font-semibold text-green-700 dark:text-green-300">
+                                {{ formatCurrency(desglose?.cuota_msi_periodo || 0) }}
+                            </span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs text-green-500 dark:text-green-600 mt-1">
+                            <span>Total MSI pendiente:</span>
+                            <span>{{ formatCurrency(desglose?.total_msi_pendiente || 0) }}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <!-- Información del periodo siguiente -->
-            <div v-if="info?.gastosPeriodoSiguiente > 0" class="p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <div class="text-xs text-blue-700 dark:text-blue-400 mb-1">Proyección periodo siguiente</div>
-                <div class="text-sm font-bold text-blue-800 dark:text-blue-300">
-                    {{ formatCurrency(info?.gastosPeriodoSiguiente || 0) }}
+            <div class="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg space-y-2">
+                <div class="flex items-center justify-between">
+                    <div class="text-xs text-blue-700 dark:text-blue-400 font-semibold">Proyección periodo siguiente</div>
+                    <div v-if="fechasPeriodo" class="text-xs text-blue-600 dark:text-blue-300">
+                        {{ formatDate(fechasPeriodo.periodo_siguiente.inicio) }} - {{ formatDate(fechasPeriodo.periodo_siguiente.fin) }}
+                    </div>
                 </div>
-                <div class="text-xs text-blue-600 dark:text-blue-500 mt-1">
-                    Gastos futuros registrados
+                <div class="text-lg font-bold text-blue-800 dark:text-blue-300">
+                    {{ formatCurrency(desgloseSiguiente?.proyeccion_total || 0) }}
+                </div>
+                
+                <!-- Desglose siguiente periodo -->
+                <div class="pt-2 border-t border-blue-200 dark:border-blue-800 space-y-1.5">
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-blue-600 dark:text-blue-400">Cuota MSI siguiente periodo:</span>
+                        <span class="font-semibold text-blue-700 dark:text-blue-300">
+                            {{ formatCurrency(desgloseSiguiente?.cuota_msi_periodo || 0) }}
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-blue-600 dark:text-blue-400">Gastos futuros registrados:</span>
+                        <span class="font-semibold text-blue-700 dark:text-blue-300">
+                            {{ formatCurrency(desgloseSiguiente?.gastos_futuros_registrados || 0) }}
+                        </span>
+                    </div>
                 </div>
             </div>
 
@@ -177,6 +265,21 @@ const montoUtilizado = computed(() => {
 
 const pagoMinimo = computed(() => {
     return calcularPagoMinimo(montoUtilizado.value, props.card.porcentaje_pago_minimo || 5);
+});
+
+// Desglose de deuda del periodo actual
+const desglose = computed(() => {
+    return resumenPeriodos.value?.desglose_deuda || null;
+});
+
+// Desglose del siguiente periodo
+const desgloseSiguiente = computed(() => {
+    return resumenPeriodos.value?.desglose_siguiente_periodo || null;
+});
+
+// Fechas de los periodos
+const fechasPeriodo = computed(() => {
+    return resumenPeriodos.value?.fechas || null;
 });
 
 const enPeligro = computed(() => {

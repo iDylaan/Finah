@@ -658,6 +658,46 @@ export const useAccountsStore = defineStore('accounts', () => {
     };
 
     /**
+     * Procesa el corte de una tarjeta de crédito
+     * Arrastra la deuda no pagada al siguiente periodo
+     * @param {string} cuentaId - ID de la tarjeta de crédito
+     * @returns {Object} - Resultado del proceso de corte
+     */
+    const procesarCorteTarjeta = async (cuentaId, { toast } = {}) => {
+        try {
+            const { data, error } = await supabase
+                .rpc('procesar_corte_tarjeta', {
+                    p_cuenta_id: cuentaId
+                });
+            
+            if (error) {
+                console.error('Error procesando corte de tarjeta:', error);
+                handleError(error, { toast });
+                throw error;
+            }
+            
+            console.log('📅 Corte de tarjeta procesado:', data);
+            
+            if (data.procesado && toast) {
+                toast.add({
+                    severity: 'success',
+                    summary: 'Corte Procesado',
+                    detail: `Deuda de $${new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(data.saldo_arrastrado)} arrastrada al siguiente periodo`,
+                    life: 4000
+                });
+            }
+            
+            // Refrescar cuentas
+            await fetchAccountsWithDetails({ toast, force: true });
+            
+            return data;
+        } catch (error) {
+            console.error('Error en procesarCorteTarjeta:', error);
+            throw error;
+        }
+    };
+
+    /**
      * Registra un pago de periodo de tarjeta de crédito
      * Marca las cuotas MSI como pagadas y actualiza el crédito disponible
      * @param {Object} pagoData - Datos del pago
@@ -744,6 +784,7 @@ export const useAccountsStore = defineStore('accounts', () => {
         obtenerInfoTarjetaCredito,
         tarjetasConInfo,
         obtenerResumenPeriodosTarjeta,
-        registrarPagoPeriodoTarjeta
+        registrarPagoPeriodoTarjeta,
+        procesarCorteTarjeta
     }
 })

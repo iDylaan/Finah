@@ -8,7 +8,7 @@
             :id="inputId"
             :modelValue="modelValue"
             @update:modelValue="handleSelection"
-            :options="categoryGroups" 
+            :options="filteredCategoryGroups" 
             optionLabel="nombre"
             optionValue="id"
             optionGroupLabel="nombre"
@@ -118,6 +118,11 @@ const props = defineProps({
         type: Array,
         required: true
     },
+    tipo: {
+        type: String,
+        default: null, // 'ingreso', 'gasto', null (todos)
+        validator: (value) => value === null || ['ingreso', 'gasto', 'transferencia', 'pago_deuda', 'pago_credito'].includes(value)
+    },
     label: {
         type: String,
         default: 'Categoría'
@@ -150,6 +155,22 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue']);
 
+// Filtrar grupos de categorías según el tipo de las categorías individuales
+const filteredCategoryGroups = computed(() => {
+    if (!props.tipo) {
+        // Si no hay tipo especificado, mostrar todos
+        return props.categoryGroups;
+    }
+    
+    // Filtrar grupos que tengan al menos una categoría del tipo especificado
+    return props.categoryGroups
+        .map(group => ({
+            ...group,
+            categories: group.categories.filter(cat => cat.tipo === props.tipo)
+        }))
+        .filter(group => group.categories.length > 0); // Solo mostrar grupos con categorías del tipo
+});
+
 // Handler para la selección
 const handleSelection = (value) => {
     emit('update:modelValue', value);
@@ -167,6 +188,7 @@ const handleCreateGroup = () => {
 
 // Helper para obtener categoría por ID
 const getCategoriaById = (id) => {
+    // Buscar en todos los grupos (no solo los filtrados) para poder mostrar la selección actual
     for (const group of props.categoryGroups) {
         const categoria = group.categories?.find(c => c.id === id);
         if (categoria) return categoria;

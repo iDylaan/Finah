@@ -43,6 +43,7 @@ const mostrarOpcionesAvanzadas = ref(false)
 const tipoMonto = ref('automatico') // 'automatico', 'manual', 'redondeado'
 const montoPorCuota = ref(null)
 const tipRedondeo = ref('arriba') // 'arriba', 'abajo', 'cercano'
+const iniciarSiguientePeriodo = ref(false) // Si inicia en el periodo actual o siguiente
 
 // Opciones de meses comunes para MSI
 const opcionesMeses = [
@@ -152,6 +153,7 @@ const resetForm = () => {
   tipoMonto.value = 'automatico'
   montoPorCuota.value = null
   tipoRedondeo.value = 'arriba'
+  iniciarSiguientePeriodo.value = false
   errors.value = {}
 }
 
@@ -176,7 +178,8 @@ const handleSubmit = async () => {
       descripcion: descripcion.value.trim() || null,
       monto_total: parseFloat(montoTotal.value),
       numero_meses: mesesFinal,
-      meses_ya_pagados: parseInt(mesesYaPagados.value)  // Corregido: meses_ya_pagados
+      meses_ya_pagados: parseInt(mesesYaPagados.value),  // Corregido: meses_ya_pagados
+      iniciar_siguiente_periodo: iniciarSiguientePeriodo.value
     }
 
     // Agregar monto personalizado si no es automático
@@ -356,6 +359,45 @@ watch(() => props.visible, (newVal) => {
         <small class="text-surface-600 dark:text-surface-400">
           Útil si ya empezaste a pagar este MSI y quieres registrar los meses restantes
         </small>
+      </div>
+
+      <!-- Cuándo iniciar los pagos -->
+      <div class="flex flex-col gap-2">
+        <label class="font-medium">¿Cuándo deseas que se cobre el primer pago?</label>
+        <div class="flex flex-col gap-3">
+          <div class="flex items-start gap-2 p-3 border rounded-lg cursor-pointer transition-colors" 
+               :class="!iniciarSiguientePeriodo ? 'border-primary bg-primary/5' : 'border-surface-300 dark:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-800'"
+               @click="iniciarSiguientePeriodo = false">
+            <RadioButton
+              inputId="periodo-actual"
+              name="inicioPeriodo"
+              :value="false"
+              v-model="iniciarSiguientePeriodo"
+            />
+            <label for="periodo-actual" class="cursor-pointer flex-1">
+              <div class="font-medium">En el próximo corte</div>
+              <div class="text-xs text-surface-600 dark:text-surface-400 mt-1">
+                Primera cuota: {{ proximaFechaCorte }}
+              </div>
+            </label>
+          </div>
+          <div class="flex items-start gap-2 p-3 border rounded-lg cursor-pointer transition-colors"
+               :class="iniciarSiguientePeriodo ? 'border-primary bg-primary/5' : 'border-surface-300 dark:border-surface-600 hover:bg-surface-50 dark:hover:bg-surface-800'"
+               @click="iniciarSiguientePeriodo = true">
+            <RadioButton
+              inputId="periodo-siguiente"
+              name="inicioPeriodo"
+              :value="true"
+              v-model="iniciarSiguientePeriodo"
+            />
+            <label for="periodo-siguiente" class="cursor-pointer flex-1">
+              <div class="font-medium">En el corte del siguiente mes</div>
+              <div class="text-xs text-surface-600 dark:text-surface-400 mt-1">
+                Primera cuota un mes después del próximo corte
+              </div>
+            </label>
+          </div>
+        </div>
       </div>
 
       <!-- Opciones Avanzadas -->

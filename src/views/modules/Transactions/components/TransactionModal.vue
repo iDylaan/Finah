@@ -314,7 +314,8 @@ const handleSubmit = async () => {
                         descripcion: transactionData.descripcion,
                         monto_total: formData.monto,
                         numero_meses: mesesFinales,
-                        meses_ya_pagados: mesesYaPagados
+                        meses_ya_pagados: mesesYaPagados,
+                        iniciar_siguiente_periodo: formData.iniciarSiguientePeriodo || false
                     };
                     
                     // Agregar monto personalizado si no es automático
