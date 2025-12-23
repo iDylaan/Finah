@@ -264,6 +264,12 @@
             :credit-card-id="selectedCardForMSI"
             @msi-deleted="handleMSIDeleted"
         />
+
+        <!-- Modal de Transacciones Periódicas -->
+        <AccountRecurringTransactionsModal
+            v-model:visible="showRecurringTransactionsModal"
+            :account-id="selectedAccountForRecurring"
+        />
     </PageLayout>
 </template>
 
@@ -285,6 +291,7 @@ import CreditCardInfo from './components/CreditCardInfo.vue';
 import CreditCardPaymentModal from './components/CreditCardPaymentModal.vue';
 import MSIConfig from '@/components/MSIConfig.vue';
 import MSIListModal from '@/components/MSIListModal.vue';
+import AccountRecurringTransactionsModal from '@/components/modals/AccountRecurringTransactionsModal.vue';
 import { formatDate } from '@/lib/utils.js';
 
 // STORES & COMPOSABLES
@@ -305,6 +312,10 @@ const showMSIConfigModal = ref(false);
 const showMSIListModal = ref(false);
 const selectedCardForMSI = ref(null);
 const selectedCategoryForMSI = ref(null);
+
+// Estado de transacciones periódicas
+const showRecurringTransactionsModal = ref(false);
+const selectedAccountForRecurring = ref(null);
 
 // VARIABLES
 const isInitialLoad = ref(true);
@@ -412,6 +423,13 @@ const getAccountMenuItems = (account) => {
             command: () => handleTransferFromAccount(account)
         });
     }
+
+    // Transacciones periódicas para todas las cuentas
+    baseItems.push({
+        label: 'Transacciones periódicas',
+        icon: 'pi pi-replay',
+        command: () => handleViewRecurringTransactions(account)
+    });
 
     // Si es tarjeta de crédito, agregar opciones de MSI
     if (account.tipo === 'tarjeta_credito') {
@@ -593,6 +611,12 @@ const handleMSIDeleted = async () => {
 const handleMSICreated = async () => {
     console.log('🔄 MSI creado, refrescando cuentas...');
     await accountsStore.refreshAccounts({ toast });
+};
+
+const handleViewRecurringTransactions = (account) => {
+    console.log('📅 Ver transacciones periódicas de cuenta:', account);
+    selectedAccountForRecurring.value = account.id;
+    showRecurringTransactionsModal.value = true;
 };
 
 const handleDeleteAccount = (account) => {

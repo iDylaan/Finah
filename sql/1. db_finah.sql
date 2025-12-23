@@ -1805,6 +1805,104 @@ $$;
 COMMENT ON FUNCTION crear_msi_tarjeta_credito IS 'OPCIÓN 1 HÍBRIDO: Crea un MSI con transacciones reales para cada cuota en la tabla transacciones. Descuenta del crédito disponible solo el saldo pendiente (monto total - meses pagados * cuota). Soporta iniciar en periodo actual o siguiente, y meses ya pagados.';
 
 
+-- 9.3) Función para incrementar repeticiones completadas
+CREATE OR REPLACE FUNCTION public.incrementar_repeticiones_completadas(
+    p_transaccion_periodica_id UUID
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    UPDATE transacciones_periodicas
+    SET repeticiones_completadas = COALESCE(repeticiones_completadas, 0) + 1,
+        updated_at = NOW()
+    WHERE id = p_transaccion_periodica_id;
+END;
+$$;
+
+COMMENT ON FUNCTION public.incrementar_repeticiones_completadas IS 
+'Incrementa el contador de repeticiones completadas de una transacción periódica';
+
+
+-- 9.4) Función para calcular siguiente fecha basándose en frecuencia
+-- Nota: Esta función SQL calcula la siguiente fecha basándose en la frecuencia
+CREATE OR REPLACE FUNCTION public.calcular_siguiente_fecha(
+    p_fecha_base TIMESTAMP WITH TIME ZONE,
+    p_frecuencia frecuencia_transaccion,
+    p_dia_especifico INTEGER DEFAULT NULL
+)
+RETURNS TIMESTAMP WITH TIME ZONE
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+    v_siguiente_fecha TIMESTAMP WITH TIME ZONE;
+BEGIN
+    CASE p_frecuencia
+        WHEN 'diaria' THEN
+            v_siguiente_fecha := p_fecha_base + INTERVAL '1 day';
+        
+        WHEN 'semanal' THEN
+            v_siguiente_fecha := p_fecha_base + INTERVAL '1 week';
+        
+        WHEN 'quincenal' THEN
+            v_siguiente_fecha := p_fecha_base + INTERVAL '15 days';
+        
+        WHEN 'mensual' THEN
+            IF p_dia_especifico IS NOT NULL THEN
+                -- Ir al día específico del siguiente mes
+                v_siguiente_fecha := (DATE_TRUNC('month', p_fecha_base) + INTERVAL '1 month' + 
+                                     (p_dia_especifico - 1 || ' days')::INTERVAL)::TIMESTAMP WITH TIME ZONE;
+            ELSE
+                v_siguiente_fecha := p_fecha_base + INTERVAL '1 month';
+            END IF;
+        
+        WHEN 'bimestral' THEN
+            IF p_dia_especifico IS NOT NULL THEN
+                v_siguiente_fecha := (DATE_TRUNC('month', p_fecha_base) + INTERVAL '2 months' + 
+                                     (p_dia_especifico - 1 || ' days')::INTERVAL)::TIMESTAMP WITH TIME ZONE;
+            ELSE
+                v_siguiente_fecha := p_fecha_base + INTERVAL '2 months';
+            END IF;
+        
+        WHEN 'trimestral' THEN
+            IF p_dia_especifico IS NOT NULL THEN
+                v_siguiente_fecha := (DATE_TRUNC('month', p_fecha_base) + INTERVAL '3 months' + 
+                                     (p_dia_especifico - 1 || ' days')::INTERVAL)::TIMESTAMP WITH TIME ZONE;
+            ELSE
+                v_siguiente_fecha := p_fecha_base + INTERVAL '3 months';
+            END IF;
+        
+        WHEN 'semestral' THEN
+            IF p_dia_especifico IS NOT NULL THEN
+                v_siguiente_fecha := (DATE_TRUNC('month', p_fecha_base) + INTERVAL '6 months' + 
+                                     (p_dia_especifico - 1 || ' days')::INTERVAL)::TIMESTAMP WITH TIME ZONE;
+            ELSE
+                v_siguiente_fecha := p_fecha_base + INTERVAL '6 months';
+            END IF;
+        
+        WHEN 'anual' THEN
+            IF p_dia_especifico IS NOT NULL THEN
+                v_siguiente_fecha := (DATE_TRUNC('year', p_fecha_base) + INTERVAL '1 year' + 
+                                     (p_dia_especifico - 1 || ' days')::INTERVAL)::TIMESTAMP WITH TIME ZONE;
+            ELSE
+                v_siguiente_fecha := p_fecha_base + INTERVAL '1 year';
+            END IF;
+        
+        ELSE
+            -- Para 'unica' o cualquier otro caso
+            v_siguiente_fecha := NULL;
+    END CASE;
+    
+    RETURN v_siguiente_fecha;
+END;
+$$;
+
+COMMENT ON FUNCTION public.calcular_siguiente_fecha IS 
+'Calcula la siguiente fecha de ejecución basándose en la frecuencia y día específico';
+
+
 -- ==================================================================
 -- 9b) Función para eliminar MSI correctamente
 -- ==================================================================

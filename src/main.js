@@ -8,6 +8,9 @@ import router from './router/index.js'
 import { createPinia } from 'pinia'
 import { useUIStore } from '@/stores/ui.js'
 import { useSessionStore } from '@/stores/session.js'
+import { useCategoriesStore } from '@/stores/categories.js'
+import { useLevelStore } from '@/stores/levels.js'
+import { useBankStore } from '@/stores/banks.js'
 
 import Aura from '@primeuix/themes/aura';
 import { definePreset } from '@primeuix/themes';
@@ -105,6 +108,9 @@ async function initializeApp() {
     // Obtener stores
     const uiStore = useUIStore()
     const sessionStore = useSessionStore()
+    const categoriesStore = useCategoriesStore()
+    const levelsStore = useLevelStore()
+    const banksStore = useBankStore()
     
     // Cargar configuración UI (síncrono)
     uiStore.loadUISetup()
@@ -122,6 +128,24 @@ async function initializeApp() {
     sessionStore.initializeAuth().catch(error => {
         console.error('⚠️ Error en inicialización de auth:', error.message);
     })
+    
+    // **CARGAR CATÁLOGOS EN BACKGROUND**
+    console.log('📦 Cargando catálogos en segundo plano...');
+    
+    // Cargar grupos de categorías con sus categorías
+    categoriesStore.fetchCategoryGroupsWithCategories({ force: false })
+        .then(() => console.log('✅ Grupos de categorías cargados'))
+        .catch(error => console.error('⚠️ Error cargando grupos de categorías:', error.message));
+    
+    // Cargar niveles
+    levelsStore.fetchLevels({ force: false })
+        .then(() => console.log('✅ Niveles cargados'))
+        .catch(error => console.error('⚠️ Error cargando niveles:', error.message));
+    
+    // Cargar bancos
+    banksStore.fetchBanks({ force: false })
+        .then(() => console.log('✅ Bancos cargados'))
+        .catch(error => console.error('⚠️ Error cargando bancos:', error.message));
 }
 
 // Inicializar la aplicación

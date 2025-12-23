@@ -115,6 +115,13 @@ const items = ref([
             // TODO: Implementar modal de transferencia
             modalsStore.openTransferenciaModal()
         }
+    },
+    {
+        label: 'Periódica',
+        icon: 'event_repeat',
+        command: () => {
+            modalsStore.openRecurringTransactionModal()
+        }
     }
 ].map((item, index) => ({ ...item, index })))
 </script>

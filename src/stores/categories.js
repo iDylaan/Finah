@@ -370,7 +370,7 @@ export const useCategoriesStore = defineStore('categories', () => {
     }
 
     // Función para obtener category_groups con sus categorías anidadas
-    const fetchCategoryGroupsWithCategories = async ({ toast, force = false }) => {
+    const fetchCategoryGroupsWithCategories = async ({ toast = null, force = false } = {}) => {
         // Si ya tenemos datos y no es forzado, simplemente regresamos los datos actuales
         if (loaded.value && categoryGroups.value.length > 0 && !force) {
             console.log('🔄 Usando datos de grupos y categorías en caché');
@@ -398,8 +398,9 @@ export const useCategoriesStore = defineStore('categories', () => {
             const { data: categoriesData, error: categoriesError } = await categoriesQuery
 
             if (categoriesError) {
-                handleError(categoriesError, toast)
-                return
+                if (toast) handleError(categoriesError, toast)
+                else console.error('⚠️ Error obteniendo categorías:', categoriesError)
+                return []
             }
 
             // **PASO 2:** Obtener todos los grupos de categorías
@@ -416,8 +417,9 @@ export const useCategoriesStore = defineStore('categories', () => {
             const { data: groupsData, error: groupsError } = await groupsQuery
 
             if (groupsError) {
-                handleError(groupsError, toast)
-                return
+                if (toast) handleError(groupsError, toast)
+                else console.error('⚠️ Error obteniendo grupos:', groupsError)
+                return []
             }
 
             // **PASO 3:** Ordenar categorías (Privadas primero, luego alfabético)
@@ -465,7 +467,8 @@ export const useCategoriesStore = defineStore('categories', () => {
             return groupsWithCategories
 
         } catch (error) {
-            handleError(error, toast)
+            if (toast) handleError(error, toast)
+            else console.error('⚠️ Error en fetchCategoryGroupsWithCategories:', error)
             return []
         } finally {
             loading.value = false

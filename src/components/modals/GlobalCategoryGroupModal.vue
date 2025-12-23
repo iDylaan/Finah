@@ -46,7 +46,8 @@ const handleSubmit = async ({ data, isEdit, groupId, onSuccess, onError }) => {
 
         if (result) {
             // Recargar datos para mostrar cambios
-            await categoriesStore.fetchCategoryGroupsWithCategories({ toast });
+            // Recargar solo si se creó un nuevo grupo
+            await categoriesStore.fetchCategoryGroupsWithCategories({ toast, force: true });
 
             // Ejecutar callback de éxito
             onSuccess();
