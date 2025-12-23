@@ -2437,6 +2437,90 @@ COMMENT ON FUNCTION obtener_gastos_periodo_tarjeta IS 'Obtiene gastos y MSI del 
 
 
 -- ==================================================================
+-- FUNCIÓN: Calcular transacciones programadas que caerán en un periodo
+-- ==================================================================
+CREATE OR REPLACE FUNCTION calcular_transacciones_programadas_periodo(
+    p_cuenta_id UUID,
+    p_fecha_inicio DATE,
+    p_fecha_fin DATE
+)
+RETURNS NUMERIC
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_total_programado NUMERIC := 0;
+    v_transaccion RECORD;
+    v_fecha_ejecucion DATE;
+    v_contador INTEGER;
+BEGIN
+    -- Iterar sobre todas las transacciones periódicas activas de esta cuenta
+    -- EXCLUYE transacciones MSI (ya se muestran en cuota MSI)
+    -- INCLUYE tanto las que requieren confirmación como las que no (ambas son gastos programados)
+    FOR v_transaccion IN
+        SELECT 
+            tp.id,
+            tp.monto,
+            tp.frecuencia,
+            tp.dia_del_mes,
+            tp.fecha_inicio,
+            tp.criterio_fin,
+            tp.fecha_fin,
+            tp.numero_total_repeticiones,
+            tp.repeticiones_completadas
+        FROM transacciones_periodicas tp
+        WHERE tp.cuenta_id = p_cuenta_id
+            AND tp.activa = TRUE
+            AND tp.tipo = 'gasto'
+            AND COALESCE(tp.es_msi, FALSE) = FALSE
+    LOOP
+        -- Calcular la próxima fecha de ejecución desde la fecha de inicio
+        v_fecha_ejecucion := v_transaccion.fecha_inicio;
+        v_contador := 0;
+        
+        -- Simular ejecuciones hasta encontrar las que caen en el periodo
+        WHILE v_contador < 100 LOOP
+            -- Verificar si la fecha de ejecucion está dentro del periodo
+            IF v_fecha_ejecucion >= p_fecha_inicio AND v_fecha_ejecucion <= p_fecha_fin THEN
+                v_total_programado := v_total_programado + v_transaccion.monto;
+            END IF;
+            
+            -- Calcular siguiente fecha según frecuencia
+            v_fecha_ejecucion := calcular_siguiente_fecha(
+                v_fecha_ejecucion,
+                v_transaccion.frecuencia,
+                v_transaccion.dia_del_mes
+            );
+            
+            -- Verificar criterios de finalización
+            IF v_transaccion.criterio_fin = 'fecha_fin' THEN
+                IF v_fecha_ejecucion > v_transaccion.fecha_fin THEN
+                    EXIT;
+                END IF;
+            ELSIF v_transaccion.criterio_fin = 'numero_repeticiones' THEN
+                IF v_contador >= v_transaccion.numero_total_repeticiones THEN
+                    EXIT;
+                END IF;
+            END IF;
+            
+            -- Si la fecha de ejecución ya pasó el fin del periodo, salir
+            IF v_fecha_ejecucion > p_fecha_fin THEN
+                EXIT;
+            END IF;
+            
+            v_contador := v_contador + 1;
+        END LOOP;
+    END LOOP;
+    
+    RETURN COALESCE(v_total_programado, 0);
+END;
+$$;
+
+COMMENT ON FUNCTION calcular_transacciones_programadas_periodo IS 'Calcula la simulación de gastos programados que caerán en un periodo específico de tarjeta de crédito';
+
+
+-- ==================================================================
 -- 3) Función para registrar pago de periodo de tarjeta
 -- ==================================================================
 DROP FUNCTION IF EXISTS registrar_pago_periodo_tarjeta(UUID, NUMERIC, UUID, DATE, TEXT, TEXT, UUID);
@@ -2736,6 +2820,8 @@ DECLARE
     v_cuota_este_periodo NUMERIC;
     v_cuota_siguiente_periodo NUMERIC;
     v_total_siguiente_ajustado NUMERIC;
+    v_gastos_programados_actual NUMERIC := 0;
+    v_gastos_programados_siguiente NUMERIC := 0;
     v_resultado JSONB;
 BEGIN
     -- Obtener información de la cuenta
@@ -2807,6 +2893,20 @@ BEGIN
     RAISE NOTICE 'DEBUG Periodo Siguiente: Inicio=%, Fin=%, Cuotas MSI=%', 
         v_fechas.periodo_siguiente_inicio, v_fechas.periodo_siguiente_fin, v_cuota_msi_siguiente;
     
+    -- ===== NUEVO: Calcular transacciones programadas =====
+    v_gastos_programados_actual := calcular_transacciones_programadas_periodo(
+        p_cuenta_id,
+        v_fechas.periodo_actual_inicio,
+        v_fechas.periodo_actual_fin
+    );
+    
+    v_gastos_programados_siguiente := calcular_transacciones_programadas_periodo(
+        p_cuenta_id,
+        v_fechas.periodo_siguiente_inicio,
+        v_fechas.periodo_siguiente_fin
+    );
+    -- ===== FIN NUEVO =====
+    
     -- Ajustar proyección del siguiente periodo si excede el total adeudado
     -- La proyección no puede ser mayor que la deuda total
     v_total_siguiente_ajustado := LEAST(
@@ -2832,13 +2932,16 @@ BEGIN
             'total_msi_pendiente', v_total_msi,
             'saldo_arrastre', v_cuenta.saldo_arrastre,
             'saldo_periodo_actual', v_cuenta.saldo_periodo_actual,
+            'gastos_programados_periodo', v_gastos_programados_actual,
+            'proyeccion_con_programados', v_cuenta.saldo_periodo_actual + v_gastos_programados_actual,
             'total_a_pagar', v_cuenta.saldo_arrastre + v_cuenta.saldo_periodo_actual
         ),
         -- Desglose del periodo SIGUIENTE (proyección)
         'desglose_siguiente_periodo', JSONB_BUILD_OBJECT(
             'cuota_msi_periodo', v_cuota_msi_siguiente,
             'gastos_futuros_registrados', v_periodo_siguiente.total_gastos_normales,
-            'proyeccion_total', v_cuota_msi_siguiente + COALESCE(v_periodo_siguiente.total_gastos_normales, 0)
+            'gastos_programados', v_gastos_programados_siguiente,
+            'proyeccion_total', v_cuota_msi_siguiente + COALESCE(v_periodo_siguiente.total_gastos_normales, 0) + v_gastos_programados_siguiente
         ),
         'fechas', JSONB_BUILD_OBJECT(
             'periodo_actual', JSONB_BUILD_OBJECT(

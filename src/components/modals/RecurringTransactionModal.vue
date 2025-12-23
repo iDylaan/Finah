@@ -320,10 +320,11 @@ const handleSubmit = async () => {
         }
         
         // Mapear dia_especifico al campo correcto según frecuencia
-        if (form.value.frecuencia === 'mensual' && form.value.dia_especifico) {
-            data.dia_del_mes = form.value.dia_especifico
+        const frecuenciasMensuales = ['mensual', 'bimestral', 'trimestral', 'semestral', 'anual'];
+        if (frecuenciasMensuales.includes(form.value.frecuencia) && form.value.dia_especifico) {
+            data.dia_del_mes = parseInt(form.value.dia_especifico);
         } else if (form.value.frecuencia === 'semanal' && form.value.dia_especifico) {
-            data.dias_semana = [form.value.dia_especifico]
+            data.dias_semana = [form.value.dia_especifico];
         }
         
         if (isEditMode.value) {

@@ -187,6 +187,7 @@ VALUES
   ('Inbursa',         TRUE, '#006ABC', 'material', 'account_balance'),
   ('BanCoppel',       TRUE, '#FFD700', 'material', 'account_balance'),
   ('Banco Azteca',    TRUE, '#D71921', 'material', 'account_balance'),
+  ('Bradescard',      TRUE, '#C42540', 'material', 'account_balance'),
   ('Banco del Bienestar', TRUE, '#8BC34A', 'material', 'account_balance'),
   ('NU',              TRUE, '#8A05BE', 'material', 'account_balance'),
   ('Mercado Pago',    TRUE, '#009EE3', 'material', 'payment'),
