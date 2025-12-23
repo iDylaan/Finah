@@ -12,7 +12,7 @@ export const useLevelStore = defineStore('levels', () => {
     const lastFetchTime = ref(null);
 
     // Función para obtener niveles con jerarquía personalizada
-    const fetchLevels = async ({ toast, force = false } = {}) => {
+    const fetchLevels = async ({ toast = null, force = false } = {}) => {
         // Si ya tenemos datos y no es forzado, simplemente regresamos los datos actuales
         if (loaded.value && levels.value.length > 0 && !force) {
             console.log('🔄 Usando datos de niveles en caché');
@@ -57,6 +57,8 @@ export const useLevelStore = defineStore('levels', () => {
                     detail: 'Error al cargar los niveles',
                     life: 5000
                 });
+            } else {
+                console.error('⚠️ Error cargando niveles:', error.message);
             }
             throw error;
         } finally {

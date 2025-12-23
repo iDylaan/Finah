@@ -4,34 +4,35 @@
             {{ label }}
             <span v-if="required" class="text-red-500">*</span>
         </label>
-        <Select 
-            :id="inputId"
-            :modelValue="modelValue"
-            @update:modelValue="handleSelection"
-            :options="filteredCategoryGroups" 
-            optionLabel="nombre"
-            optionValue="id"
-            optionGroupLabel="nombre"
-            optionGroupChildren="categories"
-            :placeholder="placeholder"
-            :class="{ 'p-invalid': invalid || error }"
-            class="w-full"
-            filter
-            filterPlaceholder="Buscar categoría..."
-        >
-            <template #header>
-                <div class="border-b border-surface-200 dark:border-surface-700 pb-2 mb-2">
-                    <Button 
-                        label="Crear nuevo grupo"
-                        icon="pi pi-plus-circle"
-                        severity="info"
-                        text
-                        size="small"
-                        class="w-full justify-start"
-                        @click="handleCreateGroup"
-                    />
-                </div>
-            </template>
+        <div class="flex gap-2">
+            <Select 
+                :id="inputId"
+                :modelValue="modelValue"
+                @update:modelValue="handleSelection"
+                :options="filteredCategoryGroups" 
+                optionLabel="nombre"
+                optionValue="id"
+                optionGroupLabel="nombre"
+                optionGroupChildren="categories"
+                :placeholder="placeholder"
+                :class="{ 'p-invalid': invalid || error }"
+                class="flex-1"
+                filter
+                filterPlaceholder="Buscar categoría..."
+            >
+                <template #header>
+                    <div class="border-b border-surface-200 dark:border-surface-700 pb-2 mb-2">
+                        <Button 
+                            label="Crear nuevo grupo"
+                            icon="pi pi-plus-circle"
+                            severity="info"
+                            text
+                            size="small"
+                            class="w-full justify-start"
+                            @click="handleCreateGroup"
+                        />
+                    </div>
+                </template>
             <template #optiongroup="slotProps">
                 <div class="flex items-center gap-2 font-semibold py-2 hover:bg-surface-50 dark:hover:bg-surface-700/50 rounded transition-colors">
                     <div class="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0"
@@ -98,6 +99,16 @@
                 <span v-else>{{ slotProps.placeholder }}</span>
             </template>
         </Select>
+        <Button 
+            icon="pi pi-refresh"
+            severity="secondary"
+            outlined
+            :loading="categoriesStore.loading"
+            @click="handleRefresh"
+            v-tooltip.top="'Actualizar categorías'"
+            class="shrink-0"
+        />
+        </div>
         <small v-if="error" class="text-red-500">{{ error }}</small>
         <small v-else-if="hint" class="text-surface-500">{{ hint }}</small>
     </div>
@@ -105,9 +116,13 @@
 
 <script setup>
 import { computed } from 'vue';
+import { useToast } from 'primevue/usetoast';
 import { useModalsStore } from '@/stores/ui-modals';
+import { useCategoriesStore } from '@/stores/categories';
 
+const toast = useToast();
 const modalsStore = useModalsStore();
+const categoriesStore = useCategoriesStore();
 
 const props = defineProps({
     modelValue: {
@@ -184,6 +199,21 @@ const handleCreateCategoryInGroup = (groupId) => {
 // Handler para crear grupo
 const handleCreateGroup = () => {
     modalsStore.openCategoryGroupModal();
+};
+
+// Handler para refrescar categorías
+const handleRefresh = async () => {
+    try {
+        await categoriesStore.fetchCategoryGroupsWithCategories({ toast, force: true });
+        toast.add({
+            severity: 'success',
+            summary: 'Categorías actualizadas',
+            detail: 'La lista de categorías se ha actualizado correctamente',
+            life: 3000
+        });
+    } catch (error) {
+        console.error('Error refrescando categorías:', error);
+    }
 };
 
 // Helper para obtener categoría por ID

@@ -36,7 +36,7 @@ const isNewMode = computed(() => modalsStore.categoryModalMode === 'create');
 
 const handleSuccess = async (category) => {
     // Recargar datos para asegurar que los cambios sean visibles
-    await categoriesStore.fetchCategoryGroupsWithCategories({ toast });
+    // Ya no forzamos la carga, usamos datos en caché
 
     // Cerrar modal
     modalsStore.closeCategoryModal();

@@ -36,11 +36,19 @@ export const useBankStore = defineStore('banks', () => {
 
     try {
       console.log('🔍 Consultando bancos desde la base de datos');
-      const { data, error: err } = await supabase
+      
+      let query = supabase
         .from('bancos')
-        .select('*')
-        .or(`es_publico.eq.true,usuario_id.eq.${sessionStore.userId}`)
-        .order('nombre', { ascending: true });
+        .select('*');
+      
+      // Solo agregar filtro de usuario si existe
+      if (sessionStore.userId) {
+        query = query.or(`es_publico.eq.true,usuario_id.eq.${sessionStore.userId}`);
+      } else {
+        query = query.eq('es_publico', true);
+      }
+      
+      const { data, error: err } = await query.order('nombre', { ascending: true });
 
       if (err) throw err;
 

@@ -742,7 +742,14 @@ watch(() => route.params.id, () => {
                                                     {{ data.categorias?.nombre_icono }}
                                                 </span>
                                             </div>
-                                            <span>{{ data.categorias?.nombre || 'Sin categoría' }}</span>
+                                            <div class="flex flex-col">
+                                                <span>{{ data.categorias?.nombre || 'Sin categoría' }}</span>
+                                                <Chip v-if="data.transaccion_periodica_id" 
+                                                    label="Periódica" 
+                                                    severity="info" 
+                                                    class="h-5 text-xs mt-1" 
+                                                    icon="pi pi-replay" />
+                                            </div>
                                         </div>
                                     </template>
                                 </Column>

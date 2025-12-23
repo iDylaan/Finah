@@ -114,6 +114,7 @@
                             {{ formatCurrency(desglose?.saldo_periodo_actual || 0) }}
                         </span>
                     </div>
+                    
                     <div v-if="desglose?.saldo_arrastre > 0" class="flex justify-between items-center text-xs pt-1.5 border-t border-green-200 dark:border-green-800">
                         <span class="text-green-700 dark:text-green-300 font-bold">Total a pagar:</span>
                         <span class="font-bold text-green-800 dark:text-green-200">
@@ -149,8 +150,23 @@
                         {{ formatDate(fechasPeriodo.periodo_siguiente.inicio) }} - {{ formatDate(fechasPeriodo.periodo_siguiente.fin) }}
                     </div>
                 </div>
-                <div class="text-lg font-bold text-blue-800 dark:text-blue-300">
-                    {{ formatCurrency(desgloseSiguiente?.proyeccion_total || 0) }}
+                
+                <!-- Proyecciones lado a lado -->
+                <div class="flex items-center gap-3">
+                    <!-- Proyección base (sin programados) -->
+                    <div class="flex-1">
+                        <div class="text-lg font-bold text-blue-800 dark:text-blue-300">
+                            {{ formatCurrency(proyeccionBase) }}
+                        </div>
+                    </div>
+                    
+                    <!-- Proyección con programados (menor opacidad) -->
+                    <div v-if="desgloseSiguiente?.gastos_programados > 0" class="flex-shrink-0 opacity-60">
+                        <div class="text-xs text-blue-600 dark:text-blue-400 mb-0.5">Con programados:</div>
+                        <div class="text-base font-semibold text-blue-700 dark:text-blue-300">
+                            {{ formatCurrency(desgloseSiguiente?.proyeccion_total || 0) }}
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Desglose siguiente periodo -->
@@ -165,6 +181,16 @@
                         <span class="text-blue-600 dark:text-blue-400">Gastos futuros registrados:</span>
                         <span class="font-semibold text-blue-700 dark:text-blue-300">
                             {{ formatCurrency(desgloseSiguiente?.gastos_futuros_registrados || 0) }}
+                        </span>
+                    </div>
+                    
+                    <!-- Gastos programados del periodo siguiente -->
+                    <div v-if="desgloseSiguiente?.gastos_programados > 0" class="flex justify-between items-center text-xs opacity-60">
+                        <div class="flex items-center gap-1">
+                            <span class="text-blue-600 dark:text-blue-400">Gastos programados (simulación):</span>
+                        </div>
+                        <span class="font-semibold text-blue-700 dark:text-blue-300">
+                            {{ formatCurrency(desgloseSiguiente.gastos_programados) }}
                         </span>
                     </div>
                 </div>
@@ -265,6 +291,13 @@ const montoUtilizado = computed(() => {
 
 const pagoMinimo = computed(() => {
     return calcularPagoMinimo(montoUtilizado.value, props.card.porcentaje_pago_minimo || 5);
+});
+
+// Proyección base del periodo siguiente (sin gastos programados)
+const proyeccionBase = computed(() => {
+    const cuotaMSI = desgloseSiguiente.value?.cuota_msi_periodo || 0;
+    const gastosFuturos = desgloseSiguiente.value?.gastos_futuros_registrados || 0;
+    return cuotaMSI + gastosFuturos;
 });
 
 // Desglose de deuda del periodo actual
@@ -390,6 +423,19 @@ onMounted(() => {
 watch(() => props.card, () => {
     loadCardInfo();
 }, { deep: true });
+
+// Recargar si cambia el ID (para detectar actualizaciones)
+watch(() => props.card?.id, (newId, oldId) => {
+    if (newId && newId === oldId) {
+        // Mismo ID, pero puede haber cambios, recargar
+        loadCardInfo();
+    }
+});
+
+// Exponer método para recarga manual
+defineExpose({
+    loadCardInfo
+});
 </script>
 
 <style scoped>

@@ -91,6 +91,23 @@ export const useModalsStore = defineStore('modals', () => {
         openCategoryModal({ mode: 'view', categoryId, category })
     }
 
+    // ============================================
+    // MODAL DE TRANSACCIONES PERIÓDICAS
+    // ============================================
+    
+    const recurringTransactionModalVisible = ref(false)
+    const recurringTransactionEditData = ref(null)
+    
+    const openRecurringTransactionModal = (editData = null) => {
+        recurringTransactionEditData.value = editData
+        recurringTransactionModalVisible.value = true
+    }
+    
+    const closeRecurringTransactionModal = () => {
+        recurringTransactionModalVisible.value = false
+        recurringTransactionEditData.value = null
+    }
+
     return {
         // Estado transacciones
         transactionModalVisible,
@@ -125,6 +142,14 @@ export const useModalsStore = defineStore('modals', () => {
         closeCategoryModal,
         openNewCategoryModal,
         openEditCategoryModal,
-        openViewCategoryModal
+        openViewCategoryModal,
+        
+        // Estado transacciones periódicas
+        recurringTransactionModalVisible,
+        recurringTransactionEditData,
+        
+        // Acciones transacciones periódicas
+        openRecurringTransactionModal,
+        closeRecurringTransactionModal
     }
 })
