@@ -13,62 +13,27 @@
             </div>
 
             <!-- Cuenta origen -->
-            <div class="flex flex-col gap-2">
-                <label for="cuenta" class="text-sm font-semibold">
-                    {{ form.tipo === 'transferencia' ? 'Cuenta Origen' : 'Cuenta' }}
-                    <span class="text-red-500">*</span>
-                </label>
-                <Select v-model="form.cuenta_id" :options="availableAccounts" optionLabel="nombre" optionValue="id"
-                    placeholder="Selecciona una cuenta" showClear :invalid="errors.cuenta_id">
-                    <template #value="slotProps">
-                        <div v-if="slotProps.value" class="flex items-center gap-2">
-                            <span class="material-symbols-outlined text-xl" :style="{ color: getAccountColor(slotProps.value) }">
-                                {{ getAccountIcon(slotProps.value) }}
-                            </span>
-                            <span>{{ getAccountName(slotProps.value) }}</span>
-                        </div>
-                        <span v-else>{{ slotProps.placeholder }}</span>
-                    </template>
-                    <template #option="slotProps">
-                        <div class="flex items-center gap-2">
-                            <span class="material-symbols-outlined text-xl" :style="{ color: slotProps.option.color }">
-                                {{ slotProps.option.icon }}
-                            </span>
-                            <span>{{ slotProps.option.nombre }}</span>
-                        </div>
-                    </template>
-                </Select>
-                <small v-if="errors.cuenta_id" class="text-red-500">{{ errors.cuenta_id }}</small>
-            </div>
+            <AccountPicker
+                v-model="form.cuenta_id"
+                :label="form.tipo === 'transferencia' ? 'Cuenta Origen' : 'Cuenta'"
+                :accounts="availableAccounts"
+                :required="true"
+                :error="errors.cuenta_id"
+                :showBalance="true"
+                :enableFilter="true"
+            />
 
             <!-- Cuenta destino (solo para transferencias) -->
-            <div v-if="form.tipo === 'transferencia'" class="flex flex-col gap-2">
-                <label for="cuenta_destino" class="text-sm font-semibold">
-                    Cuenta Destino
-                    <span class="text-red-500">*</span>
-                </label>
-                <Select v-model="form.cuenta_destino_id" :options="destinationAccounts" optionLabel="nombre"
-                    optionValue="id" placeholder="Selecciona cuenta destino" showClear :invalid="errors.cuenta_destino_id">
-                    <template #value="slotProps">
-                        <div v-if="slotProps.value" class="flex items-center gap-2">
-                            <span class="material-symbols-outlined text-xl" :style="{ color: getAccountColor(slotProps.value) }">
-                                {{ getAccountIcon(slotProps.value) }}
-                            </span>
-                            <span>{{ getAccountName(slotProps.value) }}</span>
-                        </div>
-                        <span v-else>{{ slotProps.placeholder }}</span>
-                    </template>
-                    <template #option="slotProps">
-                        <div class="flex items-center gap-2">
-                            <span class="material-symbols-outlined text-xl" :style="{ color: slotProps.option.color }">
-                                {{ slotProps.option.icon }}
-                            </span>
-                            <span>{{ slotProps.option.nombre }}</span>
-                        </div>
-                    </template>
-                </Select>
-                <small v-if="errors.cuenta_destino_id" class="text-red-500">{{ errors.cuenta_destino_id }}</small>
-            </div>
+            <AccountPicker
+                v-if="form.tipo === 'transferencia'"
+                v-model="form.cuenta_destino_id"
+                label="Cuenta Destino"
+                :accounts="destinationAccounts"
+                :required="true"
+                :error="errors.cuenta_destino_id"
+                :showBalance="true"
+                :enableFilter="true"
+            />
 
             <!-- Categoría (no para transferencias) -->
             <div v-if="form.tipo !== 'transferencia'" class="flex flex-col gap-2">
@@ -207,6 +172,7 @@ import { useAccountsStore } from '@/stores/accounts.js'
 import { useCategoriesStore } from '@/stores/categories.js'
 import { useRecurringTransactionsStore } from '@/stores/recurring-transactions.js'
 import CategoryPicker from '@/components/CategoryPicker.vue'
+import AccountPicker from '@/components/AccountPicker.vue'
 
 const toast = useToast()
 const accountsStore = useAccountsStore()
@@ -287,11 +253,7 @@ const criterioFinalizacionOptions = [
 
 // Computed
 const availableAccounts = computed(() => {
-    return accountsStore.accounts.map(account => ({
-        ...account,
-        icon: getAccountIconMaterial(account),
-        color: getAccountColor(account.id)
-    }))
+    return accountsStore.accounts
 })
 
 const destinationAccounts = computed(() => {
@@ -306,43 +268,6 @@ const daySelectionLabel = computed(() => {
     if (form.value.frecuencia === 'semanal') return 'Día de la Semana'
     return 'Día del Mes'
 })
-
-// Methods
-const getAccountIconMaterial = (account) => {
-    if (account.banco?.nombre_icono && account.banco?.biblioteca_iconos === 'material') {
-        return account.banco.nombre_icono
-    }
-    const icons = {
-        'cash': 'payments',
-        'bank': 'account_balance',
-        'debit_card': 'credit_card',
-        'credit_card': 'credit_card'
-    }
-    return icons[account.tipo] || 'account_balance_wallet'
-}
-
-const getAccountColor = (accountId) => {
-    const account = accountsStore.accounts.find(a => a.id === accountId)
-    if (!account) return '#6366f1'
-    if (account.banco?.color) return account.banco.color
-    const colors = {
-        'cash': '#10b981',
-        'bank': '#3b82f6',
-        'debit_card': '#8b5cf6',
-        'credit_card': '#f59e0b'
-    }
-    return colors[account.tipo] || '#6366f1'
-}
-
-const getAccountName = (accountId) => {
-    const account = accountsStore.accounts.find(a => a.id === accountId)
-    return account?.nombre || ''
-}
-
-const getAccountIcon = (accountId) => {
-    const account = accountsStore.accounts.find(a => a.id === accountId)
-    return account ? getAccountIconMaterial(account) : 'account_balance_wallet'
-}
 
 const validateForm = () => {
     errors.value = {}
