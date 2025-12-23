@@ -32,6 +32,12 @@ export const useUIStore = defineStore('ui', () => {
             ]
         },
         {
+            label: 'Compartido',
+            items: [
+                { label: 'Grupos', icon: 'group', to: '/groups' },
+            ]
+        },
+        {
             label: 'Modulos',
             items: [
                 { label: 'Gráficas', icon: 'bar_chart', to: '/charts' },

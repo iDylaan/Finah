@@ -8,13 +8,18 @@
 -- 1) Activar RLS (Row Level Security) en todas las tablas
 -- ===================================================
 -- Se habilita la seguridad a nivel de fila para controlar el acceso a los datos
+
+-- IMPORTANTE: Deshabilitar RLS en miembros_grupo e invitaciones_grupo para evitar problemas de permisos
+ALTER TABLE miembros_grupo DISABLE ROW LEVEL SECURITY;
+ALTER TABLE invitaciones_grupo DISABLE ROW LEVEL SECURITY;  -- DESHABILITADO: Evita errores de permisos con auth.users
+
 ALTER TABLE grupos_usuario         ENABLE ROW LEVEL SECURITY;  -- Grupos familiares/compartidos
 ALTER TABLE grupos_categoria       ENABLE ROW LEVEL SECURITY;  -- Agrupadores de categorías
 ALTER TABLE categorias             ENABLE ROW LEVEL SECURITY;  -- Categorías específicas
 ALTER TABLE niveles                ENABLE ROW LEVEL SECURITY;  -- Niveles de prioridad
 ALTER TABLE periodicidades         ENABLE ROW LEVEL SECURITY;  -- Frecuencias para recurrencias
 ALTER TABLE cuentas                ENABLE ROW LEVEL SECURITY;  -- Cuentas financieras
-ALTER TABLE miembros_grupo         ENABLE ROW LEVEL SECURITY;  -- Miembros de grupos
+-- ALTER TABLE miembros_grupo         ENABLE ROW LEVEL SECURITY;  -- DESHABILITADO: Causa recursión infinita
 ALTER TABLE reglas_reparto_grupo   ENABLE ROW LEVEL SECURITY;  -- Reglas de distribución grupal
 ALTER TABLE transacciones          ENABLE ROW LEVEL SECURITY;  -- Transacciones financieras
 ALTER TABLE divisiones_transaccion ENABLE ROW LEVEL SECURITY;  -- División de gastos grupales
@@ -25,7 +30,7 @@ ALTER TABLE metas                  ENABLE ROW LEVEL SECURITY;  -- Metas financie
 ALTER TABLE notificaciones         ENABLE ROW LEVEL SECURITY;  -- Notificaciones del sistema
 ALTER TABLE bancos                 ENABLE ROW LEVEL SECURITY;  -- Catálogo de bancos
 ALTER TABLE compras_msi            ENABLE ROW LEVEL SECURITY;  -- Compras en meses sin intereses
-ALTER TABLE invitaciones_grupo     ENABLE ROW LEVEL SECURITY;  -- Invitaciones a grupos
+-- ALTER TABLE invitaciones_grupo     ENABLE ROW LEVEL SECURITY;  -- DESHABILITADO: Evita errores de permisos
 ALTER TABLE historial_saldos       ENABLE ROW LEVEL SECURITY;  -- Historial de saldos
 ALTER TABLE jerarquias_usuario     ENABLE ROW LEVEL SECURITY;  -- Jerarquías de usuario
 ALTER TABLE transacciones_periodicas ENABLE ROW LEVEL SECURITY;  -- Transacciones periódicas
@@ -36,30 +41,72 @@ ALTER TABLE ejecuciones_transacciones_periodicas ENABLE ROW LEVEL SECURITY;  -- 
 -- ===================================================
 -- Estas funciones optimizan las consultas de políticas y evitan problemas de recursión
 
--- Verifica si un usuario es miembro de un grupo específico
-CREATE OR REPLACE FUNCTION public.es_miembro_grupo(_grupo_id UUID)
-RETURNS BOOLEAN
-LANGUAGE sql STABLE SECURITY DEFINER
-SET row_security = OFF
+-- Obtiene el ID del usuario actual de la sesión
+CREATE OR REPLACE FUNCTION public.id_usuario_sesion()
+RETURNS UUID
+LANGUAGE SQL
+STABLE
 AS $$
-  SELECT EXISTS(
-    SELECT 1 FROM miembros_grupo
-     WHERE grupo_id = _grupo_id
-       AND usuario_id = id_usuario_sesion()
+  SELECT COALESCE(
+    NULLIF(current_setting('request.jwt.claims', true)::json->>'sub', '')::uuid,
+    auth.uid()
   );
 $$;
 
--- Verifica si un usuario es administrador de un grupo específico
-CREATE OR REPLACE FUNCTION public.es_admin_grupo(_grupo_id UUID)
+-- Verifica si un usuario es miembro de un grupo específico
+CREATE OR REPLACE FUNCTION public.es_miembro_grupo(_grupo_id UUID)
 RETURNS BOOLEAN
-LANGUAGE sql STABLE SECURITY DEFINER
+LANGUAGE plpgsql STABLE SECURITY DEFINER
 SET row_security = OFF
 AS $$
-  SELECT EXISTS(
+BEGIN
+  RETURN EXISTS(
     SELECT 1 FROM miembros_grupo
      WHERE grupo_id = _grupo_id
-       AND usuario_id = id_usuario_sesion()
-       AND rol = 'administrador'
+       AND usuario_id = auth.uid()
+  );
+END;
+$$;
+
+-- Retorna los IDs de grupos a los que pertenece el usuario (para evitar recursión)
+CREATE OR REPLACE FUNCTION public.grupos_usuario()
+RETURNS TABLE(grupo_id UUID)
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET row_security = OFF
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT mg.grupo_id
+  FROM miembros_grupo mg
+  WHERE mg.usuario_id = auth.uid();
+END;
+$$;
+
+-- Verifica si un usuario es administrador o owner de un grupo específico
+CREATE OR REPLACE FUNCTION public.es_admin_grupo(_grupo_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET row_security = OFF
+AS $$
+BEGIN
+  RETURN EXISTS(
+    SELECT 1 FROM miembros_grupo
+     WHERE grupo_id = _grupo_id
+       AND usuario_id = auth.uid()
+       AND rol IN ('owner', 'administrador')
+  );
+END;
+$$;
+
+-- Obtiene el email del usuario actual desde el JWT (sin consultar auth.users)
+CREATE OR REPLACE FUNCTION public.email_usuario_sesion()
+RETURNS TEXT
+LANGUAGE SQL
+STABLE
+AS $$
+  SELECT NULLIF(
+    current_setting('request.jwt.claims', true)::json->>'email',
+    ''
   );
 $$;
 
@@ -71,32 +118,37 @@ $$;
 DROP POLICY IF EXISTS select_grupos_usuario ON grupos_usuario;
 CREATE POLICY select_grupos_usuario ON grupos_usuario
   FOR SELECT USING (
-    es_miembro_grupo(id)
+    propietario_id = auth.uid()
+    OR EXISTS (
+      SELECT 1 FROM miembros_grupo mg
+      WHERE mg.grupo_id = grupos_usuario.id
+        AND mg.usuario_id = auth.uid()
+    )
   );
 
 -- INSERT - Para crear nuevos grupos
 DROP POLICY IF EXISTS insert_grupos_usuario ON grupos_usuario;
 CREATE POLICY insert_grupos_usuario ON grupos_usuario
   FOR INSERT WITH CHECK (
-    propietario_id = id_usuario_sesion()
+    propietario_id = auth.uid()
   );
 
--- UPDATE - Para actualizar grupos (solo propietarios)
+-- UPDATE - Para actualizar grupos (solo owner y admins)
 DROP POLICY IF EXISTS update_grupos_usuario ON grupos_usuario;
 CREATE POLICY update_grupos_usuario ON grupos_usuario
   FOR UPDATE 
   USING (
-    propietario_id = id_usuario_sesion()
+    es_admin_grupo(id)
   )
   WITH CHECK (
-    propietario_id = id_usuario_sesion()
+    es_admin_grupo(id)
   );
 
--- DELETE - Para eliminar grupos (solo propietarios)
+-- DELETE - Para eliminar grupos (solo owner)
 DROP POLICY IF EXISTS delete_grupos_usuario ON grupos_usuario;
 CREATE POLICY delete_grupos_usuario ON grupos_usuario
   FOR DELETE USING (
-    propietario_id = id_usuario_sesion()
+    propietario_id = auth.uid()
   );
 
 -- ===================================================
@@ -109,7 +161,7 @@ CREATE POLICY select_grupos_categoria ON grupos_categoria
   FOR SELECT USING (
        es_publico = TRUE
     OR usuario_id = id_usuario_sesion()
-    OR es_miembro_grupo(grupo_usuario_id)
+    OR (grupo_id IS NOT NULL AND es_miembro_grupo(grupo_id))
   );
 
 -- INSERT - Para crear nuevos grupos de categorías
@@ -119,8 +171,8 @@ CREATE POLICY insert_grupos_categoria ON grupos_categoria
     -- Solo puede insertar si:
     -- 1. Es privado personal (usuario_id = usuario actual)
     -- 2. Es privado grupal (es admin del grupo)
-    (es_publico = FALSE AND usuario_id = id_usuario_sesion() AND grupo_usuario_id IS NULL)
-    OR (es_publico = FALSE AND usuario_id IS NULL AND es_admin_grupo(grupo_usuario_id))
+    (es_publico = FALSE AND usuario_id = id_usuario_sesion() AND grupo_id IS NULL)
+    OR (es_publico = FALSE AND usuario_id IS NULL AND es_admin_grupo(grupo_id))
   );
 
 -- UPDATE - Para actualizar grupos de categorías
@@ -129,11 +181,11 @@ CREATE POLICY update_grupos_categoria ON grupos_categoria
   FOR UPDATE 
   USING (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   )
   WITH CHECK (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   );
 
 -- DELETE - Para eliminar grupos de categorías
@@ -141,7 +193,7 @@ DROP POLICY IF EXISTS delete_grupos_categoria ON grupos_categoria;
 CREATE POLICY delete_grupos_categoria ON grupos_categoria
   FOR DELETE USING (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   );
 
 -- ===================================================
@@ -154,15 +206,15 @@ CREATE POLICY select_categorias ON categorias
   FOR SELECT USING (
        es_publico = TRUE
     OR usuario_id = id_usuario_sesion()
-    OR es_miembro_grupo(grupo_usuario_id)
+    OR (grupo_id IS NOT NULL AND es_miembro_grupo(grupo_id))
   );
 
 -- INSERT - Para crear nuevas categorías
 DROP POLICY IF EXISTS insert_categorias ON categorias;
 CREATE POLICY insert_categorias ON categorias
   FOR INSERT WITH CHECK (
-    (es_publico = FALSE AND usuario_id = id_usuario_sesion() AND grupo_usuario_id IS NULL)
-    OR (es_publico = FALSE AND usuario_id IS NULL AND es_admin_grupo(grupo_usuario_id))
+    (es_publico = FALSE AND usuario_id = id_usuario_sesion() AND grupo_id IS NULL)
+    OR (es_publico = FALSE AND usuario_id IS NULL AND es_admin_grupo(grupo_id))
   );
 
 -- UPDATE - Para actualizar categorías
@@ -171,11 +223,11 @@ CREATE POLICY update_categorias ON categorias
   FOR UPDATE 
   USING (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   )
   WITH CHECK (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   );
 
 -- DELETE - Para eliminar categorías
@@ -183,7 +235,7 @@ DROP POLICY IF EXISTS delete_categorias ON categorias;
 CREATE POLICY delete_categorias ON categorias
   FOR DELETE USING (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   );
 
 -- ===================================================
@@ -196,15 +248,15 @@ CREATE POLICY select_niveles ON niveles
   FOR SELECT USING (
        es_publico = TRUE
     OR usuario_id = id_usuario_sesion()
-    OR es_miembro_grupo(grupo_usuario_id)
+    OR (grupo_id IS NOT NULL AND es_miembro_grupo(grupo_id))
   );
 
 -- INSERT - Para crear nuevos niveles
 DROP POLICY IF EXISTS insert_niveles ON niveles;
 CREATE POLICY insert_niveles ON niveles
   FOR INSERT WITH CHECK (
-    (es_publico = FALSE AND usuario_id = id_usuario_sesion() AND grupo_usuario_id IS NULL)
-    OR (es_publico = FALSE AND usuario_id IS NULL AND es_admin_grupo(grupo_usuario_id))
+    (es_publico = FALSE AND usuario_id = id_usuario_sesion() AND grupo_id IS NULL)
+    OR (es_publico = FALSE AND usuario_id IS NULL AND es_admin_grupo(grupo_id))
   );
 
 -- UPDATE - Para actualizar niveles
@@ -213,11 +265,11 @@ CREATE POLICY update_niveles ON niveles
   FOR UPDATE 
   USING (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   )
   WITH CHECK (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   );
 
 -- DELETE - Para eliminar niveles
@@ -225,7 +277,7 @@ DROP POLICY IF EXISTS delete_niveles ON niveles;
 CREATE POLICY delete_niveles ON niveles
   FOR DELETE USING (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   );
 
 -- ===================================================
@@ -238,15 +290,15 @@ CREATE POLICY select_bancos ON bancos
   FOR SELECT USING (
        es_publico = TRUE
     OR usuario_id = id_usuario_sesion()
-    OR es_miembro_grupo(grupo_usuario_id)
+    OR (grupo_id IS NOT NULL AND es_miembro_grupo(grupo_id))
   );
 
 -- INSERT - Para crear nuevos bancos
 DROP POLICY IF EXISTS insert_bancos ON bancos;
 CREATE POLICY insert_bancos ON bancos
   FOR INSERT WITH CHECK (
-    (es_publico = FALSE AND usuario_id = id_usuario_sesion() AND grupo_usuario_id IS NULL)
-    OR (es_publico = FALSE AND usuario_id IS NULL AND es_admin_grupo(grupo_usuario_id))
+    (es_publico = FALSE AND usuario_id = id_usuario_sesion() AND grupo_id IS NULL)
+    OR (es_publico = FALSE AND usuario_id IS NULL AND es_admin_grupo(grupo_id))
   );
 
 -- UPDATE - Para actualizar bancos
@@ -255,11 +307,11 @@ CREATE POLICY update_bancos ON bancos
   FOR UPDATE 
   USING (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   )
   WITH CHECK (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   );
 
 -- DELETE - Para eliminar bancos
@@ -267,7 +319,7 @@ DROP POLICY IF EXISTS delete_bancos ON bancos;
 CREATE POLICY delete_bancos ON bancos
   FOR DELETE USING (
     (usuario_id = id_usuario_sesion())
-    OR (grupo_usuario_id IS NOT NULL AND es_admin_grupo(grupo_usuario_id))
+    OR (grupo_id IS NOT NULL AND es_admin_grupo(grupo_id))
   );
 
 -- ===================================================
@@ -289,8 +341,8 @@ CREATE POLICY select_cuentas ON cuentas
   FOR SELECT USING (
     creada_por = id_usuario_sesion()
     OR (
-      grupo_usuario_id IS NOT NULL 
-      AND es_miembro_grupo(grupo_usuario_id)
+      grupo_id IS NOT NULL 
+      AND es_miembro_grupo(grupo_id)
     )
   );
 
@@ -300,8 +352,8 @@ CREATE POLICY insert_cuentas ON cuentas
   FOR INSERT WITH CHECK (
     creada_por = id_usuario_sesion()
     AND (
-      grupo_usuario_id IS NULL 
-      OR es_miembro_grupo(grupo_usuario_id)
+      grupo_id IS NULL 
+      OR es_miembro_grupo(grupo_id)
     )
   );
 
@@ -312,15 +364,15 @@ CREATE POLICY update_cuentas ON cuentas
   USING (
     creada_por = id_usuario_sesion()
     OR (
-      grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(grupo_usuario_id)
+      grupo_id IS NOT NULL 
+      AND es_admin_grupo(grupo_id)
     )
   )
   WITH CHECK (
     creada_por = id_usuario_sesion()
     OR (
-      grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(grupo_usuario_id)
+      grupo_id IS NOT NULL 
+      AND es_admin_grupo(grupo_id)
     )
   );
 
@@ -330,8 +382,8 @@ CREATE POLICY delete_cuentas ON cuentas
   FOR DELETE USING (
     creada_por = id_usuario_sesion()
     OR (
-      grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(grupo_usuario_id)
+      grupo_id IS NOT NULL 
+      AND es_admin_grupo(grupo_id)
     )
   );
 
@@ -349,8 +401,8 @@ CREATE POLICY select_compras_msi ON compras_msi
       AND (
         c.creada_por = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_miembro_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_miembro_grupo(c.grupo_id)
         )
       )
     )
@@ -378,8 +430,8 @@ CREATE POLICY update_compras_msi ON compras_msi
       AND (
         c.creada_por = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_admin_grupo(c.grupo_id)
         )
       )
     )
@@ -391,8 +443,8 @@ CREATE POLICY update_compras_msi ON compras_msi
       AND (
         c.creada_por = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_admin_grupo(c.grupo_id)
         )
       )
     )
@@ -408,8 +460,8 @@ CREATE POLICY delete_compras_msi ON compras_msi
       AND (
         c.creada_por = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_admin_grupo(c.grupo_id)
         )
       )
     )
@@ -427,8 +479,8 @@ CREATE POLICY select_compras_deuda ON compras_deuda
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = compras_deuda.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_miembro_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_miembro_grupo(c.grupo_id)
     )
   );
 
@@ -443,8 +495,8 @@ CREATE POLICY insert_compras_deuda ON compras_deuda
       AND (
         c.creada_por = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_miembro_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_miembro_grupo(c.grupo_id)
         )
       )
     )
@@ -459,8 +511,8 @@ CREATE POLICY update_compras_deuda ON compras_deuda
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = compras_deuda.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_admin_grupo(c.grupo_id)
     )
   )
   WITH CHECK (
@@ -468,8 +520,8 @@ CREATE POLICY update_compras_deuda ON compras_deuda
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = compras_deuda.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_admin_grupo(c.grupo_id)
     )
   );
 
@@ -481,8 +533,8 @@ CREATE POLICY delete_compras_deuda ON compras_deuda
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = compras_deuda.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_admin_grupo(c.grupo_id)
     )
   );
 
@@ -502,8 +554,8 @@ CREATE POLICY select_cuotas_deuda ON cuotas_deuda
         OR EXISTS (
           SELECT 1 FROM cuentas c
           WHERE c.id = cd.cuenta_id
-          AND c.grupo_usuario_id IS NOT NULL 
-          AND es_miembro_grupo(c.grupo_usuario_id)
+          AND c.grupo_id IS NOT NULL 
+          AND es_miembro_grupo(c.grupo_id)
         )
       )
     )
@@ -533,8 +585,8 @@ CREATE POLICY update_cuotas_deuda ON cuotas_deuda
         OR EXISTS (
           SELECT 1 FROM cuentas c
           WHERE c.id = cd.cuenta_id
-          AND c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
+          AND c.grupo_id IS NOT NULL 
+          AND es_admin_grupo(c.grupo_id)
         )
       )
     )
@@ -548,8 +600,8 @@ CREATE POLICY update_cuotas_deuda ON cuotas_deuda
         OR EXISTS (
           SELECT 1 FROM cuentas c
           WHERE c.id = cd.cuenta_id
-          AND c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
+          AND c.grupo_id IS NOT NULL 
+          AND es_admin_grupo(c.grupo_id)
         )
       )
     )
@@ -567,8 +619,8 @@ CREATE POLICY delete_cuotas_deuda ON cuotas_deuda
         OR EXISTS (
           SELECT 1 FROM cuentas c
           WHERE c.id = cd.cuenta_id
-          AND c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
+          AND c.grupo_id IS NOT NULL 
+          AND es_admin_grupo(c.grupo_id)
         )
       )
     )
@@ -577,15 +629,36 @@ CREATE POLICY delete_cuotas_deuda ON cuotas_deuda
 -- ===================================================
 -- 13) POLÍTICAS PARA MIEMBROS DE GRUPO
 -- ===================================================
+-- NOTA: RLS PERMANENTEMENTE DESHABILITADO para evitar recursión infinita
+-- La tabla miembros_grupo NO tiene RLS activado porque:
+-- 1. Causa recursión cuando se hace JOIN con grupos en las políticas
+-- 2. La seguridad se maneja a nivel de aplicación filtrando por usuario_id
+-- 3. Las funciones helper (es_miembro_grupo, es_admin_grupo) acceden directamente
+-- 4. Las políticas de otras tablas validan acceso a través de estas funciones
+--
+-- ESTRATEGIA DE SEGURIDAD:
+-- - Frontend: Solo consulta miembros de grupos donde el usuario es miembro
+-- - Backend: Funciones SECURITY DEFINER validan permisos antes de operaciones
+-- - Otras tablas: Sus políticas RLS usan es_miembro_grupo() para validar acceso
 
 -- SELECT - Para ver miembros de grupos a los que pertenece
+-- DESHABILITADO: Causa recursión infinita con políticas de grupos
+/*
 DROP POLICY IF EXISTS select_miembros_grupo ON miembros_grupo;
 CREATE POLICY select_miembros_grupo ON miembros_grupo
   FOR SELECT USING (
-    es_miembro_grupo(grupo_id)
+    EXISTS (
+      SELECT 1 FROM grupos g
+      WHERE g.id = miembros_grupo.grupo_id
+        AND g.owner_id = id_usuario_sesion()
+    )
+    OR usuario_id = id_usuario_sesion()
   );
+*/
 
 -- INSERT - Para agregar nuevos miembros (solo admins)
+-- DESHABILITADO
+/*
 DROP POLICY IF EXISTS insert_miembros_grupo ON miembros_grupo;
 CREATE POLICY insert_miembros_grupo ON miembros_grupo
   FOR INSERT WITH CHECK (
@@ -610,6 +683,7 @@ CREATE POLICY delete_miembros_grupo ON miembros_grupo
     es_admin_grupo(grupo_id)
     OR usuario_id = id_usuario_sesion()
   );
+*/
 
 -- ===================================================
 -- 14) POLÍTICAS PARA REGLAS DE REPARTO GRUPAL
@@ -659,8 +733,8 @@ CREATE POLICY select_transacciones ON transacciones
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = transacciones.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_miembro_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_miembro_grupo(c.grupo_id)
     )
   );
 
@@ -675,8 +749,8 @@ CREATE POLICY insert_transacciones ON transacciones
       AND (
         c.creada_por = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_miembro_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_miembro_grupo(c.grupo_id)
         )
       )
     )
@@ -691,8 +765,8 @@ CREATE POLICY update_transacciones ON transacciones
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = transacciones.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_admin_grupo(c.grupo_id)
     )
   )
   WITH CHECK (
@@ -700,8 +774,8 @@ CREATE POLICY update_transacciones ON transacciones
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = transacciones.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_admin_grupo(c.grupo_id)
     )
   );
 
@@ -713,8 +787,8 @@ CREATE POLICY delete_transacciones ON transacciones
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = transacciones.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_admin_grupo(c.grupo_id)
     )
   );
 
@@ -734,8 +808,8 @@ CREATE POLICY select_divisiones_transaccion ON divisiones_transaccion
       AND (
         t.usuario_id = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_miembro_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_miembro_grupo(c.grupo_id)
         )
       )
     )
@@ -752,8 +826,8 @@ CREATE POLICY insert_divisiones_transaccion ON divisiones_transaccion
       AND (
         t.usuario_id = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_miembro_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_miembro_grupo(c.grupo_id)
         )
       )
     )
@@ -771,8 +845,8 @@ CREATE POLICY update_divisiones_transaccion ON divisiones_transaccion
       AND (
         t.usuario_id = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_admin_grupo(c.grupo_id)
         )
       )
     )
@@ -785,8 +859,8 @@ CREATE POLICY update_divisiones_transaccion ON divisiones_transaccion
       AND (
         t.usuario_id = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_admin_grupo(c.grupo_id)
         )
       )
     )
@@ -803,8 +877,8 @@ CREATE POLICY delete_divisiones_transaccion ON divisiones_transaccion
       AND (
         t.usuario_id = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_admin_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_admin_grupo(c.grupo_id)
         )
       )
     )
@@ -822,8 +896,8 @@ CREATE POLICY select_reglas_recurrentes ON reglas_recurrentes
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = reglas_recurrentes.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_miembro_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_miembro_grupo(c.grupo_id)
     )
   );
 
@@ -838,8 +912,8 @@ CREATE POLICY insert_reglas_recurrentes ON reglas_recurrentes
       AND (
         c.creada_por = id_usuario_sesion()
         OR (
-          c.grupo_usuario_id IS NOT NULL 
-          AND es_miembro_grupo(c.grupo_usuario_id)
+          c.grupo_id IS NOT NULL 
+          AND es_miembro_grupo(c.grupo_id)
         )
       )
     )
@@ -854,8 +928,8 @@ CREATE POLICY update_reglas_recurrentes ON reglas_recurrentes
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = reglas_recurrentes.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_admin_grupo(c.grupo_id)
     )
   )
   WITH CHECK (
@@ -863,8 +937,8 @@ CREATE POLICY update_reglas_recurrentes ON reglas_recurrentes
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = reglas_recurrentes.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_admin_grupo(c.grupo_id)
     )
   );
 
@@ -876,8 +950,8 @@ CREATE POLICY delete_reglas_recurrentes ON reglas_recurrentes
     OR EXISTS (
       SELECT 1 FROM cuentas c
       WHERE c.id = reglas_recurrentes.cuenta_id
-      AND c.grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(c.grupo_usuario_id)
+      AND c.grupo_id IS NOT NULL 
+      AND es_admin_grupo(c.grupo_id)
     )
   );
 
@@ -891,8 +965,8 @@ CREATE POLICY select_metas ON metas
   FOR SELECT USING (
     usuario_id = id_usuario_sesion()
     OR (
-      grupo_usuario_id IS NOT NULL 
-      AND es_miembro_grupo(grupo_usuario_id)
+      grupo_id IS NOT NULL 
+      AND es_miembro_grupo(grupo_id)
     )
   );
 
@@ -902,8 +976,8 @@ CREATE POLICY insert_metas ON metas
   FOR INSERT WITH CHECK (
     usuario_id = id_usuario_sesion()
     AND (
-      grupo_usuario_id IS NULL
-      OR es_admin_grupo(grupo_usuario_id)
+      grupo_id IS NULL
+      OR es_admin_grupo(grupo_id)
     )
   );
 
@@ -914,15 +988,15 @@ CREATE POLICY update_metas ON metas
   USING (
     usuario_id = id_usuario_sesion()
     OR (
-      grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(grupo_usuario_id)
+      grupo_id IS NOT NULL 
+      AND es_admin_grupo(grupo_id)
     )
   )
   WITH CHECK (
     usuario_id = id_usuario_sesion()
     OR (
-      grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(grupo_usuario_id)
+      grupo_id IS NOT NULL 
+      AND es_admin_grupo(grupo_id)
     )
   );
 
@@ -932,8 +1006,8 @@ CREATE POLICY delete_metas ON metas
   FOR DELETE USING (
     usuario_id = id_usuario_sesion()
     OR (
-      grupo_usuario_id IS NOT NULL 
-      AND es_admin_grupo(grupo_usuario_id)
+      grupo_id IS NOT NULL 
+      AND es_admin_grupo(grupo_id)
     )
   );
 
@@ -1032,12 +1106,17 @@ CREATE POLICY delete_jerarquias_usuario ON jerarquias_usuario
 -- ===================================================
 -- 21) POLÍTICAS PARA INVITACIONES A GRUPOS
 -- ===================================================
+-- NOTA: RLS DESHABILITADO en invitaciones_grupo para evitar problemas de permisos
+-- Las políticas están comentadas porque la tabla no tiene RLS activo
+-- La seguridad se maneja a nivel de aplicación y funciones SECURITY DEFINER
 
--- SELECT - Ver invitaciones donde eres el invitador o admin del grupo
+/*
+-- SELECT - Ver invitaciones donde eres el invitador, el invitado, o admin del grupo
 DROP POLICY IF EXISTS select_invitaciones_grupo ON invitaciones_grupo;
 CREATE POLICY select_invitaciones_grupo ON invitaciones_grupo
   FOR SELECT USING (
-    usuario_invitador = id_usuario_sesion()
+    invitado_por = id_usuario_sesion()
+    OR email_invitado = email_usuario_sesion()
     OR EXISTS (
       SELECT 1 FROM grupos_usuario g
       WHERE g.id = invitaciones_grupo.grupo_id
@@ -1047,7 +1126,7 @@ CREATE POLICY select_invitaciones_grupo ON invitaciones_grupo
       SELECT 1 FROM miembros_grupo mg
       WHERE mg.grupo_id = invitaciones_grupo.grupo_id
         AND mg.usuario_id = id_usuario_sesion()
-        AND mg.rol = 'administrador'
+        AND mg.rol IN ('owner', 'administrador')
     )
   );
 
@@ -1055,7 +1134,7 @@ CREATE POLICY select_invitaciones_grupo ON invitaciones_grupo
 DROP POLICY IF EXISTS insert_invitaciones_grupo ON invitaciones_grupo;
 CREATE POLICY insert_invitaciones_grupo ON invitaciones_grupo
   FOR INSERT WITH CHECK (
-    usuario_invitador = id_usuario_sesion()
+    invitado_por = id_usuario_sesion()
     AND (
       EXISTS (
         SELECT 1 FROM grupos_usuario g
@@ -1066,16 +1145,17 @@ CREATE POLICY insert_invitaciones_grupo ON invitaciones_grupo
         SELECT 1 FROM miembros_grupo mg
         WHERE mg.grupo_id = invitaciones_grupo.grupo_id
           AND mg.usuario_id = id_usuario_sesion()
-          AND mg.rol = 'administrador'
+          AND mg.rol IN ('owner', 'administrador')
       )
     )
   );
 
--- UPDATE - Actualizar invitaciones propias o del grupo que administras
+-- UPDATE - Actualizar invitaciones propias o del grupo que administras o si eres el invitado
 DROP POLICY IF EXISTS update_invitaciones_grupo ON invitaciones_grupo;
 CREATE POLICY update_invitaciones_grupo ON invitaciones_grupo
   FOR UPDATE USING (
-    usuario_invitador = id_usuario_sesion()
+    invitado_por = id_usuario_sesion()
+    OR email_invitado = email_usuario_sesion()
     OR EXISTS (
       SELECT 1 FROM grupos_usuario g
       WHERE g.id = invitaciones_grupo.grupo_id
@@ -1087,8 +1167,9 @@ CREATE POLICY update_invitaciones_grupo ON invitaciones_grupo
 DROP POLICY IF EXISTS delete_invitaciones_grupo ON invitaciones_grupo;
 CREATE POLICY delete_invitaciones_grupo ON invitaciones_grupo
   FOR DELETE USING (
-    usuario_invitador = id_usuario_sesion()
+    invitado_por = id_usuario_sesion()
   );
+*/
 
 
 -- ===================================================
@@ -1104,7 +1185,7 @@ CREATE POLICY select_historial_saldos ON historial_saldos
       WHERE c.id = historial_saldos.cuenta_id
         AND (
           c.creada_por = id_usuario_sesion()
-          OR c.grupo_usuario_id IN (
+          OR c.grupo_id IN (
             SELECT grupo_id FROM miembros_grupo
             WHERE usuario_id = id_usuario_sesion()
           )

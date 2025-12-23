@@ -4,15 +4,27 @@ import { useRouter } from 'vue-router';
 import { useToast } from 'primevue/usetoast';
 import { useUIStore } from '@/stores/ui';
 import { useSessionStore } from '@/stores/session.js';
+import { useGroupsStore } from '@/stores/groups';
 import AppConfigurator from './AppConfigurator.vue';
 
 const uiStore = useUIStore();
 const sessionStore = useSessionStore();
+const groupsStore = useGroupsStore();
 const router = useRouter();
 const toast = useToast();
 
 // Estado para el menú de perfil
 const profileMenuVisible = ref(false);
+
+// Computed para invitaciones pendientes
+const pendingInvitationsCount = computed(() => {
+    return groupsStore.invitations.filter(inv => inv.estado === 'pendiente').length;
+});
+
+// Función para ir a las invitaciones
+const goToInvitations = () => {
+    router.push('/groups/invitations/my');
+};
 
 // Función para alternar el menú de perfil
 const toggleProfileMenu = (event) => {
@@ -112,8 +124,14 @@ const removeClickOutside = () => {
 // Computed para detectar si se usa ocean-breeze
 const isOceanBreeze = computed(() => uiStore.layoutConfig.primary === 'ocean-breeze');
 
-onMounted(() => {
+onMounted(async () => {
     setupClickOutside();
+    // Cargar invitaciones
+    try {
+        await groupsStore.fetchMyInvitations();
+    } catch (error) {
+        console.error('Error al cargar invitaciones:', error);
+    }
 });
 
 onUnmounted(() => {
@@ -147,6 +165,20 @@ onUnmounted(() => {
 
         <div class="layout-topbar-actions">
             <div class="layout-config-menu">
+                <!-- Botón de invitaciones -->
+                <button 
+                    type="button"
+                    class="layout-topbar-action hover:bg-surface-100/50 dark:hover:bg-surface-700/50 transition-colors duration-200 relative"
+                    @click="goToInvitations"
+                    title="Invitaciones pendientes">
+                    <i class="pi pi-bell"></i>
+                    <span 
+                        v-if="pendingInvitationsCount > 0"
+                        class="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse">
+                        {{ pendingInvitationsCount }}
+                    </span>
+                </button>
+                
                 <button type="button"
                     class="layout-topbar-action hover:bg-surface-100/50 dark:hover:bg-surface-700/50 transition-colors duration-200"
                     @click="uiStore.executeDarkModeToggle">

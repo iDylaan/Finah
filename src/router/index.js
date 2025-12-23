@@ -68,6 +68,24 @@ const router = createRouter({
                     name: 'divisor_de_gastos',
                     component: () => import('@/views/modules/DivisorGastos/index.vue'),
                 },
+                {
+                    path: '/groups',
+                    name: 'groups',
+                    component: () => import('@/views/modules/Groups/index.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: '/groups/:id',
+                    name: 'group-details',
+                    component: () => import('@/views/modules/Groups/GroupDetails.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: '/groups/invitations/my',
+                    name: 'my-invitations',
+                    component: () => import('@/views/modules/Groups/MyInvitations.vue'),
+                    meta: { requiresAuth: true }
+                },
             ]
         },
         // Rutas públicas
