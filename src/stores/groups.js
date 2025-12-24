@@ -74,7 +74,8 @@ export const useGroupsStore = defineStore('groups', () => {
                         descripcion,
                         propietario_id,
                         color,
-                        imagen_url,
+                        biblioteca_iconos,
+                        nombre_icono,
                         limite_miembros,
                         activo,
                         fecha_creacion,
@@ -89,13 +90,26 @@ export const useGroupsStore = defineStore('groups', () => {
                 throw error
             }
 
+            // Para cada grupo, obtener el contador de miembros
+            const gruposConMiembros = await Promise.all(
+                (data || []).map(async (item) => {
+                    const { count } = await supabase
+                        .from('miembros_grupo')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('grupo_id', item.grupo.id)
+                    
+                    return {
+                        ...item.grupo,
+                        user_role: item.rol,
+                        user_weight: item.porcentaje_peso,
+                        member_id: item.id,
+                        miembros_count: count || 0
+                    }
+                })
+            )
+
             // Extraer los grupos y añadir el rol del usuario
-            groups.value = (data || []).map(item => ({
-                ...item.grupo,
-                user_role: item.rol,
-                user_weight: item.porcentaje_peso,
-                member_id: item.id
-            }))
+            groups.value = gruposConMiembros
 
             groupsLoaded.value = true
             lastGroupsFetchTime.value = Date.now()
@@ -165,39 +179,62 @@ export const useGroupsStore = defineStore('groups', () => {
                 throw new Error('Usuario no autenticado')
             }
 
-            const { data, error } = await supabase
-                .rpc('crear_grupo_con_propietario', {
-                    p_nombre: groupData.nombre,
-                    p_descripcion: groupData.descripcion || null,
-                    p_color: groupData.color || '#3B82F6',
-                    p_imagen_url: groupData.imagen_url || null,
-                    p_limite_miembros: groupData.limite_miembros || 10
+            // Paso 1: Crear el grupo directamente
+            const { data: grupo, error: errorGrupo } = await supabase
+                .from('grupos_usuario')
+                .insert({
+                    propietario_id: user.id,
+                    nombre: groupData.nombre,
+                    descripcion: groupData.descripcion || null,
+                    color: groupData.color || '#3B82F6',
+                    biblioteca_iconos: groupData.biblioteca_iconos || 'material',
+                    nombre_icono: groupData.nombre_icono || 'group',
+                    limite_miembros: groupData.limite_miembros || 10
+                })
+                .select()
+                .single()
+
+            if (errorGrupo) {
+                console.error('💥 Error creando grupo:', errorGrupo)
+                throw errorGrupo
+            }
+
+            // Paso 2: Crear el miembro propietario
+            const { error: errorMiembro } = await supabase
+                .from('miembros_grupo')
+                .insert({
+                    grupo_id: grupo.id,
+                    usuario_id: user.id,
+                    porcentaje_participacion: 100,
+                    rol: 'owner'
                 })
 
-            if (error) {
-                console.error('💥 Error creando grupo:', error)
-                throw error
+            if (errorMiembro) {
+                console.error('💥 Error al crear miembro propietario:', errorMiembro)
+                throw errorMiembro
             }
 
             // Añadir el grupo a la lista local
             groups.value.unshift({
-                ...data,
+                ...grupo,
                 user_role: 'owner',
                 user_weight: 100
             })
 
             groupsLoaded.value = false // Forzar recarga para obtener relaciones
 
+            console.log('✅ Grupo creado exitosamente:', grupo)
+
             if (toast) {
                 toast.add({
                     severity: 'success',
                     summary: 'Grupo creado',
-                    detail: `El grupo "${data.nombre}" ha sido creado exitosamente`,
+                    detail: `El grupo "${grupo.nombre}" ha sido creado exitosamente`,
                     life: 3000
                 })
             }
 
-            return data
+            return grupo
 
         } catch (error) {
             console.error('💥 Error en createGroup:', error)
@@ -226,7 +263,8 @@ export const useGroupsStore = defineStore('groups', () => {
                     nombre: groupData.nombre,
                     descripcion: groupData.descripcion,
                     color: groupData.color,
-                    imagen_url: groupData.imagen_url
+                    biblioteca_iconos: groupData.biblioteca_iconos,
+                    nombre_icono: groupData.nombre_icono
                 })
                 .eq('id', groupId)
                 .select()
@@ -344,9 +382,11 @@ export const useGroupsStore = defineStore('groups', () => {
                 .from('miembros_grupo')
                 .select(`
                     *,
-                    usuario:auth.users!miembros_grupo_usuario_id_fkey (
+                    usuario:usuario_id (
                         id,
-                        email
+                        username,
+                        full_name,
+                        avatar_url
                     )
                 `)
                 .eq('grupo_id', groupId)
@@ -603,7 +643,8 @@ export const useGroupsStore = defineStore('groups', () => {
                         nombre,
                         descripcion,
                         color,
-                        imagen_url
+                        biblioteca_iconos,
+                        nombre_icono
                     )
                 `)
                 .eq('email_invitado', userEmail)

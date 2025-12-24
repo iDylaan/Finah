@@ -35,7 +35,7 @@
                 <label for="rol" class="block text-sm font-medium text-surface-900 dark:text-surface-0">
                     Rol en el grupo <span class="text-red-500">*</span>
                 </label>
-                <Dropdown
+                <Select
                     id="rol"
                     v-model="formData.rol"
                     :options="availableRoles"
@@ -63,7 +63,7 @@
                             <small class="text-surface-500">{{ slotProps.option.description }}</small>
                         </div>
                     </template>
-                </Dropdown>
+                </Select>
             </div>
 
             <!-- Mensaje opcional -->
@@ -125,13 +125,6 @@ import { useToast } from 'primevue/usetoast'
 import { useVuelidate } from '@vuelidate/core'
 import { required, email } from '@vuelidate/validators'
 import { useGroupsStore } from '@/stores/groups'
-import Dialog from 'primevue/dialog'
-import InputText from 'primevue/inputtext'
-import Textarea from 'primevue/textarea'
-import Dropdown from 'primevue/dropdown'
-import Button from 'primevue/button'
-import Tag from 'primevue/tag'
-import Message from 'primevue/message'
 
 // Props
 const props = defineProps({

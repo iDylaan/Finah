@@ -38,7 +38,11 @@
                     <label class="block text-sm font-medium text-surface-900 dark:text-surface-0">
                         Icono
                     </label>
-                    <IconPicker v-model="formData.icon" :suggested-icons="suggestedIcons" />
+                    <IconPicker 
+                        v-model="formData.nombre_icono" 
+                        v-model:iconType="formData.biblioteca_iconos"
+                        :suggested-icons="suggestedIcons" 
+                    />
                 </div>
             </div>
 
@@ -68,7 +72,10 @@
                 <p class="text-sm font-medium text-surface-700 dark:text-surface-300 mb-3">Vista previa</p>
                 <div class="h-24 rounded-lg flex items-center justify-center mb-3"
                     :style="{ backgroundColor: formData.color || '#3B82F6' }">
-                    <i :class="[formData.icon || 'pi-users', 'text-5xl text-white']"></i>
+                    <i v-if="formData.biblioteca_iconos === 'primevue'" :class="[formData.nombre_icono || 'pi-users', 'text-5xl text-white']"></i>
+                    <span v-else class="material-symbols-outlined text-5xl text-white">
+                        {{ formData.nombre_icono || 'group' }}
+                    </span>
                 </div>
                 <h4 class="font-semibold text-surface-900 dark:text-surface-0 mb-1">
                     {{ formData.nombre || 'Nombre del grupo' }}
@@ -94,11 +101,6 @@ import { useToast } from 'primevue/usetoast'
 import { useVuelidate } from '@vuelidate/core'
 import { required, minLength, maxLength } from '@vuelidate/validators'
 import { useGroupsStore } from '@/stores/groups'
-import Dialog from 'primevue/dialog'
-import InputText from 'primevue/inputtext'
-import Textarea from 'primevue/textarea'
-import InputNumber from 'primevue/inputnumber'
-import Button from 'primevue/button'
 import CustomColorPicker from '@/components/CustomColorPicker.vue'
 import IconPicker from '@/components/IconPicker.vue'
 
@@ -127,7 +129,8 @@ const formData = ref({
     nombre: '',
     descripcion: '',
     color: '#3B82F6',
-    icon: 'groups',
+    biblioteca_iconos: 'material',
+    nombre_icono: 'group',
     limite_miembros: null
 })
 
@@ -182,7 +185,8 @@ const resetForm = () => {
         nombre: '',
         descripcion: '',
         color: '#3B82F6',
-        icon: 'groups',
+        biblioteca_iconos: 'material',
+        nombre_icono: 'group',
         limite_miembros: null
     }
     v$.value.$reset()
@@ -195,7 +199,8 @@ watch(() => props.group, (newGroup) => {
             nombre: newGroup.nombre || '',
             descripcion: newGroup.descripcion || '',
             color: newGroup.color || '#3B82F6',
-            icon: newGroup.icon || 'groups',
+            biblioteca_iconos: newGroup.biblioteca_iconos || 'material',
+            nombre_icono: newGroup.nombre_icono || 'group',
             limite_miembros: newGroup.limite_miembros
         }
     } else {
