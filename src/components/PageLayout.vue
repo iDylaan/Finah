@@ -23,6 +23,18 @@
                     w-full
                     px-4
                 " :class="isSticky ? 'flex-nowrap' : 'flex-wrap md:flex-row'">
+                <!-- Botón de volver (si está habilitado) -->
+                <Button 
+                    v-if="backButton"
+                    icon="pi pi-arrow-left"
+                    @click="handleBack"
+                    severity="secondary"
+                    text
+                    rounded
+                    class="shrink-0"
+                    v-tooltip.bottom="'Volver'"
+                />
+                
                 <!-- Texto del header (título y descripción) -->
                 <div class="min-w-0 overflow-hidden" :class="isSticky ? 'flex-1' : 'w-full md:flex-1'">
                     <slot name="header">
@@ -60,6 +72,10 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
+import Button from 'primevue/button';
+
+const router = useRouter();
 
 // Props opcionales para uso simple
 const props = defineProps({
@@ -70,8 +86,17 @@ const props = defineProps({
     description: {
         type: String,
         default: ''
+    },
+    backButton: {
+        type: Boolean,
+        default: false
     }
 });
+
+// Función para volver atrás
+const handleBack = () => {
+    router.back();
+};
 
 // Estado para detectar si está sticky
 const isSticky = ref(false);

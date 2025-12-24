@@ -1,27 +1,11 @@
 <template>
-    <PageLayout 
-        title="Mis Grupos" 
-        description="Gestiona tus grupos financieros compartidos"
-    >
+    <PageLayout title="Mis Grupos" description="Gestiona tus grupos financieros compartidos">
         <!-- Acciones del header -->
         <template #actions>
-            <Button 
-                icon="pi pi-refresh" 
-                @click="refreshData" 
-                :loading="groupsStore.loading" 
-                severity="secondary" 
-                outlined 
-                size="small"
-                v-tooltip.bottom="'Actualizar'"
-            />
-            <Button 
-                icon="pi pi-plus" 
-                @click="showCreateDialog = true" 
-                :disabled="groupsStore.loading" 
-                size="small" 
-                label="Nuevo Grupo"
-                class="mobile-icon-only"
-            />
+            <Button icon="pi pi-refresh" @click="refreshData" :loading="groupsStore.loading" severity="secondary"
+                outlined size="small" v-tooltip.bottom="'Actualizar'" />
+            <Button icon="pi pi-plus" @click="showCreateDialog = true" :disabled="groupsStore.loading" size="small"
+                label="Nuevo Grupo" class="mobile-icon-only" />
         </template>
 
         <!-- Loading State -->
@@ -38,39 +22,22 @@
             <p class="text-surface-500 dark:text-surface-400 mb-6">
                 Crea tu primer grupo para comenzar a compartir gastos con tu familia o amigos
             </p>
-            <Button 
-                icon="pi pi-plus" 
-                label="Crear mi primer grupo"
-                @click="showCreateDialog = true"
-            />
+            <Button icon="pi pi-plus" label="Crear mi primer grupo" @click="showCreateDialog = true" />
         </div>
 
         <!-- Lista de Grupos -->
         <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div 
-                v-for="(group, index) in groups" 
-                :key="group.id"
+            <div v-for="(group, index) in groups" :key="group.id"
                 class="group-card rounded-xl border border-surface-200 dark:border-surface-700 bg-white dark:bg-surface-800 overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer animate__animated animate__fadeInUp animate__faster"
-                :style="{ animationDelay: `${index * 0.05}s` }"
-                @click="navigateToGroup(group)"
-            >
+                :style="{ animationDelay: `${index * 0.05}s` }" @click="navigateToGroup(group)">
                 <!-- Header del grupo con color -->
-                <div 
-                    class="h-24 relative flex items-center justify-center"
-                    :style="{ backgroundColor: group.color || '#3B82F6' }"
-                >
-                    <i 
-                        :class="[group.imagen_url || 'pi-users', 'text-5xl text-white']"
-                    ></i>
-                    
-                    <!-- Badge de rol -->
-                    <div class="absolute top-3 right-3">
-                        <Tag 
-                            :value="getRoleLabel(group.user_role)" 
-                            :severity="getRoleSeverity(group.user_role)"
-                            rounded
-                        />
-                    </div>
+                <div class="h-24 relative flex items-center justify-center"
+                    :style="{ backgroundColor: group.color || '#3B82F6' }">
+                    <i v-if="group.biblioteca_iconos === 'primevue'"
+                        :class="[group.nombre_icono || 'pi-users', 'text-5xl text-white']"></i>
+                    <span v-else class="material-symbols-outlined text-5xl text-white">
+                        {{ group.nombre_icono || 'group' }}
+                    </span>
                 </div>
 
                 <!-- Contenido -->
@@ -78,11 +45,9 @@
                     <h3 class="text-lg font-semibold text-surface-900 dark:text-surface-0 mb-2 truncate">
                         {{ group.nombre }}
                     </h3>
-                    
-                    <p 
-                        v-if="group.descripcion" 
-                        class="text-sm text-surface-600 dark:text-surface-400 mb-3 line-clamp-2"
-                    >
+
+                    <p v-if="group.descripcion"
+                        class="text-sm text-surface-600 dark:text-surface-400 mb-3 line-clamp-2">
                         {{ group.descripcion }}
                     </p>
 
@@ -90,34 +55,15 @@
                     <div class="flex items-center justify-between text-sm text-surface-600 dark:text-surface-400">
                         <div class="flex items-center gap-2">
                             <i class="pi pi-users text-xs"></i>
-                            <span>{{ group.miembros_count || 0 }} miembros</span>
+                            <span>
+                                {{ group.miembros_count || 0 }}
+                                <span v-if="group.limite_miembros" class="text-surface-400">/ {{ group.limite_miembros }}</span>
+                                <span class="ml-1">miembros</span>
+                            </span>
                         </div>
-                        
-                        <div class="flex items-center gap-2">
-                            <i class="pi pi-percentage text-xs"></i>
-                            <span>{{ group.user_weight || 0 }}% peso</span>
-                        </div>
-                    </div>
 
-                    <!-- Acciones -->
-                    <div class="flex gap-2 mt-4 pt-4 border-t border-surface-200 dark:border-surface-700">
-                        <Button 
-                            label="Ver detalles"
-                            icon="pi pi-eye"
-                            size="small"
-                            outlined
-                            class="flex-1"
-                            @click.stop="navigateToGroup(group)"
-                        />
-                        
-                        <Button 
-                            icon="pi pi-ellipsis-v"
-                            size="small"
-                            text
-                            @click.stop="toggleMenu($event, group)"
-                            aria-haspopup="true"
-                            :aria-controls="`group-menu-${group.id}`"
-                        />
+                        <Button icon="pi pi-ellipsis-v" size="small" text @click.stop="toggleMenu($event, group)"
+                            aria-haspopup="true" :aria-controls="`group-menu-${group.id}`" />
                     </div>
                 </div>
             </div>
@@ -127,11 +73,7 @@
         <Menu ref="menu" :model="menuItems" :popup="true" />
 
         <!-- Dialog Crear/Editar Grupo -->
-        <GroupFormDialog
-            v-model:visible="showCreateDialog"
-            :group="selectedGroup"
-            @saved="handleGroupSaved"
-        />
+        <GroupFormDialog v-model:visible="showCreateDialog" :group="selectedGroup" @saved="handleGroupSaved" />
 
         <!-- Dialog Confirmar Eliminación -->
         <ConfirmDialog></ConfirmDialog>
@@ -144,13 +86,9 @@ import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 import { useConfirm } from 'primevue/useconfirm'
 import { useGroupsStore } from '@/stores/groups'
+import { supabase } from '@/lib/supabase'
 import PageLayout from '@/components/PageLayout.vue'
 import GroupFormDialog from './components/GroupFormDialog.vue'
-import Button from 'primevue/button'
-import ProgressSpinner from 'primevue/progressspinner'
-import Tag from 'primevue/tag'
-import Menu from 'primevue/menu'
-import ConfirmDialog from 'primevue/confirmdialog'
 
 // Composables
 const router = useRouter()
@@ -162,9 +100,10 @@ const groupsStore = useGroupsStore()
 const showCreateDialog = ref(false)
 const selectedGroup = ref(null)
 const menu = ref()
+const groupsWithMembers = ref([])
 
 // Computed
-const groups = computed(() => groupsStore.activeGroups)
+const groups = computed(() => groupsWithMembers.value.length > 0 ? groupsWithMembers.value : groupsStore.activeGroups)
 
 // Menú contextual
 const menuItems = computed(() => {
@@ -213,9 +152,28 @@ const menuItems = computed(() => {
 })
 
 // Métodos
+const loadGroupsWithMemberCount = async () => {
+    const baseGroups = groupsStore.activeGroups
+    const groupsWithCount = await Promise.all(
+        baseGroups.map(async (group) => {
+            const { count } = await supabase
+                .from('miembros_grupo')
+                .select('*', { count: 'exact', head: true })
+                .eq('grupo_id', group.id)
+            
+            return {
+                ...group,
+                miembros_count: count || 0
+            }
+        })
+    )
+    groupsWithMembers.value = groupsWithCount
+}
+
 const refreshData = async () => {
     try {
         await groupsStore.refreshGroups({ toast })
+        await loadGroupsWithMemberCount()
     } catch (error) {
         console.error('Error al actualizar grupos:', error)
     }
@@ -299,6 +257,7 @@ const getRoleSeverity = (role) => {
 onMounted(async () => {
     try {
         await groupsStore.fetchGroups({ toast })
+        await loadGroupsWithMemberCount()
     } catch (error) {
         console.error('Error al cargar grupos:', error)
     }

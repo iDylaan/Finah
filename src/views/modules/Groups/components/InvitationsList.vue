@@ -3,9 +3,15 @@
         <!-- Empty State -->
         <div v-if="!invitations.length" class="text-center py-8">
             <i class="pi pi-envelope text-5xl text-surface-400 mb-3"></i>
-            <p class="text-surface-600 dark:text-surface-400">
+            <p class="text-surface-600 dark:text-surface-400 mb-4">
                 No hay invitaciones pendientes
             </p>
+            <Button
+                v-if="hasSpace && canCancel"
+                icon="pi pi-user-plus"
+                label="Invitar miembro"
+                @click="emit('invite')"
+            />
         </div>
 
         <!-- Lista de invitaciones -->
@@ -136,9 +142,6 @@ import { computed } from 'vue'
 import { useConfirm } from 'primevue/useconfirm'
 import { useToast } from 'primevue/usetoast'
 import { formatDate } from '@/lib/utils'
-import Card from 'primevue/card'
-import Tag from 'primevue/tag'
-import Button from 'primevue/button'
 
 // Props
 const props = defineProps({
@@ -149,11 +152,15 @@ const props = defineProps({
     canCancel: {
         type: Boolean,
         default: false
+    },
+    hasSpace: {
+        type: Boolean,
+        default: true
     }
 })
 
 // Emits
-const emit = defineEmits(['cancel', 'refresh'])
+const emit = defineEmits(['cancel', 'refresh', 'invite'])
 
 // Composables
 const confirm = useConfirm()

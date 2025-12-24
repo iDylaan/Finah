@@ -3,22 +3,14 @@
         <!-- Acciones del header -->
         <template #actions>
             <Button 
-                icon="pi pi-refresh" 
-                @click="refreshData" 
-                :loading="loading" 
+                icon="pi pi-ellipsis-v" 
+                @click="toggleMenu"
                 severity="secondary" 
-                outlined 
+                text
                 size="small"
-                v-tooltip.bottom="'Actualizar'"
+                v-tooltip.bottom="'Opciones'"
             />
-            <Button 
-                v-if="canEdit"
-                icon="pi pi-pencil" 
-                @click="showEditDialog = true" 
-                size="small" 
-                label="Editar"
-                class="mobile-icon-only"
-            />
+            <Menu ref="menu" :model="menuItems" :popup="true" />
         </template>
 
         <!-- Loading State -->
@@ -37,31 +29,26 @@
                             class="w-full md:w-32 h-32 rounded-xl flex items-center justify-center flex-shrink-0"
                             :style="{ backgroundColor: group.color || '#3B82F6' }"
                         >
-                            <i 
-                                :class="[group.imagen_url || 'pi-users', 'text-6xl text-white']"
+                            <span v-if="group.biblioteca_iconos === 'material'" class="material-symbols-outlined">{{ group.nombre_icono || 'group' }}</span>
+                            <i v-else 
+                                :class="[group.nombre_icono || 'pi-users', 'text-6xl text-white']"
                             ></i>
                         </div>
 
                         <!-- Info -->
                         <div class="flex-1">
                             <div class="flex items-start justify-between mb-4">
-                                <div>
+                                <div class="flex gap-2 items-center">
                                     <h2 class="text-2xl font-bold text-surface-900 dark:text-surface-0 mb-2">
                                         {{ group.nombre }}
                                     </h2>
-                                    <div class="flex items-center gap-2 mb-3">
-                                        <Tag 
-                                            :value="getRoleLabel(userRole)" 
-                                            :severity="getRoleSeverity(userRole)"
-                                            rounded
-                                        />
-                                        <Tag 
-                                            v-if="group.activo"
-                                            value="Activo" 
-                                            severity="success"
-                                            rounded
-                                        />
-                                    </div>
+                                    <Tag 
+                                        v-if="group.activo"
+                                        value="Activo" 
+                                        severity="success"
+                                        rounded
+                                        class="h-[1.5rem] mt-[-5px]"
+                                    />
                                 </div>
                             </div>
 
@@ -73,32 +60,20 @@
                             </p>
 
                             <!-- Stats -->
-                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div>
-                                    <p class="text-sm text-surface-500 dark:text-surface-400">Miembros</p>
-                                    <p class="text-lg font-semibold text-surface-900 dark:text-surface-0">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="p-3 bg-surface-50 dark:bg-surface-900 rounded-lg">
+                                    <p class="text-xs text-surface-500 dark:text-surface-400 mb-1">Miembros</p>
+                                    <p class="text-xl font-bold text-surface-900 dark:text-surface-0">
                                         {{ members.length }}
-                                        <span v-if="group.limite_miembros" class="text-surface-500">
+                                        <span v-if="group.limite_miembros" class="text-base text-surface-500 font-normal">
                                             / {{ group.limite_miembros }}
                                         </span>
                                     </p>
                                 </div>
-                                <div>
-                                    <p class="text-sm text-surface-500 dark:text-surface-400">Tu peso</p>
-                                    <p class="text-lg font-semibold text-surface-900 dark:text-surface-0">
-                                        {{ userWeight }}%
-                                    </p>
-                                </div>
-                                <div>
-                                    <p class="text-sm text-surface-500 dark:text-surface-400">Invitaciones</p>
-                                    <p class="text-lg font-semibold text-surface-900 dark:text-surface-0">
+                                <div class="p-3 bg-surface-50 dark:bg-surface-900 rounded-lg">
+                                    <p class="text-xs text-surface-500 dark:text-surface-400 mb-1">Invitaciones</p>
+                                    <p class="text-xl font-bold text-surface-900 dark:text-surface-0">
                                         {{ pendingInvitations.length }}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p class="text-sm text-surface-500 dark:text-surface-400">Creado</p>
-                                    <p class="text-lg font-semibold text-surface-900 dark:text-surface-0">
-                                        {{ formatDate(group.created_at) }}
                                     </p>
                                 </div>
                             </div>
@@ -108,89 +83,82 @@
             </Card>
 
             <!-- Tabs -->
-            <TabView v-model:activeIndex="activeTab">
-                <!-- Tab: Miembros -->
-                <TabPanel header="Miembros">
-                    <MembersList
-                        :members="members"
-                        :user-role="userRole"
-                        :owner-id="group.owner_id"
-                        @update-role="handleUpdateRole"
-                        @remove-member="handleRemoveMember"
-                    />
-                    
-                    <Button
-                        v-if="canInvite"
-                        icon="pi pi-user-plus"
-                        label="Invitar miembro"
-                        @click="showInviteDialog = true"
-                        class="mt-4"
-                    />
-                </TabPanel>
+            <Tabs v-model:value="activeTab">
+                <TabList>
+                    <Tab value="0">Miembros</Tab>
+                    <Tab value="1">Invitaciones</Tab>
+                    <Tab v-if="isOwner" value="2">Configuración</Tab>
+                </TabList>
+                
+                <TabPanels>
+                    <!-- Tab: Miembros -->
+                    <TabPanel value="0">
+                        <MembersList
+                            :members="members"
+                            :user-role="userRole"
+                            :owner-id="group?.propietario_id"
+                            @update-role="handleUpdateRole"
+                            @remove-member="handleRemoveMember"
+                        />
+                    </TabPanel>
 
-                <!-- Tab: Invitaciones -->
-                <TabPanel header="Invitaciones">
-                    <InvitationsList
-                        :invitations="pendingInvitations"
-                        :can-cancel="canInvite"
-                        @cancel="handleCancelInvitation"
-                        @refresh="loadInvitations"
-                    />
+                    <!-- Tab: Invitaciones -->
+                    <TabPanel value="1">
+                        <InvitationsList
+                            :invitations="pendingInvitations"
+                            :can-cancel="canInvite"
+                            :has-space="hasSpaceForMembers"
+                            @cancel="handleCancelInvitation"
+                            @refresh="loadInvitations"
+                            @invite="showInviteDialog = true"
+                        />
+                    </TabPanel>
 
-                    <Button
-                        v-if="canInvite && pendingInvitations.length === 0"
-                        icon="pi pi-envelope"
-                        label="Enviar invitación"
-                        @click="showInviteDialog = true"
-                        class="mt-4"
-                    />
-                </TabPanel>
-
-                <!-- Tab: Configuración (solo owner) -->
-                <TabPanel v-if="isOwner" header="Configuración">
-                    <Card>
-                        <template #content>
-                            <div class="space-y-6">
-                                <!-- Activar/Desactivar grupo -->
-                                <div class="flex items-center justify-between pb-4 border-b border-surface-200 dark:border-surface-700">
-                                    <div>
-                                        <h3 class="font-semibold text-surface-900 dark:text-surface-0 mb-1">
-                                            Estado del grupo
-                                        </h3>
-                                        <p class="text-sm text-surface-600 dark:text-surface-400">
-                                            Los grupos inactivos no permiten nuevas transacciones
-                                        </p>
+                    <!-- Tab: Configuración (solo owner) -->
+                    <TabPanel v-if="isOwner" value="2">
+                        <Card>
+                            <template #content>
+                                <div class="space-y-6">
+                                    <!-- Activar/Desactivar grupo -->
+                                    <div class="flex items-center justify-between pb-4 border-b border-surface-200 dark:border-surface-700">
+                                        <div>
+                                            <h3 class="font-semibold text-surface-900 dark:text-surface-0 mb-1">
+                                                Estado del grupo
+                                            </h3>
+                                            <p class="text-sm text-surface-600 dark:text-surface-400">
+                                                Los grupos inactivos no permiten nuevas transacciones
+                                            </p>
+                                        </div>
+                                        <ToggleSwitch v-model="group.activo" @change="handleToggleActive" />
                                     </div>
-                                    <InputSwitch v-model="group.activo" @change="handleToggleActive" />
-                                </div>
 
-                                <!-- Zona de peligro -->
-                                <div class="pt-4">
-                                    <h3 class="font-semibold text-red-600 mb-3">Zona de peligro</h3>
-                                    <div class="space-y-3">
-                                        <div class="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
-                                            <div>
-                                                <h4 class="font-medium text-surface-900 dark:text-surface-0 mb-1">
-                                                    Eliminar grupo
-                                                </h4>
-                                                <p class="text-sm text-surface-600 dark:text-surface-400">
-                                                    Esta acción no se puede deshacer
-                                                </p>
+                                    <!-- Zona de peligro -->
+                                    <div class="pt-4">
+                                        <div class="space-y-3">
+                                            <div class="flex items-center justify-between p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                                                <div>
+                                                    <h4 class="font-medium text-surface-900 dark:text-surface-0 mb-1">
+                                                        Eliminar grupo
+                                                    </h4>
+                                                    <p class="text-sm text-surface-600 dark:text-surface-400">
+                                                        Esta acción no se puede deshacer
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    label="Eliminar"
+                                                    icon="pi pi-trash"
+                                                    severity="danger"
+                                                    @click="confirmDeleteGroup"
+                                                />
                                             </div>
-                                            <Button
-                                                label="Eliminar"
-                                                icon="pi pi-trash"
-                                                severity="danger"
-                                                @click="confirmDeleteGroup"
-                                            />
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </template>
-                    </Card>
-                </TabPanel>
-            </TabView>
+                            </template>
+                        </Card>
+                    </TabPanel>
+                </TabPanels>
+            </Tabs>
         </div>
 
         <!-- Dialogs -->
@@ -228,14 +196,6 @@ import GroupFormDialog from './components/GroupFormDialog.vue'
 import InvitationDialog from './components/InvitationDialog.vue'
 import MembersList from './components/MembersList.vue'
 import InvitationsList from './components/InvitationsList.vue'
-import Card from 'primevue/card'
-import Button from 'primevue/button'
-import Tag from 'primevue/tag'
-import TabView from 'primevue/tabview'
-import TabPanel from 'primevue/tabpanel'
-import ProgressSpinner from 'primevue/progressspinner'
-import InputSwitch from 'primevue/inputswitch'
-import ConfirmDialog from 'primevue/confirmdialog'
 
 // Composables
 const route = useRoute()
@@ -249,7 +209,8 @@ const sessionStore = useSessionStore()
 const loading = ref(false)
 const showEditDialog = ref(false)
 const showInviteDialog = ref(false)
-const activeTab = ref(0)
+const activeTab = ref('0')
+const menu = ref(null)
 
 // Computed
 const groupId = computed(() => route.params.id)
@@ -274,7 +235,35 @@ const isAdmin = computed(() => userRole.value === 'administrador' || isOwner.val
 const canEdit = computed(() => isAdmin.value)
 const canInvite = computed(() => isAdmin.value)
 
+const hasSpaceForMembers = computed(() => {
+    if (!group.value?.limite_miembros) return true // Sin límite
+    return members.value.length < group.value.limite_miembros
+})
+
+const menuItems = computed(() => [
+    {
+        label: 'Actualizar',
+        icon: 'pi pi-refresh',
+        command: () => refreshData()
+    },
+    {
+        label: 'Editar',
+        icon: 'pi pi-pencil',
+        visible: canEdit.value,
+        command: () => showEditDialog.value = true
+    },
+    {
+        label: 'Invitar miembro',
+        icon: 'pi pi-user-plus',
+        visible: canInvite.value,
+        command: () => showInviteDialog.value = true
+    }
+].filter(item => item.visible !== false))
+
 // Métodos
+const toggleMenu = (event) => {
+    menu.value.toggle(event)
+}
 const refreshData = async () => {
     loading.value = true
     try {

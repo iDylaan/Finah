@@ -1,4 +1,16 @@
 -- ==================================================================
+-- NOTA IMPORTANTE: VERSIÓN MODULAR DISPONIBLE
+-- ==================================================================
+-- Este archivo contiene todo el esquema de base de datos en un solo script.
+-- 
+-- Para facilitar el mantenimiento, existe una versión MODULAR dividida en
+-- scripts más pequeños en la carpeta: sql/modular/
+-- 
+-- Consulta sql/modular/README.md para ver la lista completa de scripts
+-- y el orden de ejecución recomendado.
+-- ==================================================================
+
+-- ==================================================================
 -- 0) Extensiones necesarias
 -- ==================================================================
 -- Extensión para generar UUIDs aleatorios seguros

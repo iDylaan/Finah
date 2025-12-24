@@ -170,11 +170,6 @@ import { useSessionStore } from '@/stores/session'
 import { supabase } from '@/lib/supabase'
 import { formatDate } from '@/lib/utils'
 import PageLayout from '@/components/PageLayout.vue'
-import Card from 'primevue/card'
-import Button from 'primevue/button'
-import Tag from 'primevue/tag'
-import ProgressSpinner from 'primevue/progressspinner'
-import ConfirmDialog from 'primevue/confirmdialog'
 
 // Composables
 const router = useRouter()
