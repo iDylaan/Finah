@@ -86,6 +86,18 @@ const router = createRouter({
                     component: () => import('@/views/modules/Groups/MyInvitations.vue'),
                     meta: { requiresAuth: true }
                 },
+                {
+                    path: '/transactions',
+                    name: 'transactions',
+                    component: () => import('@/views/modules/Transactions/index.vue'),
+                    meta: { requiresAuth: true }
+                },
+                {
+                    path: '/more',
+                    name: 'more',
+                    component: () => import('@/views/modules/More/index.vue'),
+                    meta: { requiresAuth: true }
+                },
             ]
         },
         // Rutas públicas

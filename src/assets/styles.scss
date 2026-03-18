@@ -32,4 +32,16 @@
             max-height: calc(100vh - 60px - 70px) !important; // Resta header y footer
         }
     }
+
+    /* Hide sidebar on mobile - bottom nav replaces it */
+    .layout-sidebar {
+        display: none !important;
+    }
+
+    /* Ensure main container has no left margin on mobile */
+    .layout-main-container {
+        margin-left: 0 !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
 }

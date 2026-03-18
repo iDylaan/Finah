@@ -5,6 +5,7 @@ import AppFooter from './AppFooter.vue';
 import AppSidebar from './AppSidebar.vue';
 import AppTopbar from './AppTopbar.vue';
 import AppSpeedDial from './AppSpeedDial.vue';
+import AppBottomNav from './AppBottomNav.vue';
 import TransactionModal from '@/views/modules/Transactions/components/TransactionModal.vue';
 
 const uiStore = useUIStore();
@@ -72,8 +73,9 @@ function onMaskClick() {
 <template>
     <div class="layout-wrapper" :class="containerClass">
         <app-topbar></app-topbar>
-        <app-sidebar></app-sidebar>
-        <div class="layout-main-container">
+        <!-- Sidebar solo visible en desktop -->
+        <app-sidebar v-if="!uiStore.isMobile"></app-sidebar>
+        <div class="layout-main-container" :class="{ 'pb-20': uiStore.isMobile }">
             <div class="layout-main">
                 <router-view v-slot="{ Component, route }">
                     <transition name="fade" mode="out-in">
@@ -83,10 +85,13 @@ function onMaskClick() {
                     </transition>
                 </router-view>
             </div>
-            <app-footer></app-footer>
-            <app-speed-dial></app-speed-dial>
+            <app-footer v-if="!uiStore.isMobile"></app-footer>
+            <!-- SpeedDial solo en desktop -->
+            <app-speed-dial v-if="!uiStore.isMobile"></app-speed-dial>
         </div>
         <transaction-modal></transaction-modal>
+        <!-- Bottom nav solo en mobile -->
+        <app-bottom-nav v-if="uiStore.isMobile"></app-bottom-nav>
         <div 
             v-if="uiStore.layoutState.overlayMenuActive || uiStore.layoutState.staticMenuMobileActive" 
             class="layout-mask animate-fadein"
